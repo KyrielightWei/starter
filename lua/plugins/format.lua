@@ -1,6 +1,5 @@
-local clang_format_ob_arg = {
-  "--style=",
-  '"{',
+local clang_format_ob_arg_str = {
+  "{",
   " BasedOnStyle: LLVM,",
   " AccessModifierOffset: -2,",
   " AlignEscapedNewlines: Left,",
@@ -30,10 +29,13 @@ local clang_format_ob_arg = {
   "    SplitEmptyNamespace: false},",
   " ColumnLimit: 100,",
   " AllowAllParametersOfDeclarationOnNextLine: false,",
-  ' AlignAfterOpenBracket: true}"',
+  " AlignAfterOpenBracket: true",
+  "}",
   -- "-assume-filename",
   -- util.escape_path(util.get_current_buffer_file_name()),
 }
+
+local clang_format_ob_arg = table.concat(clang_format_ob_arg_str, " ")
 
 local util = require("conform.util")
 
@@ -44,8 +46,9 @@ return {
       lua = { "stylua" },
       fish = { "fish_indent" },
       sh = { "shfmt" },
-      cpp = { "clang-format" },
+      cpp = { "clang_format_for_ob" },
     },
+    log_level = vim.log.levels.ERROR,
     formatters = {
       clang_format_for_ob = {
         -- This can be a string or a function that returns a string.
@@ -53,19 +56,20 @@ return {
         command = "clang-format",
         -- A list of strings, or a function that returns a list of strings
         -- Return a single string instead of a list to run the command in a shell
-        args = { clang_format_ob_arg, "-assume-filename", "$FILENAME" },
+        args = {  "-assume-filename", "$FILENAME", "--style", clang_format_ob_arg, },
         -- If the formatter supports range formatting, create the range arguments here
         range_args = function(self, ctx)
           local start_offset, end_offset = util.get_offsets_from_range(ctx.buf, ctx.range)
           local length = end_offset - start_offset
           return {
-            clang_format_ob_arg,
             "-assume-filename",
             "$FILENAME",
             "--offset",
             tostring(start_offset),
             "--length",
             tostring(length),
+           "--style",
+            clang_format_ob_arg,
           }
         end,
       },

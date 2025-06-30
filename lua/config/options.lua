@@ -15,3 +15,5 @@ vim.g.clipboard = {
 }
 
 vim.g.autoformat = false
+
+vim.opt.mouse = ''

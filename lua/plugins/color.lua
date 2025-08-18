@@ -28,7 +28,21 @@ return {
       },
     },
   },
-  { "LazyVim/LazyVim", opts = {
-    colorscheme = "evergarden",
-  } },
+  {
+    "dracula/vim",
+  },
+  {
+    "github-main-user/lytmode.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+        require('lytmode').setup()
+    end
+  },
+  {
+    "LazyVim/LazyVim",
+    opts = {
+      colorscheme = "lytmode",
+    },
+  },
 }

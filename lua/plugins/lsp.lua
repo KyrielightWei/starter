@@ -6,21 +6,34 @@ return {
         -- Ensure mason installs the server
         clangd = {
           autostart = false,
-          keys = {
-            { "<leader>ch", "<cmd>ClangdSwitchSourceHeader<cr>", desc = "Switch Source/Header (C/C++)" },
-          },
-          root_dir = function(fname)
-            return require("lspconfig.util").root_pattern(
+          root_dir = function()
+            local start_dir = ""
+            local bufname = vim.api.nvim_buf_get_name(0)
+            if bufname ~= "" then
+              start_dir = vim.fs.dirname(bufname)
+            else
+              start_dir = vim.loop.cwd()
+            end
+
+            local root_markers = {
               "Makefile",
               "configure.ac",
               "configure.in",
               "config.h.in",
               "meson.build",
               "meson_options.txt",
-              "build.ninja"
-            )(fname) or require("lspconfig.util").root_pattern("compile_commands.json", "compile_flags.txt")(
-           fname
-            ) or require("lspconfig.util").find_git_ancestor(fname)
+              "build.ninja",
+              "compile_commands.json",
+              "compile_flags.txt",
+              ".git",
+            }
+
+            local match = vim.fs.find(root_markers, { path = start_dir, upward = true })[1]
+            if not match then
+              return nil
+            else
+              return vim.fs.dirname(match)
+            end
           end,
           capabilities = {
             offsetEncoding = { "utf-16" },
@@ -151,7 +164,7 @@ return {
               },
               onChange = false,
               parametersInDeclarations = true,
-              threads = 8,
+              threads = 16,
               trackDependency = 2,
               whitelist = {},
             },
@@ -173,9 +186,9 @@ return {
         },
       },
       setup = {
-        ccls = function (_, opts)
-          return false; 
-        end, 
+        ccls = function(_, opts)
+          return false
+        end,
         clangd = function(_, opts)
           local clangd_ext_opts = LazyVim.opts("clangd_extensions.nvim")
           require("clangd_extensions").setup(vim.tbl_deep_extend("force", clangd_ext_opts or {}, { server = opts }))

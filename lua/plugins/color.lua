@@ -1,11 +1,46 @@
 return {
+  -- {
+  --   "glepnir/zephyr-nvim",
+  --   dependencies = { "nvim-treesitter/nvim-treesitter" },
+  -- },
+  -- {
+  --   "rebelot/kanagawa.nvim",
+  -- },
+  -- {
+  --   "dracula/vim",
+  -- },
   {
-    "glepnir/zephyr-nvim",
-    dependencies = { "nvim-treesitter/nvim-treesitter" },
+    "github-main-user/lytmode.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      require("lytmode").setup()
+    end,
   },
-  {
-    "rebelot/kanagawa.nvim",
-  },
+  -- {
+  --   "sainnhe/sonokai",
+  -- },
+  -- {
+  --   "ray-x/aurora",
+  --   init = function()
+  --     vim.g.aurora_italic = 1
+  --     vim.g.aurora_transparent = 1
+  --     vim.g.aurora_bold = 1
+  --   end,
+  --   config = function()
+  --     -- vim.cmd.colorscheme("aurora")
+  --     -- override defaults
+  --     vim.api.nvim_set_hl(0, "@number", { fg = "#e933e3" })
+  --   end,
+  -- },
+  -- {
+  --   "xero/miasma.nvim",
+  --   lazy = false,
+  --   priority = 1000,
+  --   config = function()
+  --     -- vim.cmd("colorscheme miasma")
+  --   end,
+  -- },
   {
     "everviolet/nvim",
     name = "evergarden",
@@ -20,24 +55,13 @@ return {
         sign = { color = "none" },
         float = {
           color = "mantle",
-          invert_border = false,
+          solid_border = false,
         },
         completion = {
           color = "surface0",
         },
       },
     },
-  },
-  {
-    "dracula/vim",
-  },
-  {
-    "github-main-user/lytmode.nvim",
-    lazy = false,
-    priority = 1000,
-    config = function()
-        require('lytmode').setup()
-    end
   },
   {
     "LazyVim/LazyVim",

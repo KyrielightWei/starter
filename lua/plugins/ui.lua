@@ -99,10 +99,12 @@ return {
       { "]B", "<cmd>BufferLineMoveNext<cr>", desc = "Move buffer next" },
     },
   },
-  -- {
-  --   "t9md/vim-choosewin",
-  --   keys = {
-  --     {"<leader>we", "<Cmd>ChooseWin<CR>", desc = "Choose window interactively"},
-  --   }
-  -- }
+  {
+    "akinsho/toggleterm.nvim",
+    version = "*",
+    opts = {
+      open_mapping = [[<leader>t]],
+      direction = 'float',
+    },
+  },
 }

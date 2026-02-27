@@ -14,6 +14,11 @@ vim.g.clipboard = {
   },
 }
 
+-- Root detection: prioritize .git directory to prevent searching outside project
+-- Order: .git -> LSP -> cwd
+-- This ensures search commands stay within the current project
+vim.g.root_spec = { { ".git", "lua" }, "lsp", "cwd" }
+
 vim.g.autoformat = false
 
 vim.opt.mouse = ''

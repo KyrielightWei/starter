@@ -6,3 +6,20 @@ debug
 foo.*
 *.log
 data
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Test files
+test_*.lua
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

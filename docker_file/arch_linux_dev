@@ -1,34 +1,31 @@
-# 使用官方 Arch Linux 镜像
+# 使用官方 Arch Linux 镜像 (2026 滚动更新版)
 FROM archlinux:latest
 
 # 自动识别架构 (x86_64 或 arm64)
 ARG TARGETARCH
 
 # 1. 核心系统更新与开发工具全家桶
-# 包含：基础开发, 编译器, 调试器, 现代 C++ 库, 数据库开发相关
+# 修正点：移除 locales，修正 noto-fonts-cjk，确保包含 base-devel
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
     base-devel cmake clang llvm gdb lldb \
     wget curl git unzip sudo zsh tmux neovim python python-pip \
     iputils iproute2 openssh openssl proxychains-ng \
     flex bison pkg-config autoconf automake \
-    nodejs npm locales fontconfig bear \
-    fonts-noto-cjk fmt spdlog nlohmann-json grpc protobuf \
+    nodejs npm fontconfig bear \
+    noto-fonts-cjk fmt spdlog nlohmann-json grpc protobuf \
     universal-ctags ccls
 
-# 2. 集成你补充的所有高效开发工具
-# 包含：代码格式化(clang-format, gofumpt, goimports, stylua, prettier, shfmt)
-# 包含：搜索与导航(fzf, fd, ripgrep)
-# 包含：语言服务器(clangd, gopls)
+# 2. 集成高效开发工具 (LSP, Formatter, CLI)
+# 修正点：这些在 Arch 官方仓库中均为标准包名
 RUN pacman -S --noconfirm \
-    clang \
     gofumpt goimports gopls \
     fzf fd ripgrep \
     stylua shfmt \
-    # Prettier 通常通过 npm 全局安装
     && npm install -g prettier
 
-# 3. 区域语言设置 (中文支持)
+# 3. 区域语言设置 (Arch 原生逻辑)
+# 通过 glibc 提供的 locale-gen 处理，无需额外安装包
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
     echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen
@@ -37,6 +34,7 @@ ENV LC_ALL=zh_CN.UTF-8
 ENV TERM=xterm-256color
 
 # 4. 安装 Mihomo (保持动态架构下载)
+# 原理：从 GitHub Release 获取对应架构的二进制文件
 RUN if [ "$TARGETARCH" = "arm64" ]; then M_ARCH="arm64"; else M_ARCH="amd64"; fi && \
     M_VER=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') && \
     curl -L -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${M_VER}/mihomo-linux-${M_ARCH}-${M_VER}.gz" && \
@@ -44,30 +42,35 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then M_ARCH="arm64"; else M_ARCH="amd64"; fi
     mkdir -p /etc/mihomo
 
 # 5. 创建个人用户 dev (初始密码 0000)
+# 权限说明：加入 wheel 组并开启 NOPASSWD 权限
 RUN useradd -m -G wheel -s /usr/bin/zsh dev && \
     echo "dev:0000" | chpasswd && \
     echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-# 6. 工具链安装：Rust & Go
+# 6. 编程语言运行时：Rust & Go
+# Rust 使用官方 rustup，Go 使用官方预编译包以匹配特定版本需求
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 RUN if [ "$TARGETARCH" = "arm64" ]; then G_ARCH="arm64"; else G_ARCH="amd64"; fi && \
     curl -LO "https://go.dev/dl/go1.22.0.linux-${G_ARCH}.tar.gz" && \
     tar -C /usr/local -xzf "go1.22.0.linux-${G_ARCH}.tar.gz" && rm *.tar.gz
 
-# 环境变量设置
+# 设置环境变量，确保 dev 用户能直接调用这些工具
 ENV PATH="/usr/local/go/bin:/home/dev/.cargo/bin:/home/dev/gowork/bin:${PATH}"
 
-# 7. 配置 SSH 服务
+# 7. SSH 服务配置
+# 开启密码登录并生成主机密钥
 RUN ssh-keygen -A && \
     sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitEmptyPasswords.*/PermitEmptyPasswords yes/' /etc/ssh/sshd_config
 
-# 8. 部署 OpenCode CLI 与 starter 项目
+# 8. 自动化部署：OpenCode CLI 与 starter 项目克隆
 RUN curl -fsSL https://opencode.ai/install | bash && \
     git clone --depth=1 https://github.com/KyrielightWei/starter.git /home/dev/starter && \
     chown -R dev:dev /home/dev/starter
 
+# 暴露必要端口：22(SSH), 7890(HTTP Proxy), 9090(Mihomo API)
 EXPOSE 22 7890 9090
 
-# 启动 SSH
+# 启动 SSH 守护进程
 CMD ["/usr/sbin/sshd", "-D"]

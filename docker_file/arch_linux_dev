@@ -1,11 +1,11 @@
-# 使用官方 Arch Linux 镜像 (2026 滚动更新版)
+# 使用官方 Arch Linux 镜像
 FROM archlinux:latest
 
 # 自动识别架构 (x86_64 或 arm64)
 ARG TARGETARCH
 
-# 1. 核心系统更新与开发工具全家桶
-# 修正点：移除 locales，修正 noto-fonts-cjk，确保包含 base-devel
+# 1. 核心系统更新与基础开发环境
+# 包含：基础编译工具链, 现代 C++ 库, 数据库开发相关依赖
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
     base-devel cmake clang llvm gdb lldb \
@@ -16,16 +16,15 @@ RUN pacman -Syu --noconfirm && \
     noto-fonts-cjk fmt spdlog nlohmann-json grpc protobuf \
     universal-ctags ccls
 
-# 2. 集成高效开发工具 (LSP, Formatter, CLI)
-# 修正点：这些在 Arch 官方仓库中均为标准包名
+# 2. 集成 Go 语言开发全家桶及代码辅助工具
+# 说明：Arch 中 goimports 包含在 go-tools 中
 RUN pacman -S --noconfirm \
-    gofumpt goimports gopls \
+    gofumpt go-tools gopls \
     fzf fd ripgrep \
     stylua shfmt \
     && npm install -g prettier
 
-# 3. 区域语言设置 (Arch 原生逻辑)
-# 通过 glibc 提供的 locale-gen 处理，无需额外安装包
+# 3. 区域语言与本地化配置 (Arch 专用逻辑)
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
     echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen
@@ -33,8 +32,7 @@ ENV LANG=zh_CN.UTF-8
 ENV LC_ALL=zh_CN.UTF-8
 ENV TERM=xterm-256color
 
-# 4. 安装 Mihomo (保持动态架构下载)
-# 原理：从 GitHub Release 获取对应架构的二进制文件
+# 4. 安装 Mihomo 内核 (适配 M1/x86 架构)
 RUN if [ "$TARGETARCH" = "arm64" ]; then M_ARCH="arm64"; else M_ARCH="amd64"; fi && \
     M_VER=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/') && \
     curl -L -o mihomo.gz "https://github.com/MetaCubeX/mihomo/releases/download/${M_VER}/mihomo-linux-${M_ARCH}-${M_VER}.gz" && \
@@ -42,23 +40,24 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then M_ARCH="arm64"; else M_ARCH="amd64"; fi
     mkdir -p /etc/mihomo
 
 # 5. 创建个人用户 dev (初始密码 0000)
-# 权限说明：加入 wheel 组并开启 NOPASSWD 权限
+# 配置 wheel 组免密 sudo
 RUN useradd -m -G wheel -s /usr/bin/zsh dev && \
     echo "dev:0000" | chpasswd && \
     echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 # 6. 编程语言运行时：Rust & Go
-# Rust 使用官方 rustup，Go 使用官方预编译包以匹配特定版本需求
+# Rust 使用官方 rustup 环境
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Go 使用官方预编译二进制包 (1.22.0)
 RUN if [ "$TARGETARCH" = "arm64" ]; then G_ARCH="arm64"; else G_ARCH="amd64"; fi && \
     curl -LO "https://go.dev/dl/go1.22.0.linux-${G_ARCH}.tar.gz" && \
     tar -C /usr/local -xzf "go1.22.0.linux-${G_ARCH}.tar.gz" && rm *.tar.gz
 
-# 设置环境变量，确保 dev 用户能直接调用这些工具
+# 配置全局环境变量
+# 包含 Go SDK, Rust Cargo, 以及用户的 GOPATH
 ENV PATH="/usr/local/go/bin:/home/dev/.cargo/bin:/home/dev/gowork/bin:${PATH}"
 
-# 7. SSH 服务配置
-# 开启密码登录并生成主机密钥
+# 7. SSH 服务及安全配置
 RUN ssh-keygen -A && \
     sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
@@ -69,8 +68,8 @@ RUN curl -fsSL https://opencode.ai/install | bash && \
     git clone --depth=1 https://github.com/KyrielightWei/starter.git /home/dev/starter && \
     chown -R dev:dev /home/dev/starter
 
-# 暴露必要端口：22(SSH), 7890(HTTP Proxy), 9090(Mihomo API)
+# 暴露端口：22(SSH), 7890(HTTP), 9090(API)
 EXPOSE 22 7890 9090
 
-# 启动 SSH 守护进程
+# 默认启动命令
 CMD ["/usr/sbin/sshd", "-D"]

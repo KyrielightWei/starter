@@ -10,6 +10,7 @@ local M = {}
 
 -- 存储基础配置，供后续使用
 local base_opts = nil
+local is_configured = false
 
 ----------------------------------------------------------------------
 -- 构建 Avante 配置
@@ -36,6 +37,11 @@ local function build_opts()
     chat          = { persist = true },
     actions       = { enabled = true },
     completion    = { enabled = true, provider = "avante" },
+    -- 建议 AI 主动使用 write_todos 工具
+    system_prompt = [[
+当你完成一个复杂任务时，建议使用 write_todos 工具来记录待办事项。
+这有助于用户跟踪任务进度。即使任务已经完成，你也可以创建 todo 来总结已完成的工作。
+]],
     -- 窗口配置
     windows = {
       position = "right",
@@ -134,7 +140,6 @@ end
 
 ----------------------------------------------------------------------
 -- 应用 API Key 和 Provider
-----------------------------------------------------------------------
 local function apply_ai_key_and_provider(avante, opts)
   local keys = Keys.read()
   if not keys then return end
@@ -153,15 +158,19 @@ local function apply_ai_key_and_provider(avante, opts)
     (_G.AI_MODEL and _G.AI_MODEL.model)
     or (opts.providers[provider] and opts.providers[provider].model)
 
-  local new_opts = vim.deepcopy(opts)
-  new_opts.provider = provider
-  new_opts.providers[provider] =
-    Util.merge_table(new_opts.providers[provider] or {}, {
-      api_key = key,
-      model   = final_model,
-    })
+  -- 只在首次配置时执行 setup，避免重复调用导致 tool calling 卡死
+  if not is_configured then
+    local new_opts = vim.deepcopy(opts)
+    new_opts.provider = provider
+    new_opts.providers[provider] =
+      Util.merge_table(new_opts.providers[provider] or {}, {
+        api_key = key,
+        model   = final_model,
+      })
 
-  avante.setup(new_opts)
+    avante.setup(new_opts)
+    is_configured = true
+  end
 
   _G.AI_MODEL          = _G.AI_MODEL or {}
   _G.AI_MODEL.provider = provider
@@ -173,29 +182,36 @@ end
 ----------------------------------------------------------------------
 local backend_impl = {
   -- 核心交互
-  -- Chat: 打开聊天窗口（侧边栏）
+  -- Chat: 打开聊天窗口（侧边栏，复用之前的会话）
   chat = function()
     local ok, avante = pcall(require, "avante")
     if not ok then
       vim.notify("avante.nvim not found", vim.log.levels.ERROR)
       return
     end
-    apply_ai_key_and_provider(avante, base_opts)
-    -- 直接打开侧边栏，不显示浮动窗口
     avante.open_sidebar({ ask = false })
   end,
 
-  -- Chat New: 创建新聊天（侧边栏模式）
+  -- Chat New: 创建新聊天（侧边栏，全新会话）
   chat_new = function()
-      local ok, api = pcall(require, "avante.api")
-      if not ok then
-        vim.notify("avante.api not found", vim.log.levels.ERROR)
-        return
-      end
-      local avante = require("avante")
-      apply_ai_key_and_provider(avante, base_opts)
-      -- 使用api.ask创建新聊天
-      api.ask({ new_chat = true, ask = false })
+    local ok, avante = pcall(require, "avante")
+    if not ok then
+      vim.notify("avante.nvim not found", vim.log.levels.ERROR)
+      return
+    end
+    -- 先关闭现有侧边栏
+    pcall(avante.close_sidebar)
+    -- 延迟打开新侧边栏并创建新聊天
+    vim.defer_fn(function()
+      avante.open_sidebar({ ask = false })
+      -- 获取侧边栏实例并创建新聊天
+      vim.defer_fn(function()
+        local sidebar = avante.get()
+        if sidebar and sidebar.new_chat then
+          sidebar:new_chat()
+        end
+      end, 100)
+    end, 50)
   end,
 
   -- Edit: 编辑选中的代码
@@ -235,6 +251,8 @@ local backend_impl = {
 
       base_opts.providers[choice.provider].model = choice.model
 
+      -- 切换模型时需要重新设置配置
+      is_configured = false
       apply_ai_key_and_provider(avante, base_opts)
       vim.notify("Switched to " .. choice.provider .. " / " .. choice.model, vim.log.levels.INFO)
     end)

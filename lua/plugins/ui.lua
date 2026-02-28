@@ -169,38 +169,38 @@ return {
         end,
       })
 
-        -- OpenCode AI 终端
-        local opencode_term = Terminal:new({
-          cmd = "opencode",
-          direction = "float",
-          float_opts = {
-            border = "curved",
-            winblend = 0,
-            width = function()
-              return math.floor(vim.o.columns * 0.8)
-            end,
-            height = function()
-              return math.floor(vim.o.lines * 0.8)
-            end,
-          },
-          on_open = function(term)
-            vim.cmd("startinsert!")
-            -- 设置终端名称
-            vim.api.nvim_buf_set_name(term.bufnr, "OpenCode")
+      -- OpenCode AI 终端
+      local opencode_term = Terminal:new({
+        cmd = "opencode",
+        direction = "float",
+        float_opts = {
+          border = "curved",
+          winblend = 0,
+          width = function()
+            return math.floor(vim.o.columns * 0.8)
           end,
-          on_exit = function(term, job, exit_code)
-            if exit_code ~= 0 then
-              vim.notify("OpenCode exited with code: " .. exit_code, vim.log.levels.WARN)
-            end
+          height = function()
+            return math.floor(vim.o.lines * 0.8)
           end,
-        })
-  
-        -- 终端管理表
-        _G.terminals = {
-          float = float_term,
-          horizontal = horizontal_term,
-          vertical = vertical_term,
-          opencode = opencode_term,
+        },
+        on_open = function(term)
+          vim.cmd("startinsert!")
+          -- 设置终端名称
+          vim.api.nvim_buf_set_name(term.bufnr, "OpenCode")
+        end,
+        on_exit = function(term, job, exit_code)
+          if exit_code ~= 0 then
+            vim.notify("OpenCode exited with code: " .. exit_code, vim.log.levels.WARN)
+          end
+        end,
+      })
+
+      -- 终端管理表
+      _G.terminals = {
+        float = float_term,
+        horizontal = horizontal_term,
+        vertical = vertical_term,
+        opencode = opencode_term,
         list = {},
       }
 

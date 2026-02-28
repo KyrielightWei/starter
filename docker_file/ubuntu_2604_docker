@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 ubuntu:22.04
+FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=zh_CN.UTF-8
@@ -6,7 +6,7 @@ ENV LANGUAGE=zh_CN:zh
 ENV LC_ALL=zh_CN.UTF-8
 ENV TERM=xterm-256color
 
-# 安装系统依赖、开发工具以及构建 Neovim 所需的 ninja-build 和 gettext
+# 安装系统依赖和开发工具
 RUN apt-get update && apt-get upgrade -y && \
     apt-get install -y \
     build-essential cmake clangd llvm clang libclang-dev \
@@ -16,16 +16,17 @@ RUN apt-get update && apt-get upgrade -y && \
     global nodejs npm proxychains-ng locales fontconfig \
     fonts-noto-cjk fonts-noto-color-emoji libtool libtool-bin \
     libfmt-dev libspdlog-dev nlohmann-json3-dev libgrpc++-dev \
-    protobuf-compiler-grpc openssh-server ninja-build gettext && \
+    protobuf-compiler-grpc openssh-server && \
     locale-gen zh_CN.UTF-8 && \
     fc-cache -fv
 
-# 从源码编译安装 Neovim 0.11.6 (适配 ARM64)
-RUN git clone --branch v0.11.6 --depth 1 https://github.com/neovim/neovim.git /tmp/neovim && \
-    cd /tmp/neovim && \
-    make CMAKE_BUILD_TYPE=Release && \
-    make install && \
-    cd / && rm -rf /tmp/neovim
+# 安装 Neovim 0.11.6（覆盖系统版本，修复下载链接）
+RUN curl -L -o nvim-linux-x86_64.tar.gz https://github.com/neovim/neovim/releases/download/v0.11.6/nvim-linux-x86_64.tar.gz && \
+    tar -xzf nvim-linux-x86_64.tar.gz && \
+    mv nvim-linux-x86_64/bin/* /usr/local/bin/ && \
+    mv nvim-linux-x86_64/lib/* /usr/local/lib/ && \
+    mv nvim-linux-x86_64/share/* /usr/local/share/ && \
+    rm -rf nvim-linux-x86_64* nvim-linux-x86_64.tar.gz
 
 # 安装 universal-ctags
 RUN git clone https://github.com/universal-ctags/ctags.git /tmp/ctags && \
@@ -44,17 +45,17 @@ RUN git clone --depth=1 --recursive https://github.com/MaskRay/ccls /tmp/ccls &&
     cd /tmp/ccls && cmake -H. -BRelease && cmake --build Release && cmake --install Release && \
     cd / && rm -rf /tmp/ccls
 
-# 安装 OpenCode 最新 CLI
+# 安装 OpenCode 最新 CLI（保留自动更新）
 RUN curl -fsSL https://opencode.ai/install | bash
 
-# 安装 Rust
+# 安装 Rust（使用 rustup）
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# 安装 Go (强制指定为 arm64 架构包)
-RUN curl -LO https://go.dev/dl/go1.22.0.linux-arm64.tar.gz && \
-    tar -C /usr/local -xzf go1.22.0.linux-arm64.tar.gz && \
-    rm go1.22.0.linux-arm64.tar.gz
+# 安装 Go（使用官方预编译包）
+RUN curl -LO https://go.dev/dl/go1.22.0.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz && \
+    rm go1.22.0.linux-amd64.tar.gz
 ENV GOROOT=/usr/local/go
 ENV GOPATH=/root/gowork
 ENV PATH="${GOROOT}/bin:${GOPATH}/bin:${PATH}"
@@ -73,4 +74,6 @@ RUN sed -i "s/#Port 22/Port 22/" /etc/ssh/sshd_config && \
     ssh-keygen -A && \
     mkdir -p /run/sshd
 
+# 默认 shell 和启动命令
 CMD ["/usr/sbin/sshd", "-D"]
+

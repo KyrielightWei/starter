@@ -16,7 +16,8 @@ RUN apt-get update && apt-get upgrade -y && \
     global nodejs npm proxychains-ng locales fontconfig \
     fonts-noto-cjk fonts-noto-color-emoji libtool libtool-bin \
     libfmt-dev libspdlog-dev nlohmann-json3-dev libgrpc++-dev \
-    protobuf-compiler-grpc openssh-server && \
+    protobuf-compiler-grpc openssh-server \
+    fzf ripgrep fd-find shfmt && \
     locale-gen zh_CN.UTF-8 && \
     fc-cache -fv
 
@@ -51,6 +52,8 @@ RUN curl -fsSL https://opencode.ai/install | bash
 # 安装 Rust（使用 rustup）
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN cargo install stylua
 
 # 安装 Go（使用官方预编译包）
 RUN curl -LO https://go.dev/dl/go1.22.0.linux-amd64.tar.gz && \

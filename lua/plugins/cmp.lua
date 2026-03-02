@@ -1,43 +1,33 @@
--- 为 CodeCompanion 启用 AI 补全源 + 图标 + 优先级
+-- AI 补全配置（avante.nvim 内嵌补全）
 
 return {
-  -- {
-  --   "saghen/blink.cmp",
-  --   opts = {
-  --     sources = {
-  --       default = {
-  --         "lsp",
-  --         "path",
-  --         "snippets",
-  --         "buffer",
-  --         "codecompanion", -- ⭐ 必须添加这一行
-  --       },
-  --
-  --       -- -- ⭐ 设置补全源优先级（数值越大越靠前）
-  --       -- priority = {
-  --       --   codecompanion = 120,
-  --       --   lsp = 100,
-  --       --   snippets = 90,
-  --       --   path = 80,
-  --       --   buffer = 70,
-  --       -- },
-  --       --
-  --       -- -- ⭐ 为补全源添加图标
-  --       -- icons = {
-  --       --   codecompanion = "", -- AI 图标
-  --       -- },
-  --     },
-  --
-  --     -- -- ⭐ 排序规则：AI 建议靠前
-  --     -- sorting = {
-  --     --   comparators = {
-  --     --     "priority", -- 先按优先级
-  --     --     "score",    -- 再按匹配分数
-  --     --     "kind",
-  --     --     "label",
-  --     --   },
-  --     -- },
-  --   },
-  -- },
+  {
+    "saghen/blink.cmp",
+    opts = {
+      sources = {
+        default = {
+          "lsp",
+          "path",
+          "snippets",
+          "buffer",
+        },
+
+        priority = {
+          lsp = 100,
+          snippets = 90,
+          path = 80,
+          buffer = 70,
+        },
+      },
+
+      completion = {
+        accept = {
+          auto_brackets = {
+            enabled = true,
+          },
+        },
+      },
+    },
+  },
 }
 

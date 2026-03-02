@@ -11,6 +11,7 @@ local M = {}
 -- 存储基础配置，供后续使用
 local base_opts = nil
 local is_configured = false
+local avante_setup_done = false
 
 ----------------------------------------------------------------------
 -- 构建 Avante 配置
@@ -140,7 +141,7 @@ end
 
 ----------------------------------------------------------------------
 -- 应用 API Key 和 Provider
-local function apply_ai_key_and_provider(avante, opts)
+local function apply_ai_key_and_provider(avante, opts, force_setup)
   local keys = Keys.read()
   if not keys then return end
 
@@ -151,15 +152,13 @@ local function apply_ai_key_and_provider(avante, opts)
   local key = Keys.get_key(provider)
   local env_var = Util.get_env_var(provider)
 
-  vim.env[env_var]       = key
-  vim.env.OPENAI_API_KEY = key
+  vim.env[env_var] = key
 
   local final_model =
     (_G.AI_MODEL and _G.AI_MODEL.model)
     or (opts.providers[provider] and opts.providers[provider].model)
 
-  -- 只在首次配置时执行 setup，避免重复调用导致 tool calling 卡死
-  if not is_configured then
+  if not is_configured or force_setup then
     local new_opts = vim.deepcopy(opts)
     new_opts.provider = provider
     new_opts.providers[provider] =
@@ -252,8 +251,7 @@ local backend_impl = {
       base_opts.providers[choice.provider].model = choice.model
 
       -- 切换模型时需要重新设置配置
-      is_configured = false
-      apply_ai_key_and_provider(avante, base_opts)
+      apply_ai_key_and_provider(avante, base_opts, true)
       vim.notify("Switched to " .. choice.provider .. " / " .. choice.model, vim.log.levels.INFO)
     end)
   end,
@@ -462,11 +460,26 @@ function M.setup()
 
   -- 构建配置
   base_opts = build_opts()
-  avante.setup(base_opts)
 
-  -- 应用初始配置
+  if not avante_setup_done then
+    avante.setup(base_opts)
+    avante_setup_done = true
+  end
+
+  -- 应用初始配置（只设置环境变量和模型，不重新调用 avante.setup）
   pcall(function()
-    apply_ai_key_and_provider(avante, base_opts)
+    local keys = Keys.read()
+    if keys then
+      local provider = base_opts.provider or "openai"
+      local key = Keys.get_key(provider)
+      local env_var = Util.get_env_var(provider)
+      vim.env[env_var] = key
+
+      _G.AI_MODEL = _G.AI_MODEL or {}
+      _G.AI_MODEL.provider = provider
+      _G.AI_MODEL.model = base_opts.providers[provider] and base_opts.providers[provider].model
+      is_configured = true
+    end
   end)
 
   -- 返回后端实现，由 ai/init.lua 注册

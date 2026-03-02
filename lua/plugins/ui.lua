@@ -169,38 +169,11 @@ return {
         end,
       })
 
-      -- OpenCode AI 终端
-      local opencode_term = Terminal:new({
-        cmd = "opencode",
-        direction = "float",
-        float_opts = {
-          border = "curved",
-          winblend = 0,
-          width = function()
-            return math.floor(vim.o.columns * 0.8)
-          end,
-          height = function()
-            return math.floor(vim.o.lines * 0.8)
-          end,
-        },
-        on_open = function(term)
-          vim.cmd("startinsert!")
-          -- 设置终端名称
-          vim.api.nvim_buf_set_name(term.bufnr, "OpenCode")
-        end,
-        on_exit = function(term, job, exit_code)
-          if exit_code ~= 0 then
-            vim.notify("OpenCode exited with code: " .. exit_code, vim.log.levels.WARN)
-          end
-        end,
-      })
-
       -- 终端管理表
       _G.terminals = {
         float = float_term,
         horizontal = horizontal_term,
         vertical = vertical_term,
-        opencode = opencode_term,
         list = {},
       }
 
@@ -217,16 +190,6 @@ return {
         vertical_term:toggle()
       end
 
-        -- OpenCode 终端
-        _G.toggle_opencode = function()
-          -- 检查 opencode 是否存在
-          if vim.fn.executable("opencode") ~= 1 then
-            vim.notify("opencode not found in PATH. Please install it first.", vim.log.levels.ERROR)
-            return
-          end
-          opencode_term:toggle()
-        end
-  
       -- 创建新终端
       _G.new_terminal = function()
         local term = Terminal:new({
@@ -344,11 +307,9 @@ return {
       { "<leader>tn", "<cmd>lua new_terminal()<CR>", desc = "New Terminal" },
       { "<leader>ts", "<cmd>lua select_terminal()<CR>", desc = "Select Terminal" },
       { "<leader>tr", "<cmd>lua toggle_term_root()<CR>", desc = "Terminal (Root Dir)" },
-        -- OpenCode AI 终端
-        { "<leader>to", "<cmd>lua toggle_opencode()<CR>", desc = "OpenCode AI Terminal" },
       -- 发送代码到终端
       { "<leader>tl", "<cmd>lua send_line_to_term()<CR>", desc = "Send Line to Terminal" },
-      { "<leader>tl", "<cmd>lua send_selection_to_term()<CR>", mode = "v", desc = "Send Selection to Terminal" },
+      { "<leader>tL", "<cmd>lua send_selection_to_term()<CR>", mode = "v", desc = "Send Selection to Terminal" },
       -- 终端内快捷键（兼容性更好的快捷键）
       { "<C-q>", [[<C-\><C-n>]], mode = "t", desc = "Terminal Normal Mode" },
       { "<C-h>", [[<C-\><C-n><C-w>h]], mode = "t", desc = "Terminal: Go Left" },

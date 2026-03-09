@@ -32,17 +32,13 @@ local function build_opts()
     end
   end
 
-  return {
-    provider      = "deepseek",
+return {
+    provider      = Providers.default_provider,
     providers     = providers_tbl,
     chat          = { persist = true },
     actions       = { enabled = true },
     completion    = { enabled = true, provider = "avante" },
-    -- 建议 AI 主动使用 write_todos 工具
-    system_prompt = [[
-当你完成一个复杂任务时，建议使用 write_todos 工具来记录待办事项。
-这有助于用户跟踪任务进度。即使任务已经完成，你也可以创建 todo 来总结已完成的工作。
-]],
+    system_prompt = require("ai.system_prompt").for_tool("avante"),
     -- 窗口配置
     windows = {
       position = "right",

@@ -3,20 +3,31 @@
 
 local M = {}
 
-local function get_config_dir()
+-- OpenCode CLI 配置目录 (~/.config/opencode/)
+local function get_opencode_config_dir()
+  local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+  return xdg_config .. "/opencode"
+end
+
+-- Neovim 配置目录 (存放模板)
+local function get_nvim_config_dir()
   return vim.fn.stdpath("config")
 end
 
 local function get_opencode_config_path()
-  return get_config_dir() .. "/opencode.json"
+  return get_opencode_config_dir() .. "/opencode.json"
 end
 
 local function get_opencode_template_path()
-  return get_config_dir() .. "/opencode.template.jsonc"
+  return get_nvim_config_dir() .. "/opencode.template.jsonc"
 end
 
 local function get_opencode_auth_path()
-  return get_config_dir() .. "/opencode_auth.json"
+  return get_opencode_config_dir() .. "/opencode_auth.json"
+end
+
+local function get_opencode_tui_path()
+  return get_opencode_config_dir() .. "/tui.json"
 end
 
 local function read_ai_keys()
@@ -311,7 +322,13 @@ local function format_json(obj, indent)
       return "{\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "}"
     end
   elseif type(obj) == "string" then
-    return string.format("%q", obj)
+    local escaped = obj
+      :gsub("\\", "\\\\")
+      :gsub('"', '\\"')
+      :gsub("\n", "\\n")
+      :gsub("\r", "\\r")
+      :gsub("\t", "\\t")
+    return '"' .. escaped .. '"'
   elseif type(obj) == "number" or type(obj) == "boolean" then
     return tostring(obj)
   elseif obj == nil then
@@ -366,14 +383,11 @@ function M.generate_config()
     show_validation_result(errors, warnings, false)
   end
 
-  local keys, profile = read_ai_keys()
+local keys, profile = read_ai_keys()
   local dynamic_providers, auth_config = build_provider_config(keys, profile)
 
-  local base_config = {
-    ["$schema"] = "https://opencode.ai/config.json",
-    model = "glm-5",
-    provider = {},
-  }
+  local Resolver = require("ai.config_resolver")
+  local base_config = Resolver.get_defaults()
 
   local config = deep_merge(base_config, template_config)
 
@@ -392,6 +406,12 @@ function M.write_config()
     return false
   end
 
+  -- 确保 OpenCode 配置目录存在
+  local opencode_dir = get_opencode_config_dir()
+  if vim.fn.isdirectory(opencode_dir) == 0 then
+    vim.fn.mkdir(opencode_dir, "p")
+  end
+
   local config_path = get_opencode_config_path()
   local config_content = format_json(config)
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
@@ -406,10 +426,24 @@ function M.write_config()
     table.insert(auth_lines, string.format('  "%s": "%s"', provider, key))
     first = false
   end
-  table.insert(auth_lines, "}")
+table.insert(auth_lines, "}")
   vim.fn.writefile(auth_lines, auth_path)
 
-  vim.notify(string.format("✅ OpenCode 配置已更新:\n- %s\n- %s", config_path, auth_path), vim.log.levels.INFO)
+  local tui_path = get_opencode_tui_path()
+  local tui_config = {
+    ["$schema"] = "https://opencode.ai/tui.json",
+    keybinds = {
+      leader = "ctrl+/",
+      normal = {
+        ["ctrl+u"] = "page_up",
+        ["ctrl+d"] = "page_down",
+      },
+    },
+  }
+  local tui_content = format_json(tui_config)
+  vim.fn.writefile(vim.split(tui_content, "\n"), tui_path)
+
+  vim.notify(string.format("✅ OpenCode 配置已更新:\n- %s\n- %s\n- %s", config_path, auth_path, tui_path), vim.log.levels.INFO)
   return true
 end
 
@@ -484,43 +518,36 @@ function M.preview_config()
 end
 
 function M.toggle_terminal()
-  if vim.fn.executable("opencode") ~= 1 then
-    vim.notify("opencode not found. Install: npm install -g @opencode/cli", vim.log.levels.ERROR)
-    return
-  end
+  local Terminal = require("ai.terminal")
+  Terminal.toggle("opencode")
+end
 
-  if not _G.opencode_terminal then
-    local ok, term_module = pcall(require, "toggleterm.terminal")
-    if not ok then
-      vim.notify("toggleterm.nvim not installed", vim.log.levels.ERROR)
-      return
-    end
+function M.open_with_context(opts)
+  opts = opts or {}
+  local Terminal = require("ai.terminal")
+  Terminal.toggle_with_context("opencode", opts)
+end
 
-    _G.opencode_terminal = term_module.Terminal:new({
-      cmd = "opencode",
-      direction = "float",
-      float_opts = {
-        border = "curved",
-        winblend = 0,
-        width = function()
-          return math.floor(vim.o.columns * 0.8)
-        end,
-        height = function()
-          return math.floor(vim.o.lines * 0.8)
-        end,
-      },
-      on_open = function(term)
-        vim.cmd("startinsert!")
-        vim.api.nvim_buf_set_name(term.bufnr, "OpenCode")
-      end,
-      on_exit = function(term, job, exit_code)
-        if exit_code ~= 0 then
-          vim.notify("OpenCode exited with code: " .. exit_code, vim.log.levels.WARN)
-        end
-      end,
-    })
+function M.check_installation()
+  if vim.fn.executable("opencode") == 1 then
+    return true, "OpenCode is installed"
   end
-  _G.opencode_terminal:toggle()
+  return false, "OpenCode not found. Install: npm install -g @opencode/cli"
+end
+
+function M.get_status()
+  local installed, message = M.check_installation()
+  local config_exists = vim.fn.filereadable(get_opencode_config_path()) == 1
+  local template_exists = vim.fn.filereadable(get_opencode_template_path()) == 1
+
+  return {
+    installed = installed,
+    message = message,
+    config_exists = config_exists,
+    template_exists = template_exists,
+    config_path = get_opencode_config_path(),
+    template_path = get_opencode_template_path(),
+  }
 end
 
 return M

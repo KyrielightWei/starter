@@ -3,6 +3,12 @@
 
 local M = {}
 
+----------------------------------------------------------------------
+-- 全局默认值（所有工具统一使用）
+----------------------------------------------------------------------
+M.default_provider = "bailian_coding"
+M.default_model = "glm-5"
+
 -- 注册 provider
 function M.register(name, conf)
   M[name] = {

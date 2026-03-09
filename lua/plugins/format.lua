@@ -43,10 +43,49 @@ return {
   "stevearc/conform.nvim",
   opts = {
     formatters_by_ft = {
+      -- Lua
       lua = { "stylua" },
-      fish = { "fish_indent" },
-      sh = { "shfmt" },
+
+      -- JSON / JSONC
+      json = { "jq" },
+      jsonc = { "prettier" },
+
+      -- JavaScript / TypeScript
+      javascript = { "prettier" },
+      typescript = { "prettier" },
+      javascriptreact = { "prettier" },
+      typescriptreact = { "prettier" },
+
+      -- HTML / CSS / Markdown
+      html = { "prettier" },
+      css = { "prettier" },
+      scss = { "prettier" },
+      markdown = { "prettier" },
+
+      -- YAML
+      yaml = { "prettier" },
+
+      -- Python
+      python = { "ruff_format" },
+
+      -- Go
+      go = { "goimports", "gofmt" },
+
+      -- Rust
+      rust = { "rustfmt" },
+
+      -- C / C++
+      c = { "clang_format_for_ob" },
       cpp = { "clang_format_for_ob" },
+
+      -- Shell
+      sh = { "shfmt" },
+
+      -- Fish
+      fish = { "fish_indent" },
+
+      -- TOML
+      toml = { "taplo" },
     },
     log_level = vim.log.levels.ERROR,
     formatters = {

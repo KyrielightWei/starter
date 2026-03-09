@@ -20,11 +20,14 @@ RUN pacman -Syu --noconfirm && \
 # 说明：Arch 中 goimports 包含在 go-tools 中
 RUN pacman -S --noconfirm \
     gofumpt go-tools gopls \
-    fzf fd ripgrep \
+    fzf fd ripgrep jq \
     stylua shfmt \
     && npm install -g prettier
 
-# 3. 区域语言与本地化配置 (Arch 专用逻辑)
+# 3. 安装 Python 格式化工具
+RUN pip install ruff --break-system-packages
+
+# 4. 区域语言与本地化配置 (Arch 专用逻辑)
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
     echo "zh_CN.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen
@@ -56,6 +59,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then G_ARCH="arm64"; else G_ARCH="amd64"; fi
 # 配置全局环境变量
 # 包含 Go SDK, Rust Cargo, 以及用户的 GOPATH
 ENV PATH="/usr/local/go/bin:/home/dev/.cargo/bin:/home/dev/gowork/bin:${PATH}"
+
+# 安装 Rust 格式化工具 taplo
+RUN cargo install taplo-cli --locked
 
 # 7. SSH 服务及安全配置
 RUN ssh-keygen -A && \

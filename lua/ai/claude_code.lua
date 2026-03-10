@@ -181,8 +181,22 @@ local function build_provider_settings()
   end
 
   local api_key = Keys.get_key(provider_name) or ""
-  -- 使用 Claude Code 专用的 base_url（如果配置了的话）
-  local endpoint = Keys.get_base_url_claude(provider_name)
+  local config = Keys.get_config(provider_name)
+  local endpoint = ""
+  local using_fallback = false
+  
+  -- 优先使用 base_url_claude
+  if config.base_url_claude and config.base_url_claude ~= "" then
+    endpoint = config.base_url_claude
+  elseif config.base_url and config.base_url ~= "" then
+    -- 回退到 base_url
+    endpoint = config.base_url
+    using_fallback = true
+  else
+    -- 最后回退到 providers.lua 默认值
+    endpoint = Keys.get_base_url(provider_name)
+    using_fallback = true
+  end
   
   local model = Providers.default_model
 
@@ -205,6 +219,17 @@ local function build_provider_settings()
   local settings = {}
   if vim.tbl_count(env) > 0 then
     settings.env = env
+  end
+  
+  -- 告警：base_url_claude 未配置
+  if using_fallback then
+    vim.notify(
+      string.format(
+        "⚠️  Claude Code: base_url_claude 未配置，使用 %s\n建议在 :AIEditKeys 中设置专用的 base_url_claude",
+        endpoint ~= "" and endpoint or "默认值"
+      ),
+      vim.log.levels.WARN
+    )
   end
 
   return settings

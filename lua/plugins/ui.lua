@@ -317,7 +317,7 @@ return {
       { "<C-k>", [[<C-\><C-n><C-w>k]], mode = "t", desc = "Terminal: Go Up" },
       { "<C-l>", [[<C-\><C-n><C-w>l]], mode = "t", desc = "Terminal: Go Right" },
       -- 备用快捷键（某些终端可能不支持 Ctrl+方向键）
-      { "<Esc>", [[<C-\><C-n>]], mode = "t", desc = "Terminal Normal Mode (Esc)" },
+      { "<M-q>", [[<C-\><C-n>]], mode = "t", desc = "Terminal Normal Mode (Alt+Q)" },
       { "<C-[>", [[<C-\><C-n>]], mode = "t", desc = "Terminal Normal Mode (Alt)" },
       -- 方向键备用方案
       { "<C-Up>", [[<C-\><C-n><C-w>k]], mode = "t", desc = "Terminal: Go Up (Ctrl+Up)" },

@@ -181,13 +181,9 @@ local function build_provider_settings()
   end
 
   local api_key = Keys.get_key(provider_name) or ""
-  local endpoint = provider_def.endpoint or ""
+  -- 使用 Claude Code 专用的 base_url（如果配置了的话）
+  local endpoint = Keys.get_base_url_claude(provider_name)
   
-  -- 替换环境变量占位符
-  endpoint = endpoint:gsub("{(%w+_BASE_ENDPOINT)}", function(var)
-    return os.getenv(var) or ""
-  end)
-
   local model = Providers.default_model
 
   local env = {}

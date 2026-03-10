@@ -88,6 +88,11 @@ vim.api.nvim_create_user_command("AIExportKeys", function()
   require("ai.sync").export_to_env_file()
 end, { desc = "Export API keys to env file" })
 
+-- API Key 和 Base URL 管理
+vim.api.nvim_create_user_command("AIEditKeys", function()
+  require("ai.keys").edit()
+end, { desc = "Edit API keys and base URLs" })
+
 -- 上下文命令
 vim.api.nvim_create_user_command("AICopyContext", function()
   local Context = require("ai.context")

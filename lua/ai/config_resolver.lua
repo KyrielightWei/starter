@@ -234,7 +234,6 @@ function M.read_project_config()
 end
 
 function M.build_provider_config()
-  local keys = Keys.read() or {}
   local provider_config = {}
   local auth_config = {}
 
@@ -261,10 +260,8 @@ function M.build_provider_config()
           models_config[model_id] = { name = model_id }
         end
 
-        local endpoint = provider_def.endpoint
-        endpoint = endpoint:gsub("{(%w+_BASE_ENDPOINT)}", function(var)
-          return os.getenv(var) or ""
-        end)
+        -- 使用 key 文件中的 base_url (OpenAI 风格)
+        local endpoint = Keys.get_base_url(provider_name)
 
         provider_config[provider_name] = {
           npm = "@ai-sdk/openai-compatible",

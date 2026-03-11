@@ -40,7 +40,15 @@ local function read_ai_keys()
 
   for provider, profiles in pairs(keys_data) do
     if provider ~= "profile" and type(profiles) == "table" then
-      keys[provider] = profiles[profile] or profiles["default"] or ""
+      local config = profiles[profile] or profiles["default"]
+      -- 兼容新旧格式
+      if type(config) == "table" then
+        keys[provider] = config.api_key or ""
+      elseif type(config) == "string" then
+        keys[provider] = config
+      else
+        keys[provider] = ""
+      end
     end
   end
 
@@ -133,7 +141,10 @@ local function strip_jsonc_comments(content)
     end
   end
 
-  return table.concat(result)
+  local clean = table.concat(result)
+  -- 去除尾随逗号 (JSON 不允许)
+  clean = clean:gsub(",%s*([}%]])", "%1")
+  return clean
 end
 
 local function validate_template(config)
@@ -211,8 +222,9 @@ local function read_template_config()
   local errors = {}
   local warnings = {}
 
-  if vim.fn.filereadable(template_path) == 0 then
-    table.insert(warnings, "模板文件不存在，将使用默认配置")
+if vim.fn.filereadable(template_path) == 0 then
+    table.insert(warnings, "OpenCode 模板文件不存在: " .. template_path)
+    table.insert(warnings, "将使用默认配置，运行 :OpenCodeEditTemplate 创建模板")
     return {}, errors, warnings
   end
 
@@ -384,9 +396,9 @@ function M.generate_config()
   end
 
 local keys, profile = read_ai_keys()
-  local dynamic_providers, auth_config = build_provider_config(keys, profile)
-
   local Resolver = require("ai.config_resolver")
+  local dynamic_providers, auth_config = Resolver.build_provider_config()
+
   local base_config = Resolver.get_defaults()
 
   local config = deep_merge(base_config, template_config)
@@ -412,6 +424,17 @@ function M.write_config()
     vim.fn.mkdir(opencode_dir, "p")
   end
 
+  -- 写入 instructions.md 文件
+  local instructions_md_path = opencode_dir .. "/instructions.md"
+  local SystemPrompt = require("ai.system_prompt")
+  local instructions_content = SystemPrompt.for_tool("opencode")
+  vim.fn.writefile(vim.split(instructions_content, "\n"), instructions_md_path)
+
+  -- 设置 build agent 的 system prompt (使用 {file:...} 引用)
+  config.agent = config.agent or {}
+  config.agent.build = config.agent.build or {}
+  config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
+
   local config_path = get_opencode_config_path()
   local config_content = format_json(config)
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
@@ -426,7 +449,7 @@ function M.write_config()
     table.insert(auth_lines, string.format('  "%s": "%s"', provider, key))
     first = false
   end
-table.insert(auth_lines, "}")
+  table.insert(auth_lines, "}")
   vim.fn.writefile(auth_lines, auth_path)
 
   local tui_path = get_opencode_tui_path()
@@ -443,7 +466,7 @@ table.insert(auth_lines, "}")
   local tui_content = format_json(tui_config)
   vim.fn.writefile(vim.split(tui_content, "\n"), tui_path)
 
-  vim.notify(string.format("✅ OpenCode 配置已更新:\n- %s\n- %s\n- %s", config_path, auth_path, tui_path), vim.log.levels.INFO)
+  vim.notify(string.format("✅ OpenCode 配置已更新:\n- %s\n- %s\n- %s\n- %s", config_path, auth_path, tui_path, instructions_md_path), vim.log.levels.INFO)
   return true
 end
 

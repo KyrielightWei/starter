@@ -46,9 +46,13 @@ vim.api.nvim_create_user_command("ClaudeCodeGenerateConfig", function()
   require("ai.claude_code").write_settings()
 end, { desc = "Generate Claude Code settings" })
 
+vim.api.nvim_create_user_command("ClaudeCodeEditTemplate", function()
+  require("ai.claude_code").edit_template()
+end, { desc = "Edit Claude Code template" })
+
 vim.api.nvim_create_user_command("ClaudeCodeEditConfig", function()
   require("ai.claude_code").edit_settings()
-end, { desc = "Edit Claude Code settings" })
+end, { desc = "Edit generated Claude Code settings" })
 
 vim.api.nvim_create_user_command("ClaudeCodePreviewConfig", function()
   require("ai.claude_code").preview_settings()

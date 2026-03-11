@@ -67,6 +67,97 @@ local function get_api_key_path()
   return get_config_dir() .. "/api_key.txt"
 end
 
+local function get_template_path()
+  return vim.fn.stdpath("config") .. "/claude_code.template.jsonc"
+end
+
+local function strip_jsonc_comments(content)
+  local result = {}
+  local in_string = false
+  local escape_next = false
+  local i = 1
+
+  while i <= #content do
+    local char = content:sub(i, i)
+
+    if escape_next then
+      table.insert(result, char)
+      escape_next = false
+      i = i + 1
+    elseif char == "\\" and in_string then
+      table.insert(result, char)
+      escape_next = true
+      i = i + 1
+    elseif char == '"' then
+      table.insert(result, char)
+      in_string = not in_string
+      i = i + 1
+    elseif not in_string then
+      if char == "/" and i < #content then
+        local next_char = content:sub(i + 1, i + 1)
+        if next_char == "/" then
+          while i <= #content and content:sub(i, i) ~= "\n" do
+            i = i + 1
+          end
+        elseif next_char == "*" then
+          i = i + 2
+          while i <= #content do
+            if content:sub(i, i) == "*" and i < #content and content:sub(i + 1, i + 1) == "/" then
+              i = i + 2
+              break
+            end
+            i = i + 1
+          end
+        else
+          table.insert(result, char)
+          i = i + 1
+        end
+      else
+        table.insert(result, char)
+        i = i + 1
+      end
+    else
+      table.insert(result, char)
+      i = i + 1
+    end
+  end
+
+  local clean = table.concat(result)
+  
+  -- 去除尾随逗号 (JSON 不允许)
+  -- 匹配: , 后面跟着空白和 } 或 ]
+  clean = clean:gsub(",%s*([}%]])", "%1")
+
+  return clean
+end
+
+local function read_template()
+  local template_path = get_template_path()
+  local warnings = {}
+
+  if vim.fn.filereadable(template_path) == 0 then
+    return {}, warnings
+  end
+
+  local content = table.concat(vim.fn.readfile(template_path), "\n")
+  local clean_content = strip_jsonc_comments(content)
+
+  local ok, config = pcall(vim.json.decode, clean_content)
+  if not ok then
+    table.insert(warnings, "Claude Code 模板解析错误: " .. tostring(config))
+    return {}, warnings
+  end
+
+  local result = {}
+  for k, v in pairs(config or {}) do
+    if k:sub(1, 1) ~= "$" or k == "$schema" then
+      result[k] = v
+    end
+  end
+
+  return result, warnings
+end
+
 local function ensure_config_dir()
   local dir = get_config_dir()
   if vim.fn.isdirectory(dir) == 0 then
@@ -158,11 +249,24 @@ local function read_settings()
   return settings
 end
 
+local function is_array(t)
+  if type(t) ~= "table" then return false end
+  local i = 0
+  for _ in pairs(t) do
+    i = i + 1
+    if t[i] == nil then return false end
+  end
+  return true
+end
+
 local function merge_settings(base, override)
   local result = vim.deepcopy(base)
 
   for key, value in pairs(override) do
-    if type(value) == "table" and type(result[key]) == "table" then
+    -- 如果两个都是数组，直接覆盖
+    if is_array(value) and is_array(result[key]) then
+      result[key] = vim.deepcopy(value)
+    elseif type(value) == "table" and type(result[key]) == "table" then
       result[key] = merge_settings(result[key], value)
     else
       result[key] = value
@@ -238,12 +342,17 @@ end
 function M.generate_settings(opts)
   opts = opts or {}
 
-  local Resolver = require("ai.config_resolver")
   local default_settings = get_default_settings()
+  local template_settings, template_warnings = read_template()
   local provider_settings = build_provider_settings()
-  local existing_settings = read_settings() or {}
 
-  local settings = merge_settings(default_settings, existing_settings)
+  -- 显示模板警告
+  if #template_warnings > 0 then
+    vim.notify(table.concat(template_warnings, "\n"), vim.log.levels.WARN)
+  end
+
+  -- 合并顺序：默认 -> 模板 -> provider (key文件)
+  local settings = merge_settings(default_settings, template_settings)
   settings = merge_settings(settings, provider_settings)
 
   if opts.model then
@@ -278,6 +387,42 @@ function M.edit_settings()
   end
 
   vim.cmd("edit " .. path)
+end
+
+function M.edit_template()
+  local template_path = get_template_path()
+
+  if vim.fn.filereadable(template_path) == 0 then
+    local default_template = [[{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  // Claude Code 配置模板
+  // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
+  // 
+  // 合并顺序：默认配置 -> 模板配置 -> key文件配置
+  // 后面的配置会覆盖前面的
+
+  // 示例：覆盖权限配置
+  // "permissions": {
+  //   "allow": ["Read", "Write", "Edit", "Bash"],
+  //   "deny": ["Bash(rm -rf /*)"],
+  //   "ask": ["Bash(sudo *)"]
+  // },
+
+  // 示例：禁用沙盒
+  // "sandbox": {
+  //   "enabled": false
+  // },
+
+  // 示例：添加环境变量
+  // "env": {
+  //   "MY_CUSTOM_VAR": "value"
+  // }
+}]]
+    vim.fn.writefile(vim.split(default_template, "\n"), template_path)
+  end
+
+  vim.cmd("edit " .. template_path)
 end
 
 function M.preview_settings()

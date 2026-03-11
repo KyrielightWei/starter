@@ -161,15 +161,12 @@ local function get_project_config_path()
 end
 
 function M.get_defaults()
-  local SystemPrompt = require("ai.system_prompt")
-  
   return {
     ["$schema"] = "https://opencode.ai/config.json",
     model = Providers.default_model,
     small_model = Providers.default_model,
     autoupdate = true,
     share = "manual",
-    instructions = { SystemPrompt.for_tool("opencode") },
     permission = {
       edit = "ask",
       bash = "ask",

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  // Claude Code 配置模板
+  // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
+  // 
+  // 合并顺序：默认配置 -> 模板配置 -> key文件配置
+  // 后面的配置会覆盖前面的
+
+  // 示例：覆盖权限配置
+  // "permissions": {
+  //   "allow": ["Read", "Write", "Edit", "Bash"],
+  //   "deny": ["Bash(rm -rf /*)"],
+  //   "ask": ["Bash(sudo *)"]
+  // },
+
+  // 示例：禁用沙盒
+  // "sandbox": {
+  //   "enabled": false
+  // },
+
+  // 示例：添加环境变量
+  // "env": {
+  //   "MY_CUSTOM_VAR": "value"
+  // }
+}

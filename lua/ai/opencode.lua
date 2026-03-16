@@ -30,6 +30,32 @@ local function get_opencode_tui_path()
   return get_opencode_config_dir() .. "/tui.json"
 end
 
+local function get_oh_my_opencode_path()
+  return get_opencode_config_dir() .. "/oh-my-opencode.json"
+end
+
+local function read_oh_my_opencode_config()
+  local omo_path = get_oh_my_opencode_path()
+  
+  if vim.fn.filereadable(omo_path) == 0 then
+    return {}
+  end
+  
+  local ok, content = pcall(vim.fn.readfile, omo_path)
+  if not ok then
+    return {}
+  end
+  
+  local json_str = table.concat(content, "\n")
+  local ok2, config = pcall(vim.json.decode, json_str)
+  if not ok2 then
+    vim.notify("oh-my-opencode.json 解析失败: " .. tostring(config), vim.log.levels.WARN)
+    return {}
+  end
+  
+  return config or {}
+end
+
 local function read_ai_keys()
   local ok, Keys = pcall(require, "ai.keys")
   if not ok then return {} end
@@ -435,10 +461,40 @@ function M.write_config()
   config.agent.build = config.agent.build or {}
   config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
 
+  -- 注册 oh-my-opencode 插件
+  config.plugin = config.plugin or {}
+  if not vim.tbl_contains(config.plugin, "oh-my-opencode") then
+    table.insert(config.plugin, "oh-my-opencode")
+  end
+
+  -- 检查插件安装状态
+  local missing_plugins = {}
+  for _, plugin_name in ipairs(config.plugin) do
+    local installed = false
+    -- 检查全局安装
+    local result = vim.fn.systemlist("npm list -g " .. plugin_name .. " 2>/dev/null")
+    if vim.v.shell_error == 0 and #result > 0 then
+      installed = true
+    end
+    -- 检查本地 node_modules
+    if not installed then
+      local local_path = opencode_dir .. "/node_modules/" .. plugin_name
+      if vim.fn.isdirectory(local_path) == 1 then
+        installed = true
+      end
+    end
+    
+    if not installed then
+      table.insert(missing_plugins, plugin_name)
+    end
+  end
+
+  -- 写入 opencode.json（OpenCode 官方配置）
   local config_path = get_opencode_config_path()
   local config_content = format_json(config)
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
 
+  -- 写入 auth 配置
   local auth_path = get_opencode_auth_path()
   local auth_lines = { "{" }
   local first = true
@@ -452,21 +508,97 @@ function M.write_config()
   table.insert(auth_lines, "}")
   vim.fn.writefile(auth_lines, auth_path)
 
-  local tui_path = get_opencode_tui_path()
-  local tui_config = {
-    ["$schema"] = "https://opencode.ai/tui.json",
-    keybinds = {
-      leader = "ctrl+/",
-      normal = {
-        ["ctrl+u"] = "page_up",
-        ["ctrl+d"] = "page_down",
-      },
-    },
-  }
-  local tui_content = format_json(tui_config)
-  vim.fn.writefile(vim.split(tui_content, "\n"), tui_path)
+  -- 生成/更新 oh-my-opencode.json
+  local omo_config = read_oh_my_opencode_config()
+  local omo_needs_update = vim.tbl_isempty(omo_config)
+  
+  if omo_needs_update then
+    -- 智能生成 OMO 配置
+    local ModelSelector = require("ai.model_selector")
+    local available_models = {}
+    
+    for provider_name, provider_def in pairs(config.provider or {}) do
+      if provider_def.models then
+        for model_name, _ in pairs(provider_def.models) do
+          table.insert(available_models, {
+            name = model_name,
+            provider = provider_name,
+          })
+        end
+      end
+    end
+    
+    if #available_models > 0 then
+      omo_config = ModelSelector.generate_omo_config(available_models)
+      
+      -- 写入 oh-my-opencode.json
+      local omo_path = get_oh_my_opencode_path()
+      omo_config["$schema"] = "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json"
+      local omo_content = format_json(omo_config)
+      vim.fn.writefile(vim.split(omo_content, "\n"), omo_path)
+    end
+  end
 
-  vim.notify(string.format("✅ OpenCode 配置已更新:\n- %s\n- %s\n- %s\n- %s", config_path, auth_path, tui_path, instructions_md_path), vim.log.levels.INFO)
+  -- 打印配置结果
+  local lines = { "✅ OpenCode 配置生成成功", "" }
+  
+  if omo_config.agents and next(omo_config.agents) then
+    local agent_names = {}
+    for name in pairs(omo_config.agents) do
+      table.insert(agent_names, name)
+    end
+    table.sort(agent_names)
+    table.insert(lines, "📋 OMO Agents:")
+    for _, name in ipairs(agent_names) do
+      local cfg = omo_config.agents[name]
+      table.insert(lines, string.format("  %-18s → %s", name, cfg.model or "N/A"))
+    end
+    table.insert(lines, "")
+  end
+  
+  if omo_config.categories and next(omo_config.categories) then
+    local cat_names = {}
+    for name in pairs(omo_config.categories) do
+      table.insert(cat_names, name)
+    end
+    table.sort(cat_names)
+    table.insert(lines, "📦 OMO Categories:")
+    for _, name in ipairs(cat_names) do
+      local cfg = omo_config.categories[name]
+      table.insert(lines, string.format("  %-18s → %s", name, cfg.model or "N/A"))
+    end
+  end
+  
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+
+  -- 处理缺失的插件
+  if #missing_plugins > 0 then
+    vim.defer_fn(function()
+      vim.ui.select(
+        missing_plugins,
+        {
+          prompt = "以下插件未安装，是否安装？\n（未安装时插件配置不生效，但不影响 OpenCode 运行）",
+          format_item = function(item)
+            return item
+          end,
+        },
+        function(choice, idx)
+          if choice then
+            -- 安装选中的插件
+            vim.notify("正在安装 " .. choice .. "...", vim.log.levels.INFO)
+            local install_cmd = "npm install -g " .. choice
+            local result = vim.fn.system(install_cmd)
+            if vim.v.shell_error == 0 then
+              vim.notify("✅ " .. choice .. " 安装成功", vim.log.levels.INFO)
+            else
+              vim.notify("❌ " .. choice .. " 安装失败: " .. result, vim.log.levels.ERROR)
+            end
+          end
+        end
+      )
+    end, 100)
+  end
+
   return true
 end
 

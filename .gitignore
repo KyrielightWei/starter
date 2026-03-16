@@ -23,3 +23,6 @@ test_*.lua
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent evidence
+.sisyphus/

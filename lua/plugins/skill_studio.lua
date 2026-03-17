@@ -1,9 +1,4 @@
 -- lua/plugins/skill_studio.lua
--- Skill Studio - loaded as local module
+-- Skill Studio is loaded via lua/ai/ module, not as a separate plugin
 
-vim.defer_fn(function()
-  local ok, SkillStudio = pcall(require, "ai.skill_studio")
-  if ok then
-    SkillStudio.setup()
-  end
-end, 100)
+return {}

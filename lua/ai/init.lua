@@ -178,6 +178,11 @@ function M.setup(opts)
     end
   end
 
+  local ok, SkillStudio = pcall(require, "ai.skill_studio")
+  if ok then
+    SkillStudio.setup()
+  end
+
   return M
 end
 

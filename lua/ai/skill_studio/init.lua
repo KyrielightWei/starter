@@ -1,6 +1,5 @@
 -- lua/ai/skill_studio/init.lua
 -- Skill/MCP Authoring Studio for Claude Code and OpenCode
--- Provides creation, validation, conversion, and management of skills, commands, and MCP configs
 
 local M = {}
 
@@ -9,6 +8,8 @@ local Validator = require("ai.skill_studio.validator")
 local Converter = require("ai.skill_studio.converter")
 local StudioUI = require("ai.skill_studio.ui")
 local Reviewer = require("ai.skill_studio.reviewer")
+
+local _setup_done = false
 
 ----------------------------------------------------------------------
 -- Configuration
@@ -115,16 +116,16 @@ $ARGUMENTS
 -- Setup
 ----------------------------------------------------------------------
 function M.setup(opts)
+  if _setup_done then
+    return M
+  end
+  _setup_done = true
+
   opts = opts or {}
   config = vim.tbl_deep_extend("force", config, opts)
 
-  -- Ensure backup directory exists
   Backup.setup(config.backup_dir)
-
-  -- Setup UI
   StudioUI.setup(config)
-
-  -- Register commands
   M.register_commands()
 
   return M

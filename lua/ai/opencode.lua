@@ -36,29 +36,31 @@ end
 
 local function read_oh_my_opencode_config()
   local omo_path = get_oh_my_opencode_path()
-  
+
   if vim.fn.filereadable(omo_path) == 0 then
     return {}
   end
-  
+
   local ok, content = pcall(vim.fn.readfile, omo_path)
   if not ok then
     return {}
   end
-  
+
   local json_str = table.concat(content, "\n")
   local ok2, config = pcall(vim.json.decode, json_str)
   if not ok2 then
     vim.notify("oh-my-opencode.json 解析失败: " .. tostring(config), vim.log.levels.WARN)
     return {}
   end
-  
+
   return config or {}
 end
 
 local function read_ai_keys()
   local ok, Keys = pcall(require, "ai.keys")
-  if not ok then return {} end
+  if not ok then
+    return {}
+  end
 
   local keys_data = Keys.read() or {}
   local keys = {}
@@ -83,7 +85,9 @@ end
 
 local function read_ai_providers()
   local ok, Providers = pcall(require, "ai.providers")
-  if not ok then return {} end
+  if not ok then
+    return {}
+  end
 
   local providers = {}
   for name, def in pairs(Providers) do
@@ -248,7 +252,7 @@ local function read_template_config()
   local errors = {}
   local warnings = {}
 
-if vim.fn.filereadable(template_path) == 0 then
+  if vim.fn.filereadable(template_path) == 0 then
     table.insert(warnings, "OpenCode 模板文件不存在: " .. template_path)
     table.insert(warnings, "将使用默认配置，运行 :OpenCodeEditTemplate 创建模板")
     return {}, errors, warnings
@@ -360,12 +364,7 @@ local function format_json(obj, indent)
       return "{\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "}"
     end
   elseif type(obj) == "string" then
-    local escaped = obj
-      :gsub("\\", "\\\\")
-      :gsub('"', '\\"')
-      :gsub("\n", "\\n")
-      :gsub("\r", "\\r")
-      :gsub("\t", "\\t")
+    local escaped = obj:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
     return '"' .. escaped .. '"'
   elseif type(obj) == "number" or type(obj) == "boolean" then
     return tostring(obj)
@@ -421,7 +420,7 @@ function M.generate_config()
     show_validation_result(errors, warnings, false)
   end
 
-local keys, profile = read_ai_keys()
+  local keys, profile = read_ai_keys()
   local Resolver = require("ai.config_resolver")
   local dynamic_providers, auth_config = Resolver.build_provider_config()
 
@@ -483,7 +482,7 @@ function M.write_config()
         installed = true
       end
     end
-    
+
     if not installed then
       table.insert(missing_plugins, plugin_name)
     end
@@ -511,12 +510,12 @@ function M.write_config()
   -- 生成/更新 oh-my-opencode.json
   local omo_config = read_oh_my_opencode_config()
   local omo_needs_update = vim.tbl_isempty(omo_config)
-  
+
   if omo_needs_update then
     -- 智能生成 OMO 配置
     local ModelSelector = require("ai.model_selector")
     local available_models = {}
-    
+
     for provider_name, provider_def in pairs(config.provider or {}) do
       if provider_def.models then
         for model_name, _ in pairs(provider_def.models) do
@@ -527,13 +526,14 @@ function M.write_config()
         end
       end
     end
-    
+
     if #available_models > 0 then
       omo_config = ModelSelector.generate_omo_config(available_models)
-      
+
       -- 写入 oh-my-opencode.json
       local omo_path = get_oh_my_opencode_path()
-      omo_config["$schema"] = "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json"
+      omo_config["$schema"] =
+        "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json"
       local omo_content = format_json(omo_config)
       vim.fn.writefile(vim.split(omo_content, "\n"), omo_path)
     end
@@ -541,7 +541,7 @@ function M.write_config()
 
   -- 打印配置结果
   local lines = { "✅ OpenCode 配置生成成功", "" }
-  
+
   if omo_config.agents and next(omo_config.agents) then
     local agent_names = {}
     for name in pairs(omo_config.agents) do
@@ -551,11 +551,12 @@ function M.write_config()
     table.insert(lines, "📋 OMO Agents:")
     for _, name in ipairs(agent_names) do
       local cfg = omo_config.agents[name]
-      table.insert(lines, string.format("  %-18s → %s", name, cfg.model or "N/A"))
+      local model_display = cfg.model or "N/A"
+      table.insert(lines, string.format("  %-18s → %s", name, model_display))
     end
     table.insert(lines, "")
   end
-  
+
   if omo_config.categories and next(omo_config.categories) then
     local cat_names = {}
     for name in pairs(omo_config.categories) do
@@ -565,37 +566,34 @@ function M.write_config()
     table.insert(lines, "📦 OMO Categories:")
     for _, name in ipairs(cat_names) do
       local cfg = omo_config.categories[name]
-      table.insert(lines, string.format("  %-18s → %s", name, cfg.model or "N/A"))
+      local model_display = cfg.model or "N/A"
+      table.insert(lines, string.format("  %-18s → %s", name, model_display))
     end
   end
-  
+
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 
   -- 处理缺失的插件
   if #missing_plugins > 0 then
     vim.defer_fn(function()
-      vim.ui.select(
-        missing_plugins,
-        {
-          prompt = "以下插件未安装，是否安装？\n（未安装时插件配置不生效，但不影响 OpenCode 运行）",
-          format_item = function(item)
-            return item
-          end,
-        },
-        function(choice, idx)
-          if choice then
-            -- 安装选中的插件
-            vim.notify("正在安装 " .. choice .. "...", vim.log.levels.INFO)
-            local install_cmd = "npm install -g " .. choice
-            local result = vim.fn.system(install_cmd)
-            if vim.v.shell_error == 0 then
-              vim.notify("✅ " .. choice .. " 安装成功", vim.log.levels.INFO)
-            else
-              vim.notify("❌ " .. choice .. " 安装失败: " .. result, vim.log.levels.ERROR)
-            end
+      vim.ui.select(missing_plugins, {
+        prompt = "以下插件未安装，是否安装？\n（未安装时插件配置不生效，但不影响 OpenCode 运行）",
+        format_item = function(item)
+          return item
+        end,
+      }, function(choice, idx)
+        if choice then
+          -- 安装选中的插件
+          vim.notify("正在安装 " .. choice .. "...", vim.log.levels.INFO)
+          local install_cmd = "npm install -g " .. choice
+          local result = vim.fn.system(install_cmd)
+          if vim.v.shell_error == 0 then
+            vim.notify("✅ " .. choice .. " 安装成功", vim.log.levels.INFO)
+          else
+            vim.notify("❌ " .. choice .. " 安装失败: " .. result, vim.log.levels.ERROR)
           end
         end
-      )
+      end)
     end, 100)
   end
 

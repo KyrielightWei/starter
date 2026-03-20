@@ -10,12 +10,12 @@ local M = {}
 local model_profiles = {
   -- Bailian Coding models
   ["glm-5"] = {
-    reasoning = 9,      -- Strong reasoning
-    speed = 7,          -- Good speed
-    coding = 9,         -- Excellent for code
-    creativity = 7,     -- Good creativity
-    context = 8,        -- Good context handling
-    cost = 8,           -- Cost-effective
+    reasoning = 9, -- Strong reasoning
+    speed = 7, -- Good speed
+    coding = 9, -- Excellent for code
+    creativity = 7, -- Good creativity
+    context = 8, -- Good context handling
+    cost = 8, -- Cost-effective
     tags = { "reasoning", "coding", "balanced" },
   },
   ["qwen3.5-plus"] = {
@@ -31,18 +31,18 @@ local model_profiles = {
     reasoning = 8,
     speed = 6,
     coding = 7,
-    creativity = 9,     -- Excellent for creative tasks
-    context = 10,       -- Very long context
+    creativity = 9, -- Excellent for creative tasks
+    context = 10, -- Very long context
     cost = 6,
     tags = { "creative", "long-context" },
   },
   ["MiniMax-M2.5"] = {
     reasoning = 7,
-    speed = 9,          -- Very fast
+    speed = 9, -- Very fast
     coding = 6,
     creativity = 6,
     context = 6,
-    cost = 9,           -- Very cost-effective
+    cost = 9, -- Very cost-effective
     tags = { "fast", "cheap" },
   },
 
@@ -57,7 +57,7 @@ local model_profiles = {
     tags = { "balanced" },
   },
   ["deepseek-reasoner"] = {
-    reasoning = 10,     -- Best for reasoning
+    reasoning = 10, -- Best for reasoning
     speed = 5,
     coding = 7,
     creativity = 6,
@@ -192,7 +192,7 @@ local function score_model(model_name, requirement)
 
   -- Weight by priorities
   for i, prio in ipairs(priorities) do
-    local weight = 10 - i  -- First priority gets 10, second gets 9, etc.
+    local weight = 10 - i -- First priority gets 10, second gets 9, etc.
     score = score + (profile[prio] or 5) * weight
   end
 
@@ -201,7 +201,7 @@ local function score_model(model_name, requirement)
     if key:match("^min_") then
       local attr = key:gsub("^min_", "")
       if profile[attr] and profile[attr] < min_val then
-        score = score * 0.5  -- Penalty for not meeting minimum
+        score = score * 0.5 -- Penalty for not meeting minimum
       end
     end
   end
@@ -237,7 +237,11 @@ function M.select_for_agent(agent_name, available_models)
   local requirement = agent_requirements[agent_name]
   if not requirement then
     -- Default to balanced model
-    return available_models[1] and available_models[1].name
+    local m = available_models[1]
+    if m then
+      return { modelID = m.name, providerID = m.provider }
+    end
+    return nil
   end
 
   local best_model = nil
@@ -247,11 +251,14 @@ function M.select_for_agent(agent_name, available_models)
     local score = score_model(model.name, requirement)
     if score > best_score then
       best_score = score
-      best_model = model.name
+      best_model = model
     end
   end
 
-  return best_model
+  if best_model then
+    return { modelID = best_model.name, providerID = best_model.provider }
+  end
+  return nil
 end
 
 ----------------------------------------------------------------------
@@ -260,7 +267,11 @@ end
 function M.select_for_category(category_name, available_models)
   local requirement = category_requirements[category_name]
   if not requirement then
-    return available_models[1] and available_models[1].name
+    local m = available_models[1]
+    if m then
+      return { modelID = m.name, providerID = m.provider }
+    end
+    return nil
   end
 
   local best_model = nil
@@ -270,11 +281,14 @@ function M.select_for_category(category_name, available_models)
     local score = score_model(model.name, requirement)
     if score > best_score then
       best_score = score
-      best_model = model.name
+      best_model = model
     end
   end
 
-  return best_model
+  if best_model then
+    return { modelID = best_model.name, providerID = best_model.provider }
+  end
+  return nil
 end
 
 ----------------------------------------------------------------------
@@ -303,17 +317,19 @@ function M.generate_omo_config(available_models, default_provider)
 
   -- Select models for each agent
   for agent_name, _ in pairs(agent_requirements) do
-    local model = M.select_for_agent(agent_name, available_models)
-    if model then
-      config.agents[agent_name] = { model = model }
+    local model_obj = M.select_for_agent(agent_name, available_models)
+    if model_obj then
+      -- oh-my-opencode expects model as string "providerID/modelID"
+      config.agents[agent_name] = { model = string.format("%s/%s", model_obj.providerID, model_obj.modelID) }
     end
   end
 
   -- Select models for each category
   for category_name, _ in pairs(category_requirements) do
-    local model = M.select_for_category(category_name, available_models)
-    if model then
-      config.categories[category_name] = { model = model }
+    local model_obj = M.select_for_category(category_name, available_models)
+    if model_obj then
+      -- oh-my-opencode expects model as string "providerID/modelID"
+      config.categories[category_name] = { model = string.format("%s/%s", model_obj.providerID, model_obj.modelID) }
     end
   end
 

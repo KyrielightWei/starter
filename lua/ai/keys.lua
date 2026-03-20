@@ -154,12 +154,12 @@ end
 ----------------------------------------------------------------------
 function M.get_base_url(provider)
   local config = M.get_config(provider)
-  
+
   -- 优先使用 key 文件中的配置
   if config.base_url and config.base_url ~= "" then
     return config.base_url
   end
-  
+
   -- 回退到 providers.lua 中的默认值
   local def = Providers.get(provider)
   if def and def.endpoint then
@@ -169,7 +169,7 @@ function M.get_base_url(provider)
     end)
     return endpoint
   end
-  
+
   return ""
 end
 

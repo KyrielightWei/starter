@@ -6,6 +6,21 @@ local M = {}
 local Providers = require("ai.providers")
 local Keys = require("ai.keys")
 
+-- 判断 table 是否为纯数组（所有 key 为连续整数）
+local function tbl_is_array(t)
+  if type(t) ~= "table" then
+    return false
+  end
+  local i = 0
+  for _ in pairs(t) do
+    i = i + 1
+    if t[i] == nil then
+      return false
+    end
+  end
+  return i > 0
+end
+
 local function format_json(obj, indent)
   indent = indent or 0
   local spacing = string.rep("  ", indent)
@@ -15,10 +30,9 @@ local function format_json(obj, indent)
       return "{}"
     end
 
-    local is_array = #obj > 0
     local items = {}
 
-    if is_array then
+    if tbl_is_array(obj) then
       for i, v in ipairs(obj) do
         table.insert(items, spacing .. "  " .. format_json(v, indent + 1))
       end
@@ -37,14 +51,9 @@ local function format_json(obj, indent)
       end
       return "{\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "}"
     end
-elseif type(obj) == "string" then
+  elseif type(obj) == "string" then
     -- JSON 字符串转义
-    local escaped = obj
-      :gsub("\\", "\\\\")
-      :gsub('"', '\\"')
-      :gsub("\n", "\\n")
-      :gsub("\r", "\\r")
-      :gsub("\t", "\\t")
+    local escaped = obj:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
     return '"' .. escaped .. '"'
   elseif type(obj) == "number" or type(obj) == "boolean" then
     return tostring(obj)
@@ -123,7 +132,7 @@ local function strip_jsonc_comments(content)
   end
 
   local clean = table.concat(result)
-  
+
   -- 去除尾随逗号 (JSON 不允许)
   -- 匹配: , 后面跟着空白和 } 或 ]
   clean = clean:gsub(",%s*([}%]])", "%1")
@@ -168,7 +177,7 @@ end
 
 local function get_default_settings()
   local SystemPrompt = require("ai.system_prompt")
-  
+
   return {
     append_system_prompt = SystemPrompt.for_tool("claude_code"),
     env = {
@@ -231,6 +240,12 @@ local function get_default_settings()
         allowLocalBinding = false,
       },
     },
+    -- ccstatusline 状态栏配置
+    statusLine = {
+      type = "command",
+      command = "npx -y ccstatusline@latest",
+      padding = 0,
+    },
   }
 end
 
@@ -249,22 +264,12 @@ local function read_settings()
   return settings
 end
 
-local function is_array(t)
-  if type(t) ~= "table" then return false end
-  local i = 0
-  for _ in pairs(t) do
-    i = i + 1
-    if t[i] == nil then return false end
-  end
-  return true
-end
-
 local function merge_settings(base, override)
   local result = vim.deepcopy(base)
 
   for key, value in pairs(override) do
     -- 如果两个都是数组，直接覆盖
-    if is_array(value) and is_array(result[key]) then
+    if tbl_is_array(value) and tbl_is_array(result[key]) then
       result[key] = vim.deepcopy(value)
     elseif type(value) == "table" and type(result[key]) == "table" then
       result[key] = merge_settings(result[key], value)
@@ -279,7 +284,7 @@ end
 local function build_provider_settings()
   local provider_name = Providers.default_provider
   local provider_def = Providers.get(provider_name)
-  
+
   if not provider_def then
     return {}
   end
@@ -288,7 +293,7 @@ local function build_provider_settings()
   local config = Keys.get_config(provider_name)
   local endpoint = ""
   local using_fallback = false
-  
+
   -- 优先使用 base_url_claude
   if config.base_url_claude and config.base_url_claude ~= "" then
     endpoint = config.base_url_claude
@@ -301,7 +306,7 @@ local function build_provider_settings()
     endpoint = Keys.get_base_url(provider_name)
     using_fallback = true
   end
-  
+
   local model = Providers.default_model
 
   local env = {}
@@ -324,7 +329,7 @@ local function build_provider_settings()
   if vim.tbl_count(env) > 0 then
     settings.env = env
   end
-  
+
   -- 告警：base_url_claude 未配置
   if using_fallback then
     vim.notify(
@@ -367,10 +372,14 @@ function M.write_settings(opts)
 
   ensure_config_dir()
 
-  local settings = M.generate_settings(opts)
+  local generated = M.generate_settings(opts)
   local path = get_settings_path()
 
-  local content = format_json(settings)
+  -- 读取现有配置，保留未被生成器管理的字段（如 model、ECC 手动配置等）
+  local existing = read_settings() or {}
+  local final = merge_settings(existing, generated)
+
+  local content = format_json(final)
   local lines = vim.split(content, "\n")
   vim.fn.writefile(lines, path)
 
@@ -398,9 +407,9 @@ function M.edit_template()
 
   // Claude Code 配置模板
   // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
-  // 
-  // 合并顺序：默认配置 -> 模板配置 -> key文件配置
-  // 后面的配置会覆盖前面的
+  //
+  // 合并顺序：existing settings -> 默认配置 -> 模板配置 -> key文件配置
+  // 模板配置会覆盖默认值，但不会删除 existing 中的额外字段（如 model）
 
   // 示例：覆盖权限配置
   // "permissions": {
@@ -413,6 +422,16 @@ function M.edit_template()
   // "sandbox": {
   //   "enabled": false
   // },
+
+  // 示例：自定义 ccstatusline 状态栏
+  // "statusLine": {
+  //   "type": "command",
+  //   "command": "npx -y ccstatusline@latest",
+  //   "padding": 0
+  // },
+
+  // 示例：设置模型（此字段保留在 existing 中，不会被生成器覆盖）
+  // "model": "opus[1m]",
 
   // 示例：添加环境变量
   // "env": {
@@ -461,15 +480,102 @@ function M.check_installation()
   return false, "Claude Code is not installed. Install with: npm install -g @anthropic-ai/claude-code"
 end
 
+----------------------------------------------------------------------
+-- check_dependencies(): 检测环境依赖，返回状态列表（不执行安装）
+----------------------------------------------------------------------
+function M.check_dependencies()
+  local deps = {}
+
+  -- Node.js
+  local node_installed = vim.fn.executable("node") == 1
+  table.insert(deps, {
+    name = "Node.js",
+    installed = node_installed,
+    install_hint = "https://nodejs.org/ 或: curl -fsSL https://fnm.vercel.app/install | bash",
+  })
+
+  -- npm
+  local npm_installed = vim.fn.executable("npm") == 1
+  table.insert(deps, {
+    name = "npm",
+    installed = npm_installed,
+    install_hint = "随 Node.js 一起安装",
+  })
+
+  -- npx
+  local npx_installed = vim.fn.executable("npx") == 1
+  table.insert(deps, {
+    name = "npx",
+    installed = npx_installed,
+    install_hint = "随 Node.js 一起安装",
+  })
+
+  -- Claude Code CLI
+  local claude_installed = vim.fn.executable("claude") == 1
+  table.insert(deps, {
+    name = "Claude Code CLI",
+    installed = claude_installed,
+    install_hint = "npm install -g @anthropic-ai/claude-code",
+  })
+
+  -- ccstatusline（通过 npx 按需运行，仅需 npx 可用）
+  table.insert(deps, {
+    name = "ccstatusline",
+    installed = npx_installed,
+    install_hint = "需要 npm/npx (通过 npx -y ccstatusline@latest 按需运行)",
+  })
+
+  -- ECC 框架
+  local ecc_state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
+  local ecc_installed = vim.fn.filereadable(ecc_state_path) == 1
+  table.insert(deps, {
+    name = "ECC Framework",
+    installed = ecc_installed,
+    install_hint = "参考: https://github.com/anthropics/claude-code-ecc",
+  })
+
+  return deps
+end
+
+----------------------------------------------------------------------
+-- get_ecc_status(): 获取 ECC 框架安装状态
+----------------------------------------------------------------------
+function M.get_ecc_status()
+  local ecc_state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
+  if vim.fn.filereadable(ecc_state_path) == 0 then
+    return nil
+  end
+
+  local content = table.concat(vim.fn.readfile(ecc_state_path), "\n")
+  local ok, state = pcall(vim.json.decode, content)
+  if not ok then
+    return nil
+  end
+
+  return {
+    installed_at = state.installedAt,
+    modules = (state.resolution or {}).selectedModules or {},
+    schema_version = state.schemaVersion,
+    repo_version = (state.source or {}).repoVersion,
+  }
+end
+
 function M.get_status()
   local installed, message = M.check_installation()
   local config_exists = vim.fn.filereadable(get_settings_path()) == 1
+  local ecc = M.get_ecc_status()
+  local deps = M.check_dependencies()
+  local missing_deps = vim.tbl_filter(function(d)
+    return not d.installed
+  end, deps)
 
   return {
     installed = installed,
     message = message,
     config_exists = config_exists,
     config_path = get_settings_path(),
+    ecc = ecc,
+    missing_deps = missing_deps,
   }
 end
 

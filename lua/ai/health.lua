@@ -124,6 +124,132 @@ local function check_opencode()
 end
 
 ----------------------------------------------------------------------
+-- Check Node.js / npm / npx
+----------------------------------------------------------------------
+local function check_node_npm()
+  vim.health.start("ai.dependencies")
+
+  if command_exists("node") then
+    local version = vim.fn.system("node --version"):gsub("%s+", "")
+    vim.health.ok("Node.js installed: " .. version)
+  else
+    vim.health.warn("Node.js not found")
+    vim.health.info("Required for Claude Code, ccstatusline, ECC")
+    vim.health.info("Install: https://nodejs.org/")
+  end
+
+  if command_exists("npm") then
+    local version = vim.fn.system("npm --version"):gsub("%s+", "")
+    vim.health.ok("npm installed: " .. version)
+  else
+    vim.health.warn("npm not found (included with Node.js)")
+  end
+
+  if command_exists("npx") then
+    vim.health.ok("npx available")
+  else
+    vim.health.warn("npx not found (included with Node.js)")
+  end
+end
+
+----------------------------------------------------------------------
+-- Check ccstatusline configuration
+----------------------------------------------------------------------
+local function check_ccstatusline()
+  vim.health.start("ai.ccstatusline")
+
+  if not command_exists("npx") then
+    vim.health.warn("ccstatusline requires npx (install Node.js)")
+    return
+  end
+
+  vim.health.ok("npx available (ccstatusline runs via npx)")
+
+  -- 检查 settings.json 中是否已配置 statusLine
+  local settings_path = vim.fn.expand("~/.claude/settings.json")
+  if vim.fn.filereadable(settings_path) == 1 then
+    local ok, content = pcall(vim.fn.readfile, settings_path)
+    if ok then
+      local json_str = table.concat(content, "\n")
+      local ok2, settings = pcall(vim.json.decode, json_str)
+      if ok2 and settings and settings.statusLine then
+        vim.health.ok("statusLine configured in settings.json")
+        if settings.statusLine.command then
+          vim.health.ok("  command: " .. settings.statusLine.command)
+        end
+      else
+        vim.health.warn("statusLine not configured in settings.json")
+        vim.health.info("Run :ClaudeCodeGenerateConfig to add it")
+      end
+    end
+  else
+    vim.health.info("settings.json not found, statusLine not configured")
+  end
+end
+
+----------------------------------------------------------------------
+-- Check ECC (Everything Claude Code) installation
+----------------------------------------------------------------------
+local function check_ecc()
+  vim.health.start("ai.ecc")
+
+  local ecc_state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
+  if vim.fn.filereadable(ecc_state_path) == 0 then
+    vim.health.warn("ECC not installed")
+    vim.health.info("See: https://github.com/anthropics/claude-code-ecc")
+    return
+  end
+
+  vim.health.ok("ECC installed")
+
+  local ok, content = pcall(vim.fn.readfile, ecc_state_path)
+  if ok then
+    local json_str = table.concat(content, "\n")
+    local ok2, state = pcall(vim.json.decode, json_str)
+    if ok2 and state then
+      if state.installedAt then
+        vim.health.ok("Installed at: " .. state.installedAt)
+      end
+      if (state.source or {}).repoVersion then
+        vim.health.ok("Version: " .. state.source.repoVersion)
+      end
+      local modules = (state.resolution or {}).selectedModules or {}
+      if #modules > 0 then
+        vim.health.ok("Modules (" .. #modules .. "): " .. table.concat(modules, ", "))
+      end
+    end
+  end
+
+  -- 检查 MCP servers 配置
+  local mcp_path = vim.fn.expand("~/.claude/mcp-configs/mcp-servers.json")
+  if vim.fn.filereadable(mcp_path) == 1 then
+    local ok3, mcp_content = pcall(vim.fn.readfile, mcp_path)
+    if ok3 then
+      local json_str = table.concat(mcp_content, "\n")
+      local ok4, mcp = pcall(vim.json.decode, json_str)
+      if ok4 and mcp and mcp.mcpServers then
+        local count = vim.tbl_count(mcp.mcpServers)
+        vim.health.ok("MCP servers configured: " .. count)
+        if count > 10 then
+          vim.health.warn("MCP servers > 10, may impact context window")
+        end
+      end
+    end
+  end
+
+  -- 检查关键目录
+  local dirs = { "rules", "agents", "commands", "skills", "hooks" }
+  for _, dir in ipairs(dirs) do
+    local dir_path = vim.fn.expand("~/.claude/" .. dir)
+    if vim.fn.isdirectory(dir_path) == 1 then
+      vim.health.ok("  ~/.claude/" .. dir .. "/ exists")
+    else
+      vim.health.info("  ~/.claude/" .. dir .. "/ not found")
+    end
+  end
+end
+
+----------------------------------------------------------------------
 -- Check Claude Code installation and configuration
 ----------------------------------------------------------------------
 local function check_claude_code()
@@ -320,6 +446,9 @@ function M.check()
   check_api_keys()
   check_avante()
   check_opencode()
+  check_node_npm()
+  check_ccstatusline()
+  check_ecc()
   check_claude_code()
 end
 

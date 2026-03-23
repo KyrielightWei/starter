@@ -3,9 +3,9 @@
 
   // Claude Code 配置模板
   // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
-  // 
-  // 合并顺序：默认配置 -> 模板配置 -> key文件配置
-  // 后面的配置会覆盖前面的
+  //
+  // 合并顺序：existing settings -> 默认配置 -> 模板配置 -> key文件配置
+  // 模板配置会覆盖默认值，但不会删除 existing 中的额外字段（如 model）
 
   // 示例：覆盖权限配置
   // "permissions": {
@@ -18,6 +18,16 @@
   // "sandbox": {
   //   "enabled": false
   // },
+
+  // 示例：自定义 ccstatusline 状态栏
+  // "statusLine": {
+  //   "type": "command",
+  //   "command": "npx -y ccstatusline@latest",
+  //   "padding": 0
+  // },
+
+  // 示例：设置模型（此字段保留在 existing 中，不会被生成器覆盖）
+  // "model": "opus[1m]",
 
   // 示例：添加环境变量
   // "env": {

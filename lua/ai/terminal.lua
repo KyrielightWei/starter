@@ -66,20 +66,23 @@ local function build_cmd(tool_name, opts)
 end
 
 local function get_float_opts(opts)
+  local width = opts.width or function()
+    return math.floor(vim.o.columns * 0.85)
+  end
+  local height = opts.height or function()
+    return math.floor(vim.o.lines * 0.85)
+  end
+
   return {
     border = opts.border or "curved",
     winblend = opts.winblend or 0,
-    width = opts.width or function()
-      return math.floor(vim.o.columns * 0.85)
-    end,
-    height = opts.height or function()
-      return math.floor(vim.o.lines * 0.85)
-    end,
+    width = width,
+    height = height,
     row = opts.row or function()
-      return math.floor((vim.o.lines - (type(opts.height) == "function" and opts.height() or opts.height or 20)) / 2)
+      return math.floor((vim.o.lines - (type(height) == "function" and height() or height)) / 2)
     end,
     col = opts.col or function()
-      return math.floor((vim.o.columns - (type(opts.width) == "function" and opts.width() or opts.height or 80)) / 2)
+      return math.floor((vim.o.columns - (type(width) == "function" and width() or width)) / 2)
     end,
   }
 end

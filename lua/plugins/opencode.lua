@@ -76,8 +76,46 @@ vim.api.nvim_create_user_command("ClaudeCodeStatus", function()
     "",
     "Config Path: " .. status.config_path,
   }
+
+  if status.ecc then
+    table.insert(lines, "")
+    table.insert(lines, "ECC Framework:")
+    table.insert(lines, "  Version: " .. (status.ecc.repo_version or "unknown"))
+    table.insert(lines, "  Installed: " .. (status.ecc.installed_at or "unknown"))
+    table.insert(lines, "  Modules: " .. table.concat(status.ecc.modules, ", "))
+  else
+    table.insert(lines, "")
+    table.insert(lines, "ECC Framework: Not installed")
+  end
+
+  if #status.missing_deps > 0 then
+    table.insert(lines, "")
+    table.insert(lines, "Missing Dependencies:")
+    for _, dep in ipairs(status.missing_deps) do
+      table.insert(lines, "  - " .. dep.name .. ": " .. dep.install_hint)
+    end
+  end
+
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end, { desc = "Show Claude Code status" })
+
+vim.api.nvim_create_user_command("ClaudeCodeCheckDeps", function()
+  local deps = require("ai.claude_code").check_dependencies()
+  local lines = { "Claude Code Dependencies:" }
+  local has_missing = false
+
+  for _, dep in ipairs(deps) do
+    local icon = dep.installed and "OK" or "MISSING"
+    table.insert(lines, string.format("  [%s] %s", icon, dep.name))
+    if not dep.installed then
+      has_missing = true
+      table.insert(lines, "        Install: " .. dep.install_hint)
+    end
+  end
+
+  local level = has_missing and vim.log.levels.WARN or vim.log.levels.INFO
+  vim.notify(table.concat(lines, "\n"), level)
+end, { desc = "Check Claude Code dependencies" })
 
 -- 同步命令
 vim.api.nvim_create_user_command("AISyncAll", function()
@@ -162,7 +200,7 @@ return {
     { "<leader>kC", "<cmd>AICopyContext<CR>", desc = "Copy AI Context" },
     { "<leader>kY", "<cmd>AISyncAll<CR>", desc = "Sync All AI Configs" },
   },
-config = function()
+  config = function()
     vim.schedule(function()
       local ok, Watcher = pcall(require, "ai.config_watcher")
       if ok and not Watcher.enabled then

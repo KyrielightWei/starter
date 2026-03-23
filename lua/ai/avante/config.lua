@@ -2,6 +2,7 @@
 -- Avante configuration builder
 
 local Providers = require("ai.providers")
+local Keys = require("ai.keys")
 
 local M = {}
 
@@ -13,10 +14,13 @@ function M.build()
 
   for name, def in pairs(Providers) do
     if type(def) == "table" and def.endpoint then
+      -- 使用 Keys.get_base_url() 优先读取用户在 ai_keys.lua 中配置的 base_url
+      local endpoint = Keys.get_base_url(name)
+
       providers_tbl[name] = {
         __inherited_from = def.inherited or "openai",
         api_key_name = def.api_key_name,
-        endpoint = def.endpoint,
+        endpoint = endpoint,
         model = def.model,
         timeout = def.timeout or 30000,
         static_models = def.static_models,

@@ -179,6 +179,7 @@ local function get_default_settings()
   local SystemPrompt = require("ai.system_prompt")
 
   return {
+    ["$schema"] = "https://json.schemastore.org/claude-code-settings.json",
     append_system_prompt = SystemPrompt.for_tool("claude_code"),
     env = {
       DISABLE_TELEMETRY = "1",
@@ -240,12 +241,15 @@ local function get_default_settings()
         allowLocalBinding = false,
       },
     },
-    -- ccstatusline 状态栏配置
-    statusLine = {
-      type = "command",
-      command = "npx -y ccstatusline@latest",
-      padding = 0,
-    },
+  }
+end
+
+-- ccstatusline 默认配置（仅在 existing 中不存在时使用）
+local function get_default_statusline()
+  return {
+    type = "command",
+    command = "npx -y ccstatusline@latest",
+    padding = 0,
   }
 end
 
@@ -367,17 +371,28 @@ function M.generate_settings(opts)
   return settings
 end
 
+-- build_final_settings(): 构建最终写入的配置（existing + generated + statusLine seed）
+local function build_final_settings(opts)
+  local generated = M.generate_settings(opts)
+  local existing = read_settings() or {}
+  local final = merge_settings(existing, generated)
+
+  -- statusLine: 仅在 existing 和 template 都没有时，使用默认值（seed）
+  -- 用户可以通过模板覆盖，或直接编辑 settings.json（不会被生成器覆盖）
+  if not final.statusLine then
+    final.statusLine = get_default_statusline()
+  end
+
+  return final
+end
+
 function M.write_settings(opts)
   opts = opts or {}
 
   ensure_config_dir()
 
-  local generated = M.generate_settings(opts)
+  local final = build_final_settings(opts)
   local path = get_settings_path()
-
-  -- 读取现有配置，保留未被生成器管理的字段（如 model、ECC 手动配置等）
-  local existing = read_settings() or {}
-  local final = merge_settings(existing, generated)
 
   local content = format_json(final)
   local lines = vim.split(content, "\n")
@@ -409,7 +424,12 @@ function M.edit_template()
   // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
   //
   // 合并顺序：existing settings -> 默认配置 -> 模板配置 -> key文件配置
-  // 模板配置会覆盖默认值，但不会删除 existing 中的额外字段（如 model）
+  // 模板配置会覆盖默认值，但不会删除 existing 中的额外字段
+  //
+  // statusLine 和 model 属于「用户管理字段」：
+  //   - 不在默认配置中，不会被生成器覆盖
+  //   - 首次生成时自动添加 statusLine 默认值
+  //   - 可以直接编辑 settings.json 或在此模板中设置
 
   // 示例：覆盖权限配置
   // "permissions": {
@@ -423,14 +443,15 @@ function M.edit_template()
   //   "enabled": false
   // },
 
-  // 示例：自定义 ccstatusline 状态栏
+  // 自定义 ccstatusline 状态栏（取消注释并修改即可覆盖默认配置）
+  // 默认值：{ "type": "command", "command": "npx -y ccstatusline@latest", "padding": 0 }
   // "statusLine": {
   //   "type": "command",
-  //   "command": "npx -y ccstatusline@latest",
+  //   "command": "npx -y ccstatusline@latest --widgets model,cost,tokens,context",
   //   "padding": 0
   // },
 
-  // 示例：设置模型（此字段保留在 existing 中，不会被生成器覆盖）
+  // 示例：设置模型（直接编辑 settings.json 中的 model 也不会被覆盖）
   // "model": "opus[1m]",
 
   // 示例：添加环境变量
@@ -445,8 +466,9 @@ function M.edit_template()
 end
 
 function M.preview_settings()
-  local settings = M.generate_settings()
-  local content = format_json(settings)
+  -- 预览最终合并结果（与实际写入一致）
+  local final = build_final_settings()
+  local content = format_json(final)
   local lines = vim.split(content, "\n")
 
   local buf = vim.api.nvim_create_buf(false, true)
@@ -456,7 +478,7 @@ function M.preview_settings()
   vim.api.nvim_buf_set_name(buf, "Claude Code Settings Preview")
 
   vim.api.nvim_win_set_buf(0, buf)
-  vim.notify("Preview mode: q to close", vim.log.levels.INFO)
+  vim.notify("Preview mode (final merged result): q to close", vim.log.levels.INFO)
 
   vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<cr>", { silent = true })
 end

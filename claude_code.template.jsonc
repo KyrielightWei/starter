@@ -5,7 +5,12 @@
   // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
   //
   // 合并顺序：existing settings -> 默认配置 -> 模板配置 -> key文件配置
-  // 模板配置会覆盖默认值，但不会删除 existing 中的额外字段（如 model）
+  // 模板配置会覆盖默认值，但不会删除 existing 中的额外字段
+  //
+  // statusLine 和 model 属于「用户管理字段」：
+  //   - 不在默认配置中，不会被生成器覆盖
+  //   - 首次生成时自动添加 statusLine 默认值
+  //   - 可以直接编辑 settings.json 或在此模板中设置
 
   // 示例：覆盖权限配置
   // "permissions": {
@@ -19,14 +24,16 @@
   //   "enabled": false
   // },
 
-  // 示例：自定义 ccstatusline 状态栏
+  // 自定义 ccstatusline 状态栏（取消注释并修改即可覆盖默认配置）
+  // 默认值：{ "type": "command", "command": "npx -y ccstatusline@latest", "padding": 0 }
+  // 常用自定义示例：
   // "statusLine": {
   //   "type": "command",
-  //   "command": "npx -y ccstatusline@latest",
+  //   "command": "npx -y ccstatusline@latest --widgets model,cost,tokens,context",
   //   "padding": 0
   // },
 
-  // 示例：设置模型（此字段保留在 existing 中，不会被生成器覆盖）
+  // 示例：设置模型（直接编辑 settings.json 中的 model 也不会被覆盖）
   // "model": "opus[1m]",
 
   // 示例：添加环境变量

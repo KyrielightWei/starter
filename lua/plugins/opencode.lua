@@ -18,14 +18,6 @@ vim.api.nvim_create_user_command("OpenCodePreviewConfig", function()
   require("ai.opencode").preview_config()
 end, { desc = "Preview merged OpenCode config" })
 
-vim.api.nvim_create_user_command("OpenCodeTerminal", function()
-  require("ai.opencode").toggle_terminal()
-end, { desc = "Toggle OpenCode Terminal" })
-
-vim.api.nvim_create_user_command("OpenCodeWithContext", function()
-  require("ai.opencode").open_with_context()
-end, { desc = "Open OpenCode with current context" })
-
 vim.api.nvim_create_user_command("OpenCodeStatus", function()
   local status = require("ai.opencode").get_status()
   local lines = {
@@ -57,14 +49,6 @@ end, { desc = "Edit generated Claude Code settings" })
 vim.api.nvim_create_user_command("ClaudeCodePreviewConfig", function()
   require("ai.claude_code").preview_settings()
 end, { desc = "Preview Claude Code settings" })
-
-vim.api.nvim_create_user_command("ClaudeCodeTerminal", function()
-  require("ai.claude_code").toggle_terminal()
-end, { desc = "Toggle Claude Code Terminal" })
-
-vim.api.nvim_create_user_command("ClaudeCodeWithContext", function()
-  require("ai.claude_code").open_with_context()
-end, { desc = "Open Claude Code with current context" })
 
 vim.api.nvim_create_user_command("ClaudeCodeStatus", function()
   local status = require("ai.claude_code").get_status()
@@ -168,15 +152,6 @@ vim.api.nvim_create_user_command("AIListPrompts", function()
   require("ai.system_prompt").show_status()
 end, { desc = "List all available prompt files" })
 
--- 终端选择器命令
-vim.api.nvim_create_user_command("AITerminalSelect", function()
-  require("ai.terminal").select_and_open()
-end, { desc = "Select and open AI terminal" })
-
-vim.api.nvim_create_user_command("AITerminalCloseAll", function()
-  require("ai.terminal").close_all()
-end, { desc = "Close all AI terminals" })
-
 -- 配置热更新命令
 vim.api.nvim_create_user_command("AIConfigWatch", function()
   require("ai.config_watcher").watch()
@@ -192,11 +167,6 @@ return {
   "akinsho/toggleterm.nvim",
   optional = true,
   keys = {
-    { "<leader>to", "<cmd>OpenCodeTerminal<CR>", desc = "OpenCode AI Terminal" },
-    { "<leader>tO", "<cmd>OpenCodeWithContext<CR>", desc = "OpenCode with Context" },
-    { "<leader>tc", "<cmd>ClaudeCodeTerminal<CR>", desc = "Claude Code Terminal" },
-    { "<leader>tC", "<cmd>ClaudeCodeWithContext<CR>", desc = "Claude Code with Context" },
-    { "<leader>ts", "<cmd>AITerminalSelect<CR>", desc = "Select AI Terminal" },
     { "<leader>kC", "<cmd>AICopyContext<CR>", desc = "Copy AI Context" },
     { "<leader>kY", "<cmd>AISyncAll<CR>", desc = "Sync All AI Configs" },
   },

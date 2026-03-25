@@ -485,13 +485,13 @@ end
 
 function M.toggle_terminal(opts)
   local Terminal = require("ai.terminal")
-  Terminal.toggle("claude", opts)
+  Terminal.create_preset("claude", opts)
 end
 
 function M.open_with_context(opts)
   opts = opts or {}
   local Terminal = require("ai.terminal")
-  Terminal.toggle_with_context("claude", opts)
+  Terminal.create_preset_with_context("claude", opts)
 end
 
 function M.check_installation()

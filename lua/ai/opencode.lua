@@ -670,15 +670,15 @@ function M.preview_config()
   vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>close<cr>", { silent = true })
 end
 
-function M.toggle_terminal()
+function M.toggle_terminal(opts)
   local Terminal = require("ai.terminal")
-  Terminal.toggle("opencode")
+  Terminal.create_preset("opencode", opts)
 end
 
 function M.open_with_context(opts)
   opts = opts or {}
   local Terminal = require("ai.terminal")
-  Terminal.toggle_with_context("opencode", opts)
+  Terminal.create_preset_with_context("opencode", opts)
 end
 
 function M.check_installation()

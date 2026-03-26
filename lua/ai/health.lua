@@ -78,27 +78,6 @@ local function check_opencode()
         else
           vim.health.warn("No providers configured")
         end
-
-        -- Check agents/categories for oh-my-opencode
-        if config.agents then
-          local agent_count = 0
-          for _ in pairs(config.agents) do
-            agent_count = agent_count + 1
-          end
-          vim.health.ok("OMO agents: " .. agent_count)
-        else
-          vim.health.warn("No OMO agents configured")
-        end
-
-        if config.categories then
-          local cat_count = 0
-          for _ in pairs(config.categories) do
-            cat_count = cat_count + 1
-          end
-          vim.health.ok("OMO categories: " .. cat_count)
-        else
-          vim.health.warn("No OMO categories configured")
-        end
       end
     end
   else
@@ -106,12 +85,12 @@ local function check_opencode()
     vim.health.info("Run :OpenCodeGenerateConfig to create it")
   end
 
-  -- Check oh-my-opencode.json
-  local omo_path = vim.fn.expand("~/.config/opencode/oh-my-opencode.json")
-  if vim.fn.filereadable(omo_path) == 1 then
-    vim.health.ok("oh-my-opencode.json exists")
+  -- Check ECC integration for OpenCode
+  local Ecc = require("ai.ecc")
+  if Ecc.is_installed() then
+    vim.health.ok("ECC installed (shared with Claude Code)")
   else
-    vim.health.info("oh-my-opencode.json not found (optional)")
+    vim.health.info("ECC not installed: " .. Ecc.install_hint())
   end
 
   -- Check template
@@ -193,31 +172,25 @@ end
 local function check_ecc()
   vim.health.start("ai.ecc")
 
-  local ecc_state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
-  if vim.fn.filereadable(ecc_state_path) == 0 then
+  local Ecc = require("ai.ecc")
+  local ecc = Ecc.get_status()
+
+  if not ecc then
     vim.health.warn("ECC not installed")
-    vim.health.info("See: https://github.com/anthropics/claude-code-ecc")
+    vim.health.info("Install: " .. Ecc.install_hint())
     return
   end
 
   vim.health.ok("ECC installed")
 
-  local ok, content = pcall(vim.fn.readfile, ecc_state_path)
-  if ok then
-    local json_str = table.concat(content, "\n")
-    local ok2, state = pcall(vim.json.decode, json_str)
-    if ok2 and state then
-      if state.installedAt then
-        vim.health.ok("Installed at: " .. state.installedAt)
-      end
-      if (state.source or {}).repoVersion then
-        vim.health.ok("Version: " .. state.source.repoVersion)
-      end
-      local modules = (state.resolution or {}).selectedModules or {}
-      if #modules > 0 then
-        vim.health.ok("Modules (" .. #modules .. "): " .. table.concat(modules, ", "))
-      end
-    end
+  if ecc.installed_at then
+    vim.health.ok("Installed at: " .. ecc.installed_at)
+  end
+  if ecc.repo_version then
+    vim.health.ok("Version: " .. ecc.repo_version)
+  end
+  if #ecc.modules > 0 then
+    vim.health.ok("Modules (" .. #ecc.modules .. "): " .. table.concat(ecc.modules, ", "))
   end
 
   -- 检查 MCP servers 配置

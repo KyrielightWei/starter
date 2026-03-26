@@ -398,7 +398,13 @@ function M.write_settings(opts)
   local lines = vim.split(content, "\n")
   vim.fn.writefile(lines, path)
 
-  vim.notify("Claude Code settings written to: " .. path, vim.log.levels.INFO)
+  -- 检测 ECC 框架状态并通知
+  local Ecc = require("ai.ecc")
+  local ecc = Ecc.get_status()
+  local notify_lines = { "✅ Claude Code settings written to: " .. path, "" }
+  vim.list_extend(notify_lines, Ecc.format_notification(ecc))
+
+  vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
 
   return true
 end
@@ -548,12 +554,11 @@ function M.check_dependencies()
   })
 
   -- ECC 框架
-  local ecc_state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
-  local ecc_installed = vim.fn.filereadable(ecc_state_path) == 1
+  local Ecc = require("ai.ecc")
   table.insert(deps, {
     name = "ECC Framework",
-    installed = ecc_installed,
-    install_hint = "参考: https://github.com/anthropics/claude-code-ecc",
+    installed = Ecc.is_installed(),
+    install_hint = Ecc.install_hint(),
   })
 
   return deps
@@ -563,23 +568,8 @@ end
 -- get_ecc_status(): 获取 ECC 框架安装状态
 ----------------------------------------------------------------------
 function M.get_ecc_status()
-  local ecc_state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
-  if vim.fn.filereadable(ecc_state_path) == 0 then
-    return nil
-  end
-
-  local content = table.concat(vim.fn.readfile(ecc_state_path), "\n")
-  local ok, state = pcall(vim.json.decode, content)
-  if not ok then
-    return nil
-  end
-
-  return {
-    installed_at = state.installedAt,
-    modules = (state.resolution or {}).selectedModules or {},
-    schema_version = state.schemaVersion,
-    repo_version = (state.source or {}).repoVersion,
-  }
+  local Ecc = require("ai.ecc")
+  return Ecc.get_status()
 end
 
 function M.get_status()

@@ -292,9 +292,9 @@ function M.select_for_category(category_name, available_models)
 end
 
 ----------------------------------------------------------------------
--- Generate optimal OMO config
+-- Generate optimal agent config (agents + categories model assignments)
 ----------------------------------------------------------------------
-function M.generate_omo_config(available_models, default_provider)
+function M.generate_agent_config(available_models, default_provider)
   -- If available_models is a string (provider name), get models from config
   if type(available_models) == "string" then
     local Resolver = require("ai.config_resolver")
@@ -319,7 +319,7 @@ function M.generate_omo_config(available_models, default_provider)
   for agent_name, _ in pairs(agent_requirements) do
     local model_obj = M.select_for_agent(agent_name, available_models)
     if model_obj then
-      -- oh-my-opencode expects model as string "providerID/modelID"
+      -- model format: "providerID/modelID"
       config.agents[agent_name] = { model = string.format("%s/%s", model_obj.providerID, model_obj.modelID) }
     end
   end
@@ -328,7 +328,7 @@ function M.generate_omo_config(available_models, default_provider)
   for category_name, _ in pairs(category_requirements) do
     local model_obj = M.select_for_category(category_name, available_models)
     if model_obj then
-      -- oh-my-opencode expects model as string "providerID/modelID"
+      -- model format: "providerID/modelID"
       config.categories[category_name] = { model = string.format("%s/%s", model_obj.providerID, model_obj.modelID) }
     end
   end

@@ -300,7 +300,7 @@ function M.deploy(data, target_path, target)
       vim.fn.writefile(vim.split(content, "\n"), skill_dir .. "/SKILL.md")
     elseif target == "opencode" then
       -- OpenCode uses agents in JSON config
-      local config_path = target_path .. "/oh-my-opencode.json"
+      local config_path = target_path .. "/opencode.json"
       M.update_opencode_agent(config_path, data)
     end
   elseif data.type == "command" then

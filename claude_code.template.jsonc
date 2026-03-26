@@ -24,14 +24,14 @@
   //   "enabled": false
   // },
 
-  // 自定义 ccstatusline 状态栏（取消注释并修改即可覆盖默认配置）
-  // 默认值：{ "type": "command", "command": "npx -y ccstatusline@latest", "padding": 0 }
-  // 常用自定义示例：
-  // "statusLine": {
-  //   "type": "command",
-  //   "command": "npx -y ccstatusline@latest --widgets model,cost,tokens,context",
-  //   "padding": 0
-  // },
+  // 自定义 ccstatusline 状态栏
+  // 常用 widgets: model, cost, tokens, context, thinking, time
+  // 示例: --widgets model,cost,tokens,context
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccstatusline@latest",
+    "padding": 0
+  },
 
   // 示例：设置模型（直接编辑 settings.json 中的 model 也不会被覆盖）
   // "model": "opus[1m]",

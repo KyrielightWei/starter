@@ -80,6 +80,14 @@ local function get_template_path()
   return vim.fn.stdpath("config") .. "/claude_code.template.jsonc"
 end
 
+local function get_ccstatusline_template_path()
+  return vim.fn.stdpath("config") .. "/ccstatusline.template.jsonc"
+end
+
+local function get_ccstatusline_settings_path()
+  return vim.fn.expand("~/.config/ccstatusline/settings.json")
+end
+
 local function strip_jsonc_comments(content)
   local result = {}
   local in_string = false
@@ -173,6 +181,44 @@ local function ensure_config_dir()
     vim.fn.mkdir(dir, "p")
   end
   return dir
+end
+
+local function read_ccstatusline_template()
+  local template_path = get_ccstatusline_template_path()
+
+  if vim.fn.filereadable(template_path) == 0 then
+    return nil
+  end
+
+  local content = table.concat(vim.fn.readfile(template_path), "\n")
+  local clean_content = strip_jsonc_comments(content)
+
+  local ok, config = pcall(vim.json.decode, clean_content)
+  if not ok then
+    return nil
+  end
+
+  return config
+end
+
+local function write_ccstatusline_settings()
+  local template = read_ccstatusline_template()
+  if not template then
+    return false, "ccstatusline template not found"
+  end
+
+  local settings_path = get_ccstatusline_settings_path()
+  local settings_dir = vim.fn.fnamemodify(settings_path, ":h")
+
+  if vim.fn.isdirectory(settings_dir) == 0 then
+    vim.fn.mkdir(settings_dir, "p")
+  end
+
+  local content = format_json(template)
+  local lines = vim.split(content, "\n")
+  vim.fn.writefile(lines, settings_path)
+
+  return true
 end
 
 local function get_default_settings()
@@ -398,10 +444,21 @@ function M.write_settings(opts)
   local lines = vim.split(content, "\n")
   vim.fn.writefile(lines, path)
 
+  -- 同步 ccstatusline 配置
+  local ccstatusline_ok, ccstatusline_err = write_ccstatusline_settings()
+
   -- 检测 ECC 框架状态并通知
   local Ecc = require("ai.ecc")
   local ecc = Ecc.get_status()
-  local notify_lines = { "✅ Claude Code settings written to: " .. path, "" }
+  local notify_lines = { "✅ Claude Code settings written to: " .. path }
+
+  if ccstatusline_ok then
+    table.insert(notify_lines, "✅ ccstatusline config synced to: " .. get_ccstatusline_settings_path())
+  elseif ccstatusline_err then
+    table.insert(notify_lines, "⚠️  ccstatusline: " .. ccstatusline_err)
+  end
+
+  vim.list_extend(notify_lines, { "" })
   vim.list_extend(notify_lines, Ecc.format_notification(ecc))
 
   vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
@@ -466,6 +523,44 @@ function M.edit_template()
   // }
 }]]
     vim.fn.writefile(vim.split(default_template, "\n"), template_path)
+  end
+
+  vim.cmd("edit " .. template_path)
+end
+
+function M.edit_ccstatusline_template()
+  local template_path = get_ccstatusline_template_path()
+
+  if vim.fn.filereadable(template_path) == 0 then
+    -- 如果模板不存在，从现有配置复制
+    local existing_path = get_ccstatusline_settings_path()
+    if vim.fn.filereadable(existing_path) == 1 then
+      local content = table.concat(vim.fn.readfile(existing_path), "\n")
+      -- 添加注释头
+      local template_content = [[{
+  "$schema": "https://json.schemastore.org/ccstatusline.json",
+
+  // ccstatusline 状态栏配置
+  // 修改后运行 :ClaudeCodeGenerateConfig 同步到 ~/.config/ccstatusline/settings.json
+  //
+  // 文档: https://github.com/nick-field/ccstatusline
+
+]]
+      -- 移除现有的 schema 并添加内容
+      local ok, config = pcall(vim.json.decode, content)
+      if ok and config then
+        config["$schema"] = "https://json.schemastore.org/ccstatusline.json"
+        -- 移除开头的 "{\n"（format_json 输出格式：第一行是 {，第二行开始是内容）
+        local json_str = format_json(config)
+        local first_nl = json_str:find("\n")
+        if first_nl then
+          template_content = template_content .. json_str:sub(first_nl + 1)
+        else
+          template_content = template_content .. json_str
+        end
+      end
+      vim.fn.writefile(vim.split(template_content, "\n"), template_path)
+    end
   end
 
   vim.cmd("edit " .. template_path)

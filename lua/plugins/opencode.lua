@@ -46,6 +46,10 @@ vim.api.nvim_create_user_command("ClaudeCodeEditConfig", function()
   require("ai.claude_code").edit_settings()
 end, { desc = "Edit generated Claude Code settings" })
 
+vim.api.nvim_create_user_command("ClaudeCodeEditStatusline", function()
+  require("ai.claude_code").edit_ccstatusline_template()
+end, { desc = "Edit ccstatusline template" })
+
 vim.api.nvim_create_user_command("ClaudeCodePreviewConfig", function()
   require("ai.claude_code").preview_settings()
 end, { desc = "Preview Claude Code settings" })

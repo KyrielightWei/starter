@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json.schemastore.org/ccstatusline.json",
+
+  // ccstatusline 状态栏配置
+  // 修改后运行 :ClaudeCodeGenerateConfig 同步到 ~/.config/ccstatusline/settings.json
+  //
+  // 文档: https://github.com/nick-field/ccstatusline
+
+  "version": 3,
+  "lines": [
+    [
+      {
+        "id": "1",
+        "type": "model",
+        "color": "cyan"
+      },
+      {
+        "id": "2",
+        "type": "git-branch",
+        "color": "blue"
+      },
+      {
+        "id": "3",
+        "type": "git-changes",
+        "color": "red"
+      },
+      {
+        "id": "4",
+        "type": "claude-session-id",
+        "color": "brightBlack",
+        "rawValue": true
+      },
+      {
+        "id": "5",
+        "type": "session-clock",
+        "color": "green",
+        "rawValue": true
+      }
+    ],
+    [
+      {
+        "id": "6",
+        "type": "tokens-input",
+        "color": "green"
+      },
+      {
+        "id": "7",
+        "type": "tokens-output",
+        "color": "magenta"
+      },
+      {
+        "id": "8",
+        "type": "context-bar",
+        "color": "cyan"
+      },
+      {
+        "id": "9",
+        "type": "session-cost",
+        "color": "yellow",
+        "rawValue": true
+      }
+    ],
+    [
+      {
+        "id": "10",
+        "type": "input-speed",
+        "color": "green",
+        "metadata": {
+          "window": "0"
+        }
+      },
+      {
+        "id": "11",
+        "type": "output-speed",
+        "color": "magenta",
+        "metadata": {
+          "window": "0"
+        }
+      },
+      {
+        "id": "12",
+        "type": "session-name",
+        "color": "cyan"
+      },
+      {
+        "id": "13",
+        "type": "git-root-dir",
+        "color": "green"
+      }
+    ]
+  ],
+  "flexMode": "full",
+  "colorLevel": 2,
+  "defaultSeparator": " │ ",
+  "powerline": {
+    "enabled": false
+  }
+}

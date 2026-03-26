@@ -4,8 +4,8 @@
   // OpenCode 配置模板
   // 修改后运行 :OpenCodeGenerateConfig 生成最终配置
 
-  // 默认模型
-  "model": "glm-5",
+  // 默认模型 (格式: provider/model)
+  "model": "bailian_coding/glm-5",
 
   // 自动更新
   "autoupdate": false,

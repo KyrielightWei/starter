@@ -161,10 +161,12 @@ local function get_project_config_path()
 end
 
 function M.get_defaults()
+  -- OpenCode 需要完整的模型格式: provider/model
+  local default_model = Providers.default_provider .. "/" .. Providers.default_model
   return {
     ["$schema"] = "https://opencode.ai/config.json",
-    model = Providers.default_model,
-    small_model = Providers.default_model,
+    model = default_model,
+    small_model = default_model,
     autoupdate = true,
     share = "manual",
     permission = {
@@ -260,6 +262,10 @@ function M.build_provider_config()
         -- 使用 key 文件中的 base_url (OpenAI 风格)
         local endpoint = Keys.get_base_url(provider_name)
 
+        -- API key 存储路径: ~/.config/opencode/api_key_<provider>.txt
+        local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+        local api_key_path = xdg_config .. "/opencode/api_key_" .. provider_name .. ".txt"
+
         provider_config[provider_name] = {
           npm = "@ai-sdk/openai-compatible",
           name = provider_name:gsub("_", " "):gsub("(%l)(%w*)", function(a, b)
@@ -267,6 +273,7 @@ function M.build_provider_config()
           end),
           options = {
             baseURL = endpoint,
+            apiKey = "{file:" .. api_key_path .. "}",
           },
           models = models_config,
         }

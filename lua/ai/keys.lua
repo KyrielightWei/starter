@@ -110,6 +110,20 @@ function M.write(tbl)
 end
 
 ----------------------------------------------------------------------
+-- resolve_env_ref(value): 解析环境变量引用
+-- 支持 ${env:VAR_NAME} 格式，如 ${env:BAILIAN_CODING_API_KEY}
+----------------------------------------------------------------------
+local function resolve_env_ref(value)
+  if type(value) ~= "string" then
+    return value
+  end
+
+  return value:gsub("%${env:(%w+)}", function(var_name)
+    return os.getenv(var_name) or ""
+  end)
+end
+
+----------------------------------------------------------------------
 -- get_config(provider): 获取当前 profile 下的完整配置
 -- @return table: { api_key, base_url, base_url_claude }
 ----------------------------------------------------------------------
@@ -132,13 +146,13 @@ function M.get_config(provider)
 
   -- 兼容旧格式 (直接是字符串)
   if type(config) == "string" then
-    return { api_key = config, base_url = "", base_url_claude = "" }
+    return { api_key = resolve_env_ref(config), base_url = "", base_url_claude = "" }
   end
 
   return {
-    api_key = config.api_key or "",
-    base_url = config.base_url or "",
-    base_url_claude = config.base_url_claude or "",
+    api_key = resolve_env_ref(config.api_key) or "",
+    base_url = resolve_env_ref(config.base_url) or "",
+    base_url_claude = resolve_env_ref(config.base_url_claude) or "",
   }
 end
 

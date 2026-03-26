@@ -359,18 +359,18 @@ local function check_avante()
     return
   end
 
-  -- Check build artifacts
-  local build_dir = avante_path .. "/build"
-  if vim.fn.isdirectory(build_dir) == 1 then
-    local so_files = vim.fn.glob(build_dir .. "/*.so", false, true)
-    if #so_files > 0 then
-      vim.health.ok("Avante built (" .. #so_files .. " binaries)")
+  -- Check build artifacts (使用统一的跨平台检测)
+  local ok, Builder = pcall(require, "ai.avante.builder")
+  if ok then
+    local binaries = Builder.get_binaries()
+    if #binaries > 0 then
+      vim.health.ok("Avante built (" .. #binaries .. " binaries, " .. Builder.get_platform_ext() .. ")")
 
       -- List key binaries
-      local required = { "avante_tokenizers.so", "avante_templates.so" }
+      local required = { "avante_tokenizers", "avante_templates" }
       for _, req in ipairs(required) do
         local found = false
-        for _, f in ipairs(so_files) do
+        for _, f in ipairs(binaries) do
           if f:match(req) then
             found = true
             break
@@ -383,12 +383,31 @@ local function check_avante()
         end
       end
     else
-      vim.health.error("Avante not built (no .so files)")
+      vim.health.error("Avante not built (no binaries found)")
       vim.health.info("Run :AvanteBuild to build")
     end
   else
-    vim.health.error("Avante build directory not found")
-    vim.health.info("Run :AvanteBuild to build")
+    -- Fallback: 手动检测
+    local build_dir = avante_path .. "/build"
+    if vim.fn.isdirectory(build_dir) == 1 then
+      local so_files = vim.fn.glob(build_dir .. "/*.so", false, true)
+      local dylib_files = vim.fn.glob(build_dir .. "/*.dylib", false, true)
+      local dll_files = vim.fn.glob(build_dir .. "/*.dll", false, true)
+      local all_files = {}
+      vim.list_extend(all_files, so_files)
+      vim.list_extend(all_files, dylib_files)
+      vim.list_extend(all_files, dll_files)
+
+      if #all_files > 0 then
+        vim.health.ok("Avante built (" .. #all_files .. " binaries)")
+      else
+        vim.health.error("Avante not built (no binaries found)")
+        vim.health.info("Run :AvanteBuild to build")
+      end
+    else
+      vim.health.error("Avante build directory not found")
+      vim.health.info("Run :AvanteBuild to build")
+    end
   end
 end
 

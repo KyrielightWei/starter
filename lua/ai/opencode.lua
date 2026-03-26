@@ -22,10 +22,6 @@ local function get_opencode_template_path()
   return get_nvim_config_dir() .. "/opencode.template.jsonc"
 end
 
-local function get_opencode_auth_path()
-  return get_opencode_config_dir() .. "/opencode_auth.json"
-end
-
 local function get_opencode_tui_path()
   return get_opencode_config_dir() .. "/tui.json"
 end
@@ -283,6 +279,7 @@ local function build_provider_config(keys, profile)
         end),
         options = {
           baseURL = endpoint,
+          apiKey = api_key,
         },
         models = models_config,
       }
@@ -434,24 +431,18 @@ function M.write_config()
   config.agent.build = config.agent.build or {}
   config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
 
+  -- 写入 API key 文件 (每个 provider 一个文件)
+  for provider, key in pairs(auth_config) do
+    if key and key ~= "" then
+      local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
+      vim.fn.writefile({ key }, key_file)
+    end
+  end
+
   -- 写入 opencode.json（OpenCode 官方配置）
   local config_path = get_opencode_config_path()
   local config_content = format_json(config)
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
-
-  -- 写入 auth 配置
-  local auth_path = get_opencode_auth_path()
-  local auth_lines = { "{" }
-  local first = true
-  for provider, key in pairs(auth_config) do
-    if not first then
-      auth_lines[#auth_lines] = auth_lines[#auth_lines] .. ","
-    end
-    table.insert(auth_lines, string.format('  "%s": "%s"', provider, key))
-    first = false
-  end
-  table.insert(auth_lines, "}")
-  vim.fn.writefile(auth_lines, auth_path)
 
   -- 打印配置结果
   local Ecc = require("ai.ecc")

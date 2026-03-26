@@ -4,6 +4,32 @@
 
 local M = {}
 
+----------------------------------------------------------------------
+-- 平台检测
+----------------------------------------------------------------------
+local PLATFORM_EXTS = {
+  Linux = "so",
+  Darwin = "dylib",
+  Windows = "dll",
+}
+
+local function get_platform_ext()
+  local os_name = vim.uv.os_uname().sysname
+  return PLATFORM_EXTS[os_name] or "so"
+end
+
+----------------------------------------------------------------------
+-- get_binary_files(): 获取所有编译产物（跨平台）
+----------------------------------------------------------------------
+local function get_binary_files(build_dir)
+  local files = {}
+  for _, ext in pairs(PLATFORM_EXTS) do
+    local matches = vim.fn.glob(build_dir .. "/*." .. ext, false, true)
+    vim.list_extend(files, matches)
+  end
+  return files
+end
+
 -- 构建状态
 local build_status = {
   checked = false,
@@ -18,21 +44,19 @@ local build_status = {
 function M.check_built()
   local avante_path = vim.fn.stdpath("data") .. "/lazy/avante.nvim"
   local templates_path = avante_path .. "/avante_templates"
-  
+
   -- 检查模板目录
   if vim.fn.isdirectory(templates_path) == 1 then
     return true
   end
-  
-  -- 检查 .so 文件
+
+  -- 检查编译产物（跨平台）
   local build_dir = avante_path .. "/build"
   if vim.fn.isdirectory(build_dir) == 1 then
-    local so_files = vim.fn.glob(build_dir .. "/*.so", false, true)
-    if #so_files > 0 then
-      return true
-    end
+    local files = get_binary_files(build_dir)
+    return #files > 0
   end
-  
+
   return false
 end
 
@@ -247,6 +271,24 @@ function M.get_status()
     needs_build = build_status.needs_build,
   }
 end
+
+----------------------------------------------------------------------
+-- get_binaries(): 获取编译产物列表（跨平台）
+-- @return table: 二进制文件路径列表
+----------------------------------------------------------------------
+function M.get_binaries()
+  local avante_path = vim.fn.stdpath("data") .. "/lazy/avante.nvim"
+  local build_dir = avante_path .. "/build"
+  if vim.fn.isdirectory(build_dir) == 1 then
+    return get_binary_files(build_dir)
+  end
+  return {}
+end
+
+----------------------------------------------------------------------
+-- get_platform_ext(): 获取当前平台的二进制扩展名
+----------------------------------------------------------------------
+M.get_platform_ext = get_platform_ext
 
 ----------------------------------------------------------------------
 -- 用户命令

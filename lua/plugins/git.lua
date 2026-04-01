@@ -448,6 +448,11 @@ return {
         },
         hooks = {
           diffview_buf_read = function(bufnr)
+            -- 禁用 LSP 以避免启动多个 ccls 索引
+            -- Diffview 会创建两个 buffer (a/b)，每个都会触发 LSP
+            vim.b[bufnr].lsp_enabled = false
+            vim.diagnostic.enable(false, { bufnr = bufnr })
+
             local opts = { buffer = bufnr, silent = true, noremap = true }
 
             vim.keymap.set("n", "<Tab>", "]c", vim.tbl_extend("force", opts, { desc = "Next Hunk" }))

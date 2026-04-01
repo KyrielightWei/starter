@@ -45,9 +45,8 @@ function M.claude_to_opencode_mcp(item)
       new_config.type = "local"
       new_config.command = server_config.command
       if server_config.args then
-        new_config.command = type(server_config.command) == "table"
-            and server_config.command
-            or { server_config.command }
+        new_config.command = type(server_config.command) == "table" and server_config.command
+          or { server_config.command }
         for _, arg in ipairs(server_config.args) do
           table.insert(new_config.command, arg)
         end

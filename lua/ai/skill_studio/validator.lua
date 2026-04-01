@@ -37,6 +37,28 @@ local rules = {
       hint = "Include clear instructions for when and how to use this skill",
     },
   },
+  rule = {
+    description = {
+      required = true,
+      min_length = 1,
+      max_length = 500,
+      error = "Description must be 1-500 characters",
+      hint = "Brief description of the rule's purpose",
+    },
+    globs = {
+      required = true,
+      pattern = "^%*%.[a-z]+$",
+      valid_values = { "*.lua", "*.js", "*.ts", "*.go", "*.py", "*.rs", "*.md", "*.json", "*.yaml", "*.yml" },
+      error = "Globs must be file patterns like '*.lua'",
+      hint = "Specify file patterns this rule applies to (e.g., '*.lua')",
+    },
+    body = {
+      required = true,
+      min_length = 10,
+      error = "Rule body must have at least 10 characters",
+      hint = "Include the rule content with rationale and examples",
+    },
+  },
   command = {
     description = {
       required = true,
@@ -113,6 +135,25 @@ local hints = {
       ["allowed-tools"] = "Tools Claude can use without permission",
     },
   },
+  rule = {
+    sections = {
+      "## Rationale",
+      "## Good Examples",
+      "## Bad Examples",
+      "## Exceptions",
+    },
+    frontmatter_fields = {
+      description = "Brief description of the rule",
+      globs = "File patterns this rule applies to",
+    },
+    common_rules = {
+      "No hardcoded secrets",
+      "Always validate input",
+      "Use parameterized queries",
+      "Follow naming conventions",
+      "Keep functions small",
+    },
+  },
   command = {
     frontmatter_fields = {
       description = "Brief description for /help",
@@ -171,6 +212,8 @@ function M.validate(item)
   if item_type == "skill" or item_type == "command" then
     M.validate_frontmatter(item, type_rules, errors, warnings, suggestions)
     M.validate_body(item, type_rules, errors, warnings, suggestions)
+  elseif item_type == "rule" then
+    M.validate_rule(item, type_rules, errors, warnings, suggestions)
   elseif item_type == "mcp" then
     M.validate_mcp(item, type_rules, errors, warnings, suggestions)
   end
@@ -263,6 +306,61 @@ function M.validate_body(item, type_rules, errors, warnings, suggestions)
     local has_instruction = body:find("## Instruction") or body:find("## instruction") or body:find("What I do")
     if not has_instruction then
       table.insert(suggestions, "Add an 'Instructions' section to describe the skill's behavior")
+    end
+  end
+end
+
+----------------------------------------------------------------------
+-- Validate Rule
+----------------------------------------------------------------------
+function M.validate_rule(item, type_rules, errors, warnings, suggestions)
+  local frontmatter = item.frontmatter or {}
+  local body = item.body or ""
+
+  -- Validate frontmatter
+  for field, rule in pairs(type_rules) do
+    if field == "body" then
+      goto continue
+    end
+
+    local value = frontmatter[field]
+
+    if rule.required and (not value or value == "") then
+      table.insert(errors, string.format("Missing required field: %s", field))
+      if rule.hint then
+        table.insert(suggestions, string.format("%s: %s", field, rule.hint))
+      end
+    elseif value then
+      if rule.max_length and #value > rule.max_length then
+        table.insert(errors, string.format("%s: Must be at most %d characters", field, rule.max_length))
+      end
+    end
+
+    ::continue::
+  end
+
+  -- Validate body
+  local body_rule = type_rules.body
+  if body_rule then
+    if body_rule.required and #body < body_rule.min_length then
+      table.insert(errors, body_rule.error)
+      if body_rule.hint then
+        table.insert(suggestions, body_rule.hint)
+      end
+    end
+  end
+
+  -- Check best practices for rules
+  if #body > 0 then
+    local has_rationale = body:find("## Rationale") or body:find("## rationale") or body:find("Why")
+    if not has_rationale then
+      table.insert(warnings, "Consider adding a 'Rationale' section to explain why this rule exists")
+    end
+
+    local has_good_examples = body:find("## Good") or body:find("## Correct") or body:find("Good Examples")
+    local has_bad_examples = body:find("## Bad") or body:find("## Wrong") or body:find("Bad Examples")
+    if not has_good_examples and not has_bad_examples then
+      table.insert(suggestions, "Add 'Good Examples' and 'Bad Examples' sections for clarity")
     end
   end
 end

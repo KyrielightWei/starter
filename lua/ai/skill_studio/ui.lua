@@ -76,7 +76,11 @@ local function draw_box(buf, start_row, start_col, width, height, title)
   if title then
     local title_str = " " .. title .. " "
     local pad_left = math.floor((width - 2 - #title_str) / 2)
-    top = "┌" .. string.rep("─", pad_left) .. title_str .. string.rep("─", width - 2 - pad_left - #title_str) .. "┐"
+    top = "┌"
+      .. string.rep("─", pad_left)
+      .. title_str
+      .. string.rep("─", width - 2 - pad_left - #title_str)
+      .. "┐"
   end
 
   for i = 0, height - 1 do
@@ -189,8 +193,8 @@ function M.setup_autocomplete(buf, item_type)
       { word = "type", menu = "Server type", info = "stdio, http, sse, ws, local, remote" },
       { word = "command", menu = "Command", info = "Command to start server" },
       { word = "url", menu = "URL", info = "Remote server URL" },
-      { word = "env", menu = "Environment", info = "{ KEY = \"value\" }" },
-      { word = "headers", menu = "HTTP headers", info = "{ Authorization = \"Bearer ...\" }" },
+      { word = "env", menu = "Environment", info = '{ KEY = "value" }' },
+      { word = "headers", menu = "HTTP headers", info = '{ Authorization = "Bearer ..." }' },
     },
   }
 

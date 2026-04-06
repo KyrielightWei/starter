@@ -26,6 +26,35 @@ ECC 是一套增强 Claude Code 能力的工具集，包含：
 
 ---
 
+## 安装
+
+ECC 需要从 GitHub 克隆安装：
+
+```bash
+# 克隆仓库
+git clone https://github.com/affaan-m/everything-claude-code.git /tmp/ecc --depth=1
+
+# 安装依赖
+cd /tmp/ecc && npm install --no-audit --no-fund --loglevel=error
+
+# 安装到 Claude Code (默认)
+node scripts/install-apply.js --profile developer
+
+# 安装到 OpenCode
+node scripts/install-apply.js --target opencode --profile developer
+
+# 可选 profiles: core, developer, security, research, full
+```
+
+## 配置目录
+
+| 工具 | 配置目录 | 说明 |
+|------|----------|------|
+| Claude Code | `~/.claude/` | rules, commands, agents, skills |
+| OpenCode | `~/.opencode/` | commands, hooks, mcp-configs |
+
+---
+
 ## 快速开始
 
 ### 核心开发流程
@@ -375,5 +404,3 @@ A: 最低 80%，关键代码 (财务、认证、安全) 要求 100%。
 - 会话目录: `~/.claude/sessions/`
 
 ---
-
-*生成日期: 2026-03-23*

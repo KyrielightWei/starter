@@ -124,3 +124,4 @@ export NVM_DIR="$HOME/.nvm"
 
 # Added by CodeFuse CLI installer
 export PATH="$HOME/.local/bin:$PATH"
+# API key 通过 ~/.local/state/nvim/ai_keys.lua 管理，不要在此硬编码

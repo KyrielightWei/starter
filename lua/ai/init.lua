@@ -130,6 +130,20 @@ local commands = {
   { "AIAsk", call("ask"), desc = "AI Quick Ask" },
   { "AIToggle", call("toggle"), desc = "Toggle AI Panel" },
   { "AIDiff", call("diff"), desc = "View AI Changes Diff" },
+  {
+    "ECCInstall",
+    function()
+      require("ai.ecc").open_installer()
+    end,
+    desc = "Install ECC Framework",
+  },
+  {
+    "ECCStatus",
+    function()
+      require("ai.ecc").show_status()
+    end,
+    desc = "Show ECC Status",
+  },
 }
 
 ----------------------------------------------------------------------

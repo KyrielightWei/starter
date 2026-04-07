@@ -182,6 +182,14 @@ local function validate_template(config)
 
   if config.model and type(config.model) ~= "string" then
     table.insert(errors, "model 必须是字符串")
+  elseif config.model and not config.model:find("/") then
+    table.insert(
+      warnings,
+      string.format(
+        "model '%s' 缺少 provider 前缀，建议使用 'provider/model' 格式（生成时会自动补全）",
+        config.model
+      )
+    )
   end
 
   if config.share and not vim.tbl_contains({ "manual", "auto", "disabled" }, config.share) then
@@ -391,7 +399,6 @@ function M.generate_config()
     show_validation_result(errors, warnings, false)
   end
 
-  local keys, profile = read_ai_keys()
   local Resolver = require("ai.config_resolver")
   local dynamic_providers, auth_config = Resolver.build_provider_config()
 
@@ -403,6 +410,52 @@ function M.generate_config()
     config.provider = {}
   end
   config.provider = deep_merge(config.provider, dynamic_providers)
+
+  -- 确保 model/small_model 使用 provider/model 格式
+  local function ensure_provider_prefix(model_value)
+    if not model_value or type(model_value) ~= "string" then
+      return model_value
+    end
+    if model_value:find("/") then
+      return model_value
+    end
+    -- 优先检查默认 provider
+    local default = Providers.default_provider
+    local default_def = Providers.get(default)
+    if default_def then
+      if default_def.model == model_value then
+        return default .. "/" .. model_value
+      end
+      for _, m in ipairs(default_def.static_models or {}) do
+        if m == model_value then
+          return default .. "/" .. model_value
+        end
+      end
+    end
+    -- 再遍历其他 provider
+    for provider_name, _ in pairs(config.provider or {}) do
+      if provider_name ~= default then
+        local provider_def = Providers.get(provider_name)
+        if provider_def then
+          if provider_def.model == model_value then
+            return provider_name .. "/" .. model_value
+          end
+          for _, m in ipairs(provider_def.static_models or {}) do
+            if m == model_value then
+              return provider_name .. "/" .. model_value
+            end
+          end
+        end
+      end
+    end
+    -- 回退：使用默认 provider
+    return default .. "/" .. model_value
+  end
+
+  config.model = ensure_provider_prefix(config.model)
+  if config.small_model then
+    config.small_model = ensure_provider_prefix(config.small_model)
+  end
 
   return config, auth_config, true
 end
@@ -470,8 +523,8 @@ function M.edit_template()
   // OpenCode 配置模板
   // 修改后运行 :OpenCodeGenerateConfig 生成最终配置
 
-  // 默认模型
-  "model": "glm-5",
+  // 默认模型 (格式: provider/model)
+  "model": "bailian_coding/glm-5",
 
   // 自动更新
   "autoupdate": true,

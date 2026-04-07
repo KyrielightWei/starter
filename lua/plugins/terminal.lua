@@ -106,7 +106,7 @@ return {
         persist_size = true,
         persist_mode = true,
         auto_scroll = true,
-        close_on_exit = true,
+        close_on_exit = false, -- 改为 false，进程退出后保留终端以便查看输出
         shell = vim.o.shell,
         autochdir = false,
         float_opts = {

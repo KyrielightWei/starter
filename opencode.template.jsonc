@@ -5,7 +5,7 @@
   // 修改后运行 :OpenCodeGenerateConfig 生成最终配置
 
   // 默认模型 (格式: provider/model)
-  "model": "bailian_coding/glm-5",
+  "model": "bailian_coding/qwen3.6-plus",
 
   // 自动更新
   "autoupdate": false,

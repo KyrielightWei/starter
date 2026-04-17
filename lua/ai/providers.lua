@@ -7,7 +7,7 @@ local M = {}
 -- 全局默认值（所有工具统一使用）
 ----------------------------------------------------------------------
 M.default_provider = "bailian_coding"
-M.default_model = "glm-5"
+M.default_model = "qwen3.6-plus"
 
 -- 注册 provider
 function M.register(name, conf)
@@ -92,9 +92,9 @@ M.register("bailian", {
 
 M.register("bailian_coding", {
   api_key_name = "BAILIAN_CODING_API_KEY",
-  endpoint = "https://coding-intl.dashscope.aliyuncs.com/v1",
-  model = "glm-5",
-  static_models = { "qwen3.5-plus", "kimi-k2.5", "glm-5", "MiniMax-M2.5" },
+  endpoint = "https://coding.dashscope.aliyuncs.com/v1",
+  model = "qwen3.6-plus",
+  static_models = { "glm-5", "qwen3.5-plus", "qwen3.6-plus", "kimi-k2.5", "MiniMax-M2.5" },
 })
 
 M.register("dashscope", {

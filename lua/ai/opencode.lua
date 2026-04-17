@@ -3,10 +3,10 @@
 
 local M = {}
 
--- OpenCode CLI 配置目录 (~/.config/opencode/)
+-- OpenCode CLI 配置目录 (~/.opencode/)
+-- OpenCode 使用 ~/.opencode/ 作为全局配置目录，而不是 ~/.config/opencode/
 local function get_opencode_config_dir()
-  local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
-  return xdg_config .. "/opencode"
+  return vim.fn.expand("~/.opencode")
 end
 
 -- Neovim 配置目录 (存放模板)
@@ -461,6 +461,10 @@ function M.generate_config()
 end
 
 function M.write_config()
+  -- 检查并安装 ECC (同时为 Claude Code 和 OpenCode 安装)
+  local Ecc = require("ai.ecc")
+  local ecc_installed = Ecc.ensure_installed({ target = "opencode", profile = "developer" })
+
   local config, auth_config, ok = M.generate_config()
   if not ok then
     vim.notify("配置生成失败，请修复模板错误后重试", vim.log.levels.ERROR)
@@ -498,7 +502,6 @@ function M.write_config()
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
 
   -- 打印配置结果
-  local Ecc = require("ai.ecc")
   local ecc = Ecc.get_status()
   local notify_lines = { "✅ OpenCode 配置生成成功", "" }
   vim.list_extend(notify_lines, Ecc.format_notification(ecc))
@@ -506,6 +509,7 @@ function M.write_config()
   if ecc then
     table.insert(notify_lines, "  Rules: ~/.claude/rules/")
     table.insert(notify_lines, "  Agents: ~/.claude/agents/")
+    table.insert(notify_lines, "  Commands: ~/.opencode/commands/")
   end
 
   vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)

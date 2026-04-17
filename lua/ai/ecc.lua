@@ -83,50 +83,8 @@ function M.format_notification(ecc)
   return lines
 end
 
---- 执行 shell 命令并返回输出
---- @param cmd string 命令
---- @param opts table|nil 选项 { timeout: number, cwd: string }
---- @return boolean, string success, output
-local function run_cmd(cmd, opts)
-  opts = opts or {}
-  local timeout = opts.timeout or 120000
-  local cwd = opts.cwd or nil
-
-  local output = {}
-  local job_id
-  local success = false
-
-  local co = coroutine.running()
-
-  job_id = vim.fn.jobstart(cmd, {
-    cwd = cwd,
-    timeout = timeout,
-    on_stdout = function(_, data)
-      vim.list_extend(output, data)
-    end,
-    on_stderr = function(_, data)
-      vim.list_extend(output, data)
-    end,
-    on_exit = function(_, code)
-      success = code == 0
-      if co then
-        coroutine.resume(co)
-      end
-    end,
-  })
-
-  if job_id <= 0 then
-    return false, "Failed to start command"
-  end
-
-  if co then
-    coroutine.yield()
-  end
-
-  return success, table.concat(output, "\n")
-end
-
 --- 同步执行命令（用于非交互式安装）
+--- 注意：此函数会阻塞 Neovim UI，不建议在交互式场景中使用
 --- @param cmd string 命令
 --- @param opts table|nil 选项
 --- @return boolean, string
@@ -235,31 +193,51 @@ function M.install(opts, on_progress)
     return false, "需要安装 npm"
   end
 
-  -- 克隆仓库
-  local ok, msg = clone_repo(on_progress)
-  if not ok then
-    return false, msg
+  -- 清理函数（确保任何情况下都清理临时目录）
+  local function cleanup()
+    if vim.fn.isdirectory(ECC_TEMP_DIR) == 1 then
+      vim.fn.delete(ECC_TEMP_DIR, "rf")
+    end
   end
 
-  -- 安装依赖
-  ok, msg = install_deps(on_progress)
-  if not ok then
-    return false, msg
+  -- 使用 xpcall 确保错误恢复
+  local ok, result = xpcall(function()
+    -- 克隆仓库
+    local ok2, msg = clone_repo(on_progress)
+    if not ok2 then
+      error(msg)
+    end
+
+    -- 安装依赖
+    ok2, msg = install_deps(on_progress)
+    if not ok2 then
+      error(msg)
+    end
+
+    -- 运行安装脚本
+    ok2, msg = run_install(target, profile, on_progress)
+    if not ok2 then
+      error(msg)
+    end
+
+    return "✅ ECC 安装成功！"
+  end, function(err)
+    return tostring(err)
+  end)
+
+  -- 确保清理（无论成功或失败）
+  cleanup()
+
+  if ok then
+    return true, result
+  else
+    return false, result
   end
-
-  -- 运行安装脚本
-  ok, msg = run_install(target, profile, on_progress)
-  if not ok then
-    return false, msg
-  end
-
-  -- 清理临时目录
-  vim.fn.delete(ECC_TEMP_DIR, "rf")
-
-  return true, "✅ ECC 安装成功！"
 end
 
---- 异步安装 ECC（使用浮动窗口显示进度）
+--- 显示安装进度（注意：实际安装过程会阻塞 UI）
+--- 此函数使用 defer_fn 创建浮动窗口显示进度，但底层调用的是同步阻塞的 run_cmd_sync
+--- 安装过程中 UI 会冻结 2-5 分钟，这是预期行为
 --- @param opts table|nil { target: string, profile: string, force: boolean }
 --- @param callback function|nil 完成回调 (success: boolean, message: string) -> void
 function M.install_async(opts, callback)
@@ -376,7 +354,8 @@ function M.show_status()
     local dirs = { "rules", "commands", "agents", "skills", "hooks" }
     for _, dir in ipairs(dirs) do
       local claude_dir = vim.fn.expand("~/.claude/" .. dir)
-      local opencode_dir = vim.fn.expand("~/.opencode/" .. dir)
+      local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+      local opencode_dir = xdg_config .. "/opencode/" .. dir
       local claude_count = vim.fn.isdirectory(claude_dir) == 1
           and vim.fn.len(vim.fn.glob(claude_dir .. "/*", false, true))
         or 0

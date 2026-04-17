@@ -266,9 +266,10 @@ function M.build_provider_config()
         -- 使用 key 文件中的 base_url (OpenAI 风格)
         local endpoint = Keys.get_base_url(provider_name)
 
-        -- API key 存储路径: ~/.opencode/api_key_<provider>.txt
-        -- OpenCode 使用 ~/.opencode/ 作为全局配置目录
-        local api_key_path = vim.fn.expand("~/.opencode/api_key_" .. provider_name .. ".txt")
+        -- API key 存储路径: ~/.config/opencode/api_key_<provider>.txt
+        -- 遵循 XDG Base Directory 规范
+        local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+        local api_key_path = xdg_config .. "/opencode/api_key_" .. provider_name .. ".txt"
 
         provider_config[provider_name] = {
           npm = "@ai-sdk/openai-compatible",

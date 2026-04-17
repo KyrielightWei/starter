@@ -3,10 +3,46 @@
 
 local M = {}
 
--- OpenCode CLI 配置目录 (~/.opencode/)
--- OpenCode 使用 ~/.opencode/ 作为全局配置目录，而不是 ~/.config/opencode/
+-- OpenCode CLI 配置目录
+-- 官方推荐: ~/.config/opencode/ (遵循 XDG Base Directory 规范)
+-- 兼容旧版: ~/.opencode/ (自动迁移)
 local function get_opencode_config_dir()
-  return vim.fn.expand("~/.opencode")
+  -- XDG 规范优先
+  local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+  local new_dir = xdg_config .. "/opencode"
+  local old_dir = vim.fn.expand("~/.opencode")
+
+  -- 自动迁移：如果旧目录存在且新目录不存在，迁移配置
+  if vim.fn.isdirectory(old_dir) == 1 and vim.fn.isdirectory(new_dir) ~= 1 then
+    -- 检查旧目录中是否有配置文件
+    local old_config = old_dir .. "/opencode.json"
+    local old_keys = {}
+    for _, f in ipairs(vim.fn.glob(old_dir .. "/api_key_*.txt", false, true) or {}) do
+      table.insert(old_keys, f)
+    end
+
+    if vim.fn.filereadable(old_config) == 1 or #old_keys > 0 then
+      vim.notify("正在迁移 OpenCode 配置从 ~/.opencode/ 到 ~/.config/opencode/", vim.log.levels.WARN)
+
+      -- 创建新目录
+      vim.fn.mkdir(new_dir, "p")
+
+      -- 迁移配置文件
+      if vim.fn.filereadable(old_config) == 1 then
+        vim.fn.rename(old_config, new_dir .. "/opencode.json")
+      end
+
+      -- 迁移 API key 文件
+      for _, key_file in ipairs(old_keys) do
+        local filename = vim.fn.fnamemodify(key_file, ":t")
+        vim.fn.rename(key_file, new_dir .. "/" .. filename)
+      end
+
+      vim.notify("✅ 配置迁移完成", vim.log.levels.INFO)
+    end
+  end
+
+  return new_dir
 end
 
 -- Neovim 配置目录 (存放模板)
@@ -182,14 +218,14 @@ local function validate_template(config)
 
   if config.model and type(config.model) ~= "string" then
     table.insert(errors, "model 必须是字符串")
-  elseif config.model and not config.model:find("/") then
-    table.insert(
-      warnings,
-      string.format(
-        "model '%s' 缺少 provider 前缀，建议使用 'provider/model' 格式（生成时会自动补全）",
-        config.model
+  elseif config.model then
+    -- 检查模型格式：必须是 provider/model 格式
+    if not config.model:match("^[%w_-]+/.+$") then
+      table.insert(
+        errors,
+        string.format("model '%s' 必须使用 'provider/model' 格式，例如 'bailian_coding/qwen3.6-plus'", config.model)
       )
-    )
+    end
   end
 
   if config.share and not vim.tbl_contains({ "manual", "auto", "disabled" }, config.share) then
@@ -411,6 +447,25 @@ function M.generate_config()
   end
   config.provider = deep_merge(config.provider, dynamic_providers)
 
+  return config, auth_config, true
+end
+
+  if #warnings > 0 then
+    show_validation_result(errors, warnings, false)
+  end
+
+  local Resolver = require("ai.config_resolver")
+  local dynamic_providers, auth_config = Resolver.build_provider_config()
+
+  local base_config = Resolver.get_defaults()
+
+  local config = deep_merge(base_config, template_config)
+
+  if not config.provider then
+    config.provider = {}
+  end
+  config.provider = deep_merge(config.provider, dynamic_providers)
+
   -- 确保 model/small_model 使用 provider/model 格式
   local function ensure_provider_prefix(model_value)
     if not model_value or type(model_value) ~= "string" then
@@ -509,7 +564,8 @@ function M.write_config()
   if ecc then
     table.insert(notify_lines, "  Rules: ~/.claude/rules/")
     table.insert(notify_lines, "  Agents: ~/.claude/agents/")
-    table.insert(notify_lines, "  Commands: ~/.opencode/commands/")
+    local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+    table.insert(notify_lines, "  Commands: " .. xdg_config .. "/opencode/commands/")
   end
 
   vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
@@ -520,15 +576,15 @@ end
 function M.edit_template()
   local template_path = get_opencode_template_path()
 
-  if vim.fn.filereadable(template_path) == 0 then
+if vim.fn.filereadable(template_path) == 0 then
     local default_template = [[{
   "$schema": "https://opencode.ai/config.json",
 
   // OpenCode 配置模板
   // 修改后运行 :OpenCodeGenerateConfig 生成最终配置
 
-  // 默认模型 (格式: provider/model)
-  "model": "bailian_coding/glm-5",
+  // 默认模型 (必须使用 provider/model 格式)
+  "model": "bailian_coding/qwen3.6-plus",
 
   // 自动更新
   "autoupdate": true,
@@ -538,7 +594,6 @@ function M.edit_template()
 
   // 权限配置
   "permission": {},
-
   // 文件监视器配置
   "watcher": {
     "ignore": [

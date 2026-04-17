@@ -10,20 +10,16 @@
 --   bailian_coding = {
 --     default = {
 --       api_key = "sk-xxx",
---       base_url = "https://coding.dashscope.aliyuncs.com/v1",      -- OpenAI 风格
---       base_url_claude = "https://coding.dashscope.aliyuncs.com/v1", -- Claude Code 风格 (可选)
---     },
---     work = {
---       api_key = "sk-yyy",
---       base_url = "https://...",
+--       base_url = "https://coding.dashscope.aliyuncs.com/v1",
+--       base_url_claude = "",  -- Claude Code 专用 (可选)
 --     },
 --   },
 -- }
 --
 -- 说明：
 -- - api_key: API 密钥
--- - base_url: OpenAI 兼容风格的 endpoint (OpenCode/Avante 使用)
--- - base_url_claude: Claude Code 专用 endpoint (可选，不填则使用 base_url)
+-- - base_url: API endpoint (可选，不填则使用 providers.lua 默认值)
+-- - base_url_claude: Claude Code 专用 endpoint (可选)
 --
 -- ============================================================================
 

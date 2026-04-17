@@ -48,10 +48,14 @@ node scripts/install-apply.js --target opencode --profile developer
 
 ## 配置目录
 
-| 工具 | 配置目录 | 说明 |
-|------|----------|------|
-| Claude Code | `~/.claude/` | rules, commands, agents, skills |
-| OpenCode | `~/.opencode/` | commands, hooks, mcp-configs |
+遵循 XDG Base Directory 规范：
+
+| 工具 | 配置目录 | 数据目录 | 说明 |
+|------|----------|----------|------|
+| Claude Code | `~/.claude/` | - | rules, commands, agents, skills |
+| OpenCode | `~/.config/opencode/` | `~/.local/share/opencode/` | 配置文件、API 凭证 |
+
+> **迁移提示**: 如果你有旧版 `~/.opencode/` 目录，系统会自动迁移到 `~/.config/opencode/`
 
 ---
 

@@ -4,12 +4,13 @@
 local M = {}
 
 --- 需要删除的目录列表
+--- 仅删除 ECC 特定的子目录，保留用户自己的 commands/agents/skills/hooks
 local CLEANUP_DIRS = {
   vim.fn.expand("~/.claude/ecc"),
-  vim.fn.expand("~/.claude/commands"),
-  vim.fn.expand("~/.claude/agents"),
-  vim.fn.expand("~/.claude/skills"),
-  vim.fn.expand("~/.claude/hooks"),
+  vim.fn.expand("~/.claude/commands/ecc"),
+  vim.fn.expand("~/.claude/agents/ecc"),
+  vim.fn.expand("~/.claude/skills/ecc"),
+  vim.fn.expand("~/.claude/hooks/ecc"),
 }
 
 --- 需要删除的文件列表

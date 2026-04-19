@@ -16,6 +16,13 @@
 4. `list_outdated()` returns non-empty when components have updates
 5. ECC uninstall does not delete non-ECC content
 
+**Plans:** 4 plans
+Plans:
+- [x] 01-01-PLAN.md — Remove dead code + dynamic component loading for OpenCode (FIX-01, FIX-02)
+- [x] 01-02-PLAN.md — Dynamic component loading for Claude Code (FIX-03)
+- [x] 01-03-PLAN.md — Fix list_outdated() to use switcher cache (FIX-04)
+- [x] 01-04-PLAN.md — Fix ECC uninstaller to target only ECC subdirs (FIX-05)
+
 ## Phase 2: Cache + Deploy Infrastructure
 **Goal**: Local cache directory + syncer + manager lifecycle
 **Requirements**: ARCH-01, ARCH-02, ARCH-07, ARCH-10
@@ -60,7 +67,7 @@
 ## Success Summary
 | Phase | Goal | Status |
 |-------|------|--------|
-| 1 | Bug fixes (unblock) | Pending |
+| 1 | Bug fixes (unblock) | Planned |
 | 2 | Cache infrastructure | Pending |
 | 3 | Component integrations | Pending |
 | 4 | Progress UI | Pending |

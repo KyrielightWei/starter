@@ -451,9 +451,55 @@ function M.generate_config()
 end
 
 function M.write_config()
-  -- 检查并安装 ECC (同时为 Claude Code 和 OpenCode 安装)
-  local Ecc = require("ai.ecc")
-  local ecc_installed = Ecc.ensure_installed({ target = "opencode", profile = "developer" })
+  -- 读取 switcher 分配的组件
+  local Switcher = require("ai.components.switcher")
+  local Registry = require("ai.components.registry")
+  local comp_name = Switcher.get_active("opencode")
+
+  -- Guard: component not assigned
+  if not comp_name or not Registry.is_registered(comp_name) then
+    local assignments = Switcher.get_all()
+    local lines = {
+      "❌ OpenCode: 未分配组件",
+      "",
+      "  当前分配:",
+    }
+    for tool, comp in pairs(assignments) do
+      table.insert(lines, string.format("    %s → %s", tool, comp))
+    end
+    table.insert(lines, "")
+    table.insert(lines, "  修复选项:")
+    table.insert(lines, "    1. 运行组件选择器为 OpenCode 分配一个组件")
+    table.insert(lines, string.format("    2. 运行 :OpenCodeWriteConfig 在分配组件后重试"))
+    table.insert(lines, "")
+    if comp_name then
+      table.insert(lines, string.format("  已分配: %s (但未在注册表中找到)", comp_name))
+      table.insert(lines, "  提示: 该组件可能未部署或未注册")
+    else
+      table.insert(lines, "  提示: OpenCode 还没有被分配到任何组件")
+    end
+
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
+    return false
+  end
+
+  -- 动态加载组件
+  local Component = require("ai.components." .. comp_name)
+
+  -- 检查组件是否已安装
+  if not Component.is_installed() then
+    local lines = {
+      string.format("❌ 组件 '%s' 未安装 (OpenCode 分配)", comp_name),
+      "",
+      "  快速修复:",
+      string.format("    运行 :%sDeployTools (部署到工具)", comp_name:upper()),
+      string.format("    或切换为其他已安装的组件"),
+      "",
+      string.format("  当前分配: opencode → %s", comp_name),
+    }
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
+    return false
+  end
 
   local config, auth_config, ok = M.generate_config()
   if not ok then
@@ -492,11 +538,13 @@ function M.write_config()
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
 
   -- 打印配置结果
-  local ecc = Ecc.get_status()
+  local comp_status = Component.get_status()
   local notify_lines = { "✅ OpenCode 配置生成成功", "" }
-  vim.list_extend(notify_lines, Ecc.format_notification(ecc))
+  if Component.format_notification then
+    vim.list_extend(notify_lines, Component.format_notification(comp_status))
+  end
 
-  if ecc then
+  if comp_status then
     table.insert(notify_lines, "  Rules: ~/.claude/rules/")
     table.insert(notify_lines, "  Agents: ~/.claude/agents/")
     local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")

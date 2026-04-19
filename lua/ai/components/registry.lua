@@ -69,7 +69,7 @@ function M.is_registered(name)
   return M._registry[name] ~= nil
 end
 
---- 获取所有已注册组件的列表
+--- 获取所有已注册组件的列表（快速：无网络请求）
 ---@return table[] { name, category, description, installed, icon }
 function M.list()
   local result = {}
@@ -83,7 +83,7 @@ function M.list()
         description = comp.description or "",
         installed = comp.is_installed(),
         icon = comp.icon or "📦",
-        version_info = comp.get_version_info(),
+        -- get_version_info 延迟到预览时调用，避免阻塞列表加载
       })
     end
   end
@@ -115,11 +115,16 @@ function M.list_uninstalled()
 end
 
 --- 获取需要更新的组件列表
----@return table[]
+---@return AIComponent[]
 function M.list_outdated()
   local installed = M.list_installed()
+  local ok, Switcher = pcall(require, "ai.components.switcher")
+  if not ok then
+    return {}
+  end
   return vim.tbl_filter(function(c)
-    return c.version_info and c.version_info.status == "outdated"
+    local version_info = Switcher.get_version_cache(c.name)
+    return version_info and version_info.status == "outdated"
   end, installed)
 end
 

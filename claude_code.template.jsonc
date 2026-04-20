@@ -24,6 +24,11 @@
   //   "enabled": false
   // },
 
+  // 环境变量（合并到 settings.json 的 env 字段，与 key 文件配置合并）
+  "env": {
+    "XDG_STATE_HOME": "/tmp/claude-state"
+  },
+
   // 自定义 ccstatusline 状态栏
   // 常用 widgets: model, cost, tokens, context, thinking, time
   // 示例: --widgets model,cost,tokens,context

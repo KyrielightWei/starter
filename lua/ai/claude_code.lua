@@ -506,6 +506,11 @@ function M.edit_template()
   //   "enabled": false
   // },
 
+  // 环境变量（合并到 settings.json 的 env 字段，与 key 文件配置合并）
+  "env": {
+    "XDG_STATE_HOME": "/tmp/claude-state"
+  },
+
   // 自定义 ccstatusline 状态栏（取消注释并修改即可覆盖默认配置）
   // 默认值：{ "type": "command", "command": "npx -y ccstatusline@latest", "padding": 0 }
   // "statusLine": {

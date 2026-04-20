@@ -124,22 +124,20 @@ function M.show_version_detail(component_name)
   vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "<cmd>close<cr>", { silent = true })
 end
 
---- 创建 fzf-lua previewer
+--- 创建 fzf-lua 预览配置（写入 winopts.preview）
 ---@param entries table 选择器条目映射
----@return table previewer
+---@return table preview_config
 function M.create_fzf_previewer(entries)
-  local fzf = require("fzf-lua")
-
-  return fzf.previewer.builtin({
+  return {
     title = " Component Details ",
-    preview_action = function(selected)
-      if not selected or #selected < 1 then
+    fn = function(_, preview_win, fzf_data, _preview_scroll)
+      if not fzf_data or #fzf_data < 1 then
         return ""
       end
-      local comp_name = entries[selected[1]]
+      local comp_name = entries[fzf_data[1]]
       return M.build_preview(comp_name)
     end,
-  })
+  }
 end
 
 return M

@@ -9,34 +9,31 @@ local function has_fzf_lua()
   return ok
 end
 
---- 构建选择器条目
+--- 构建选择器条目（快速：不触发网络请求）
 ---@return table { display_line = component_name }
 function M.build_entries()
   local Registry = require("ai.components.registry")
+  local Switcher = require("ai.components.switcher")
   local components = Registry.list()
   local entries = {}
 
   for _, comp in ipairs(components) do
     local icon = comp.installed and "✓" or "○"
-    local version_str = comp.version_info and comp.version_info.current or "not installed"
+    -- 从缓存读取版本状态，不触发网络请求
+    local cached = Switcher.get_version_cache(comp.name)
     local status_icon = ""
-
-    if comp.version_info then
-      if comp.version_info.status == "outdated" then
+    if cached then
+      if cached.status == "outdated" then
         status_icon = " ⚠️"
-      elseif comp.version_info.status == "current" then
-        status_icon = ""
       end
     end
 
-    -- 格式: icon · icon · name (display) │ category │ version │ status
     local line = string.format(
-      "%s %s %s │ %s │ %s%s",
+      "%s %s %s │ %s │ %s",
       icon,
       comp.icon or "📦",
       comp.display_name,
       comp.category or "unknown",
-      version_str,
       status_icon
     )
 
@@ -83,6 +80,12 @@ function M.open()
 
   local entries = M.build_entries()
 
+  -- 后台异步刷新远程版本（不阻塞 UI）
+  vim.defer_fn(function()
+    local Switcher = require("ai.components.switcher")
+    Switcher.refresh_versions_async()
+  end, 500)
+
   -- 如果没有组件
   if vim.tbl_isempty(entries) then
     vim.notify("No components registered", vim.log.levels.WARN)
@@ -96,7 +99,7 @@ function M.open()
   end
   table.sort(display_lines)
 
-  fzf.fzf(display_lines, {
+  fzf.fzf_exec(display_lines, {
     prompt = " AI Components > ",
     winopts = {
       title = " AI Component Manager ",
@@ -108,9 +111,19 @@ function M.open()
       preview = {
         layout = "right",
         width = 0.4,
+        fn = function(_, preview_win, fzf_data, _preview_scroll)
+          if not fzf_data or #fzf_data < 1 then
+            return ""
+          end
+          local Previewer2 = require("ai.components.previewer")
+          local comp_name = entries[fzf_data[1]]
+          return Previewer2.build_preview(comp_name)
+        end,
       },
     },
-    previewer = Previewer.create_fzf_previewer(entries),
+    fzf_opts = {
+      ["--header"] = M.build_header(),
+    },
     actions = {
       -- Enter: 打开操作菜单
       ["default"] = function(selected)
@@ -166,7 +179,6 @@ function M.open()
           return
         end
         local comp_name = entries[selected[1]]
-        local Previewer = require("ai.components.previewer")
         Previewer.show_version_detail(comp_name)
       end,
 
@@ -177,16 +189,17 @@ function M.open()
         M.open()
       end,
     },
-    fzf_opts = {
-      ["--header"] = M.build_header(),
-      ["--preview-window"] = "right:40%",
-    },
   })
 end
 
 --- 打开二级操作菜单
 ---@param component_name string 组件名
 function M.open_actions_menu(component_name)
+  if not has_fzf_lua() then
+    vim.notify("fzf-lua not installed", vim.log.levels.ERROR)
+    return
+  end
+
   local fzf = require("fzf-lua")
   local Registry = require("ai.components.registry")
   local Actions = require("ai.components.actions")
@@ -240,7 +253,7 @@ function M.open_actions_menu(component_name)
     return a[1]
   end, actions)
 
-  fzf.fzf(display_lines, {
+  fzf.fzf_exec(display_lines, {
     prompt = string.format(" Actions for %s > ", comp.display_name or component_name),
     winopts = {
       height = 0.4,
@@ -268,6 +281,11 @@ end
 --- 打开工具切换选择器
 ---@param component_name string 组件名
 function M.open_switch_menu(component_name)
+  if not has_fzf_lua() then
+    vim.notify("fzf-lua not installed", vim.log.levels.ERROR)
+    return
+  end
+
   local fzf = require("fzf-lua")
   local Registry = require("ai.components.registry")
   local Switcher = require("ai.components.switcher")
@@ -294,7 +312,7 @@ function M.open_switch_menu(component_name)
   end
   table.sort(display_lines)
 
-  fzf.fzf(display_lines, {
+  fzf.fzf_exec(display_lines, {
     prompt = string.format(" Switch %s to tool > ", comp.display_name or component_name),
     winopts = {
       height = 0.3,

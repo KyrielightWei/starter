@@ -135,7 +135,7 @@ function M.parse_from_string(str)
   return nil
 end
 
---- 获取 npm 包最新版本
+--- 同步获取 npm 包最新版本
 ---@param package_name string npm 包名
 ---@param timeout number|nil 超时时间（毫秒），默认 30000
 ---@return string|nil latest_version
@@ -146,29 +146,61 @@ function M.get_latest_npm_version(package_name, timeout)
     return nil
   end
 
-  -- 检查 npm 可用
   if vim.fn.executable("npm") ~= 1 then
     return nil
   end
 
-  -- 执行 npm view
   local cmd = string.format("npm view %s version --json", package_name)
-
-  -- 使用 jobstart 异步获取（避免阻塞）
-  -- 简化版：使用 system，但设置较短超时
   local result = vim.fn.system(cmd)
 
   if vim.v.shell_error ~= 0 then
-    -- 网络错误或包不存在
     return nil
   end
 
-  -- 解析 JSON 输出
   local version = result:gsub('"', ""):gsub("\n", "")
   return version ~= "" and version or nil
 end
 
---- 获取 git 仓库最新版本（通过 ls-remote）
+--- 异步获取 npm 包最新版本
+--- via jobstart + callback
+---@param package_name string npm 包名
+---@param callback fun(version: string|nil)
+function M.get_latest_npm_version_async(package_name, callback)
+  if not package_name or package_name == "" then
+    callback(nil)
+    return
+  end
+
+  if vim.fn.executable("npm") ~= 1 then
+    callback(nil)
+    return
+  end
+
+  local cmd = string.format("npm view %s version --json", package_name)
+  local stdout = {}
+
+  vim.fn.jobstart(cmd, {
+    on_stdout = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          if line and line ~= "" then
+            table.insert(stdout, line)
+          end
+        end
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 or #stdout == 0 then
+        callback(nil)
+        return
+      end
+      local version = table.concat(stdout):gsub('"', ""):gsub("\n", "")
+      callback(version ~= "" and version or nil)
+    end,
+  })
+end
+
+--- 同步获取 git 仓库最新版本（阻塞）
 ---@param repo_url string 仓库 URL
 ---@return string|nil latest_commit_hash
 function M.get_latest_git_version(repo_url)
@@ -180,7 +212,6 @@ function M.get_latest_git_version(repo_url)
     return nil
   end
 
-  -- 获取最新 commit hash（不克隆）
   local cmd = string.format("git ls-remote %s HEAD", repo_url)
   local result = vim.fn.system(cmd)
 
@@ -188,12 +219,50 @@ function M.get_latest_git_version(repo_url)
     return nil
   end
 
-  -- 提取 hash（格式：hash\tHEAD）
   local hash = result:match("^([a-f0-9]+)")
   return hash
 end
 
---- 获取本地已克隆仓库的版本
+--- 异步获取 git 仓库最新版本
+--- via jobstart + callback
+---@param repo_url string 仓库 URL
+---@param callback fun(hash: string|nil)
+function M.get_latest_git_version_async(repo_url, callback)
+  if not repo_url or repo_url == "" then
+    callback(nil)
+    return
+  end
+
+  if vim.fn.executable("git") ~= 1 then
+    callback(nil)
+    return
+  end
+
+  local cmd = string.format("git ls-remote %s HEAD", repo_url)
+  local stdout = {}
+
+  vim.fn.jobstart(cmd, {
+    on_stdout = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          if line and line ~= "" then
+            table.insert(stdout, line)
+          end
+        end
+      end
+    end,
+    on_exit = function(_, exit_code)
+      if exit_code ~= 0 or #stdout == 0 then
+        callback(nil)
+        return
+      end
+      local hash = table.concat(stdout):match("^([a-f0-9]+)")
+      callback(hash)
+    end,
+  })
+end
+
+--- 同步获取本地已克隆仓库的版本
 ---@param repo_path string 本地仓库路径
 ---@return string|nil commit_hash, number|nil commits_behind
 function M.get_local_git_version(repo_path)
@@ -209,13 +278,10 @@ function M.get_local_git_version(repo_path)
 
   current_hash = current_hash:gsub("\n", "")
 
-  -- 尝试获取落后多少 commits
   local fetch_result = vim.fn.system(string.format("git -C %s fetch --dry-run 2>&1", repo_path))
-
-  -- 如果有更新需要
   local needs_fetch = fetch_result:match("would fetch") or fetch_result:match("new commits")
 
-  return current_hash, needs_fetch and -1 or 0 -- -1 表示需要更新
+  return current_hash, needs_fetch and -1 or 0
 end
 
 --- 综合版本状态查询（npm 包）

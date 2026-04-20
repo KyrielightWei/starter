@@ -16,8 +16,14 @@ local GSD_STATE_PATHS = {
 }
 
 --- 检测 GSD 是否已安装
+--- GSD 通过 npx 按需运行，不需要本地安装
 ---@return boolean
 function M.is_installed()
+  -- 核心检查: npx 可用即可运行 GSD
+  if vim.fn.executable("npx") == 1 then
+    return true
+  end
+
   -- 方式 1: 检查 npm 全局安装
   if M.is_npm_installed() then
     return true

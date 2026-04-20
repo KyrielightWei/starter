@@ -125,3 +125,16 @@ export NVM_DIR="$HOME/.nvm"
 # Added by CodeFuse CLI installer
 export PATH="$HOME/.local/bin:$PATH"
 # API key 通过 ~/.local/state/nvim/ai_keys.lua 管理，不要在此硬编码
+
+########################################
+# Claude Code - 免确认自动执行
+########################################
+# claude-auto     → 自动模式（推荐）
+# claude-bypass   → 完全跳过权限检查（危险，仅限沙箱）
+# claude-plan     → 只读分析模式，不修改文件
+alias claude-auto='claude --permission-mode auto'
+alias claude-bypass='claude --dangerously-skip-permissions'
+alias claude-plan='claude --permission-mode plan'
+
+# opencode - 自动模式 agent（在 TUI 中按 Tab 切换到 auto agent）
+# opencode 的免确认已配置为 agent 级别，无需额外 alias

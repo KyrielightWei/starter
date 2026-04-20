@@ -19,6 +19,28 @@ M.icon = "🔧"
 M.supported_targets = { "claude", "opencode" }
 
 -- ============================================
+-- Cache for Performance (avoid blocking network requests)
+-- ============================================
+
+local _version_cache = nil
+local _deps_cache = nil
+local _cache_time = nil
+local CACHE_DURATION = 300 -- 5 minutes
+
+--- Clear cache (call after install/update/uninstall)
+function M.clear_cache()
+  _version_cache = nil
+  _deps_cache = nil
+  _cache_time = nil
+end
+
+--- Check if cache is valid
+---@return boolean
+local function cache_valid()
+  return _cache_time and (os.time() - _cache_time < CACHE_DURATION)
+end
+
+-- ============================================
 -- Sub-module Imports
 -- ============================================
 
@@ -52,15 +74,36 @@ function M.get_status()
   return Status.get_status()
 end
 
---- 获取版本信息
+--- 获取版本信息（带缓存）
 ---@return VersionInfo
 function M.get_version_info()
-  return Updater.get_version_info()
+  -- 返回缓存
+  if cache_valid() and _version_cache then
+    return _version_cache
+  end
+
+  -- 获取新版本信息（可能涉及网络请求）
+  local info = Updater.get_version_info()
+  _version_cache = info
+  _cache_time = os.time()
+  return info
 end
 
---- 检查依赖状态
+--- 强制刷新版本信息（用于用户手动刷新）
+---@return VersionInfo
+function M.refresh_version_info()
+  M.clear_cache()
+  return M.get_version_info()
+end
+
+--- 检查依赖状态（带缓存）
 ---@return DependencyStatus[]
 function M.check_dependencies()
+  -- 返回缓存
+  if cache_valid() and _deps_cache then
+    return _deps_cache
+  end
+
   local deps = {}
 
   for _, dep_name in ipairs(M.dependencies) do
@@ -80,6 +123,8 @@ function M.check_dependencies()
     })
   end
 
+  _deps_cache = deps
+  _cache_time = os.time()
   return deps
 end
 
@@ -88,6 +133,7 @@ end
 ---@param callback function|nil
 ---@return boolean, string
 function M.install(opts, callback)
+  M.clear_cache() -- 清除缓存
   return Installer.install(opts, callback)
 end
 
@@ -95,6 +141,7 @@ end
 ---@param opts table|nil
 ---@return boolean, string
 function M.uninstall(opts)
+  M.clear_cache() -- 清除缓存
   return Uninstaller.uninstall(opts)
 end
 
@@ -102,6 +149,7 @@ end
 ---@param opts table|nil
 ---@return boolean, string
 function M.update(opts)
+  M.clear_cache() -- 清除缓存
   return Updater.update(opts)
 end
 

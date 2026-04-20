@@ -50,16 +50,16 @@ function M.install(opts, on_progress)
     return false, "需要安装 npx"
   end
 
-  -- 方式 1: npx 按需运行（实际上不需要安装）
+  -- 方式 1: npx 按需运行（推荐）
   if method == "npx" then
     if on_progress then
-      on_progress("GSD 使用 npx 按需运行，无需全局安装")
+      on_progress("GSD 使用 npx 按需运行，初始化配置...")
     end
 
-    -- 运行一次以初始化配置
-    local cmd = "npx -y " .. GSD_PACKAGE .. "@latest"
+    -- 显式指定 --opencode 和 --claude 以注入两个工具的配置
+    local cmd = "npx -y " .. GSD_PACKAGE .. "@latest --opencode --claude"
     if on_progress then
-      on_progress("初始化配置...")
+      on_progress("正在为 OpenCode 和 Claude Code 安装 GSD...")
     end
 
     local ok, output = run_cmd_sync(cmd, { timeout = 120000 })

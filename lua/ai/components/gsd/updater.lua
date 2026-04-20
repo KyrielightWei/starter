@@ -52,30 +52,54 @@ function M.update(opts, on_progress)
 end
 
 --- 获取版本信息
+--- GSD 通过 npx 按需运行，没有本地版本概念
 ---@return VersionInfo
 function M.get_version_info()
-  local Status = require("ai.components.gsd.status")
   local Version = require("ai.components.version")
 
-  local current = Status.get_npm_version()
+  -- npx 模式：本地版本即为 npx available，远程版本为 latest
+  local current = nil
   local latest = Version.get_latest_npm_version(GSD_PACKAGE)
-
   local version_status = "unknown"
 
-  if not current then
-    -- npx 模式，无本地版本
-    version_status = "on_demand" -- 使用 npx 按需运行
-  elseif not latest then
-    version_status = "unknown"
+  -- 检查 npm 全局安装版本（如果有的话）
+  if is_npm_installed_from_status() then
+    current = get_npm_global_version()
+    if latest then
+      version_status = Version.compare_versions(current, latest)
+    end
   else
-    version_status = Version.compare_versions(current, latest)
+    -- npx 模式：无本地版本，自动使用 latest
+    current = "npx latest"
+    version_status = "on_demand"
   end
 
   return {
-    current = current,
+    current = current or "npx latest",
     latest = latest,
     status = version_status,
   }
+end
+
+--- 检查 npm 全局安装状态
+local function is_npm_installed_from_status()
+  if vim.fn.executable("npm") ~= 1 then
+    return false
+  end
+  local result = vim.fn.system("npm list -g " .. GSD_PACKAGE .. " --depth=0 2>&1")
+  return result:match(GSD_PACKAGE) ~= nil and not result:match("empty")
+end
+
+--- 获取 npm 全局安装版本
+local function get_npm_global_version()
+  local result = vim.fn.system("npm list -g " .. GSD_PACKAGE .. " --depth=0 --json 2>&1")
+  if vim.v.shell_error == 0 then
+    local ok, data = pcall(vim.json.decode, result)
+    if ok and data and data.dependencies and data.dependencies[GSD_PACKAGE] then
+      return data.dependencies[GSD_PACKAGE].version
+    end
+  end
+  return nil
 end
 
 --- 检查是否需要更新

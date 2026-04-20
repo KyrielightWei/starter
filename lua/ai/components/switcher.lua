@@ -208,4 +208,52 @@ function M.reset()
   M.save_state(DEFAULT_STATE)
 end
 
+--- 异步刷新所有已注册组件的远程版本信息
+--- 在后台查询，完成后更新 switcher 版本缓存
+function M.refresh_versions_async()
+  local Registry = require("ai.components.registry")
+  local Version = require("ai.components.version")
+  local components = Registry.list()
+
+  local function refresh_one(comp_full)
+    if comp_full.npm_package and vim.fn.executable("npm") == 1 then
+      Version.get_latest_npm_version_async(comp_full.npm_package, function(remote_version)
+        local cached = M.get_version_cache(comp_full.name) or {}
+        local local_version = cached.current or "unknown"
+        local status = Version.compare_versions(local_version, remote_version or local_version)
+
+        M.update_version_cache(comp_full.name, {
+          current = cached.current,
+          latest = remote_version,
+          status = status,
+        })
+      end)
+    elseif comp_full.repo_url then
+      Version.get_latest_git_version_async(comp_full.repo_url, function(remote_hash)
+        local cached = M.get_version_cache(comp_full.name) or {}
+        local local_hash = cached.current
+        local status = "unknown"
+        if local_hash and remote_hash then
+          status = local_hash == remote_hash and "current" or "outdated"
+        end
+
+        M.update_version_cache(comp_full.name, {
+          current = local_hash,
+          latest = remote_hash,
+          status = status,
+        })
+      end)
+    end
+  end
+
+  for _, comp in ipairs(components) do
+    local comp_full = Registry.get(comp.name)
+    if comp_full then
+      refresh_one(comp_full)
+    end
+  end
+
+  vim.cmd("doautocmd User RemoteVersionRefreshed")
+end
+
 return M

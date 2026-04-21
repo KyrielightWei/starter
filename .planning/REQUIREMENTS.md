@@ -69,6 +69,8 @@ P2/P3 功能，后续版本实现。
 
 各Phase覆盖的需求映射。Roadmap 创建时更新。
 
+### v1 Requirements (Current Roadmap)
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PMGR-01 | Phase 1 | Pending |
@@ -77,34 +79,39 @@ P2/P3 功能，后续版本实现。
 | PMGR-04 | Phase 1 | Pending |
 | PMGR-05 | Phase 2 | Pending |
 | PMGR-06 | Phase 2 | Pending |
-| PMGR-07 | Phase 2 | Pending |
-| PMGR-08 | Phase 2 | Pending |
-| PMGR-09 | Phase 2 | Pending |
-| PMGR-10 | Phase 2 | Pending |
-| PMGR-11 | Phase 2 | Pending |
-| PMGR-12 | Phase 2 | Pending |
-| PMGR-13 | Phase 2 | Pending |
-| PMGR-14 | Phase 2 | Pending |
-| PMGR-15 | Phase 2 | Pending |
-| PMGR-16 | Phase 5 | Pending |
-| CDRV-01 | Phase 3 | Pending |
-| CDRV-02 | Phase 3 | Pending |
-| CDRV-03 | Phase 3 | Pending |
-| CDRV-04 | Phase 3 | Pending |
-| CDRV-05 | Phase 3 | Pending |
-| CDRV-06 | Phase 3 | Pending |
-| CDRV-07 | Phase 4 | Pending |
-| CDRV-08 | Phase 4 | Pending |
-| CDRV-09 | Phase 4 | Pending |
-| CDRV-10 | Phase 4 | Pending |
-| CDRV-11 | Phase 4 | Pending |
+| PMGR-07 | Phase 3 | Pending |
+| PMGR-08 | Phase 3 | Pending |
+| CDRV-01 | Phase 4 | Pending |
+| CDRV-02 | Phase 4 | Pending |
+| CDRV-03 | Phase 5 | Pending |
+| CDRV-04 | Phase 5 | Pending |
+| CDRV-05 | Phase 6 | Pending |
+| CDRV-06 | Phase 6 | Pending |
+
+### v2 Requirements (Future Roadmap)
+
+| Requirement | Status |
+|-------------|--------|
+| PMGR-09 | Deferred |
+| PMGR-10 | Deferred |
+| PMGR-11 | Deferred |
+| PMGR-12 | Deferred |
+| PMGR-13 | Deferred |
+| PMGR-14 | Deferred |
+| PMGR-15 | Deferred |
+| PMGR-16 | Deferred |
+| CDRV-07 | Deferred |
+| CDRV-08 | Deferred |
+| CDRV-09 | Deferred |
+| CDRV-10 | Deferred |
+| CDRV-11 | Deferred |
 
 **Coverage:**
-- v1 requirements: 10 total
-- Mapped to phases: 10
+- v1 requirements: 14 total
+- Mapped to phases: 14 ✓
 - Unmapped: 0 ✓
-- v2 requirements: 16 (tracked, not in current roadmap)
+- v2 requirements: 13 (deferred for future milestone)
 
 ---
 *Requirements defined: 2026-04-21*
-*Last updated: 2026-04-21 after initial definition*
+*Last updated: 2026-04-21 after roadmap creation*

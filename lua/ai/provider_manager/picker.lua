@@ -266,6 +266,18 @@ function M._edit_static_models(provider_name)
         M._add_static_model_dialog(provider_name)
       end,
 
+      -- <C-e> Rename selected model
+      ["ctrl-e"] = function(selected)
+        if not selected or #selected == 0 then return end
+        local item = selected[1]
+        local action = action_map[item]
+        if action and action.type == "keep" then
+          M._rename_static_model_dialog(provider_name, action.model_id)
+        else
+          vim.notify("Select a model to rename", vim.log.levels.WARN)
+        end
+      end,
+
       -- <C-d> Remove selected model
       ["ctrl-d"] = function(selected)
         if not selected or #selected == 0 then return end
@@ -286,7 +298,7 @@ function M._edit_static_models(provider_name)
       end,
     },
     fzf_opts = {
-      ["--header"] = "Actions: <CR>Add Model <C-a>Add <C-d>Remove <C-?>Help | <Esc> Back to models",
+      ["--header"] = "Actions: <CR>Add <C-a>Add <C-e>Rename <C-d>Remove <C-?>Help | <Esc> Back",
     },
   })
 end
@@ -303,6 +315,24 @@ function M._add_static_model_dialog(provider_name)
   end)
 end
 
+-- Rename static model dialog
+function M._rename_static_model_dialog(provider_name, old_model_id)
+  vim.ui.input({
+    prompt = string.format("Rename '%s' to: ", old_model_id),
+    default = old_model_id,
+  }, function(new_model_id)
+    if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
+    
+    -- Remove old model and add new one
+    local remove_ok = Registry.remove_static_model(provider_name, old_model_id)
+    if remove_ok then
+      Registry.add_static_model(provider_name, new_model_id)
+      -- Auto-refresh static models editor
+      vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+    end
+  end)
+end
+
 -- Static models help
 function M._show_static_models_help(provider_name)
   local help_text = string.format([[
@@ -311,6 +341,7 @@ Static Models Editor — %s
 Keymaps:
   <CR>      Add new model (on '+ Add new model' line)
   <C-a>     Add new model (any line)
+  <C-e>     Rename selected model
   <C-d>     Remove selected model
   <C-?>     Show this help
   <Esc>     Back to model picker

@@ -5,6 +5,7 @@
 local Providers = require("ai.providers")
 local Validator = require("ai.provider_manager.validator")
 local Keys = require("ai.keys")
+local FileUtil = require("ai.provider_manager.file_util")
 
 local M = {}
 
@@ -27,22 +28,46 @@ function M.list_providers()
 end
 
 ----------------------------------------------------------------------
+-- Find the provider block (start_line, end_line, content_lines)
+-- Addresses review: block-aware parser for reliable editing
+----------------------------------------------------------------------
+function M.find_provider_block(name)
+  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  if vim.fn.filereadable(config_path) == 0 then
+    return nil, nil, nil
+  end
+  local lines = vim.fn.readfile(config_path)
+  local start_line = nil
+  local end_line = nil
+
+  for i, line in ipairs(lines) do
+    if line:match("M%.register%(['\"]" .. name .. "['\"]") then
+      start_line = i
+    end
+    if start_line and line:match("^%s*%}%s*%)%s*$") and i > start_line then
+      end_line = i
+      break
+    end
+  end
+
+  if start_line and end_line then
+    local content = {}
+    for i = start_line, end_line do
+      table.insert(content, lines[i])
+    end
+    return start_line, end_line, content
+  end
+
+  return nil, nil, nil
+end
+
+----------------------------------------------------------------------
 -- Find the line number of a provider's M.register() call
 -- FIX: Use dynamic path via vim.fn.stdpath("config") — NOT hardcoded
 ----------------------------------------------------------------------
 function M.find_provider_line(name)
-  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
-  if vim.fn.filereadable(config_path) == 0 then
-    return 1
-  end
-  local lines = vim.fn.readfile(config_path)
-  local pattern = 'M.register%([\'"]' .. name .. '[\'"]'
-  for i, line in ipairs(lines) do
-    if line:match(pattern) then
-      return i
-    end
-  end
-  return 1
+  local start, _, _ = M.find_provider_block(name)
+  return start or 1
 end
 
 ----------------------------------------------------------------------
@@ -98,29 +123,47 @@ function M.delete_provider(name)
     return true
   end
 
+  local start_line, end_line, _ = M.find_provider_block(name)
+  if not start_line then
+    -- Fallback: line-by-line removal
+    local lines = vim.fn.readfile(config_path)
+    local new_lines = {}
+    local skip = false
+    for _, line in ipairs(lines) do
+      if line:match('M%.register%([\'"]' .. name .. '[\'"]') then
+        skip = true
+      elseif skip then
+        if line:match("^%s*%}%s*%)%s*$") then
+          skip = false
+        end
+      else
+        table.insert(new_lines, line)
+      end
+    end
+    local content = table.concat(new_lines, "\n")
+    local ok, err = FileUtil.safe_write_file(config_path, content)
+    if not ok then
+      vim.notify("Warning: Could not persist deletion for " .. name, vim.log.levels.WARN)
+    end
+    vim.notify("Deleted provider: " .. name, vim.log.levels.INFO)
+    return true
+  end
+
+  -- Block-aware removal
   local lines = vim.fn.readfile(config_path)
   local new_lines = {}
-  local skip = false
-  for _, line in ipairs(lines) do
-    if line:match('M%.register%([\'"]' .. name .. '[\'"]') then
-      skip = true
-    elseif skip then
-      if line:match("^%s*%}%s*%)%s*$") then
-        -- End of register call: "})"
-        skip = false
-        -- Do NOT include this closing line
-      end
-      -- Skip all lines within the register block
-    else
+  for i, line in ipairs(lines) do
+    if i < start_line or i > end_line then
       table.insert(new_lines, line)
     end
   end
 
-  if skip then
-    vim.notify("Warning: Could not find end of register block for " .. name .. " (block may be truncated)", vim.log.levels.WARN)
+  local content = table.concat(new_lines, "\n")
+  local ok, err = FileUtil.safe_write_file(config_path, content)
+  if not ok then
+    vim.notify("Warning: Could not persist deletion for " .. name, vim.log.levels.WARN)
   end
 
-  vim.fn.writefile(new_lines, config_path)
   vim.notify("Deleted provider: " .. name, vim.log.levels.INFO)
   return true
 end
@@ -210,6 +253,161 @@ function M.get_default_model(provider_name)
 
   -- Level 3: First static model
   return def.static_models and def.static_models[1] or nil
+end
+
+----------------------------------------------------------------------
+-- Static Models CRUD (addresses review: safe file write, block parser)
+----------------------------------------------------------------------
+
+-- Parse static_models array from provider block content
+local function parse_static_models_from_block(content_lines)
+  local in_static_models = false
+  local models = {}
+  local buffer = ""
+
+  for _, line in ipairs(content_lines) do
+    if line:match("static_models%s*=") then
+      in_static_models = true
+      buffer = line
+    end
+    if in_static_models then
+      buffer = buffer .. line
+      if line:match("}") then
+        -- Extract model IDs from the buffer
+        local str = buffer
+        -- Match all string literals inside {}
+        for model_id in str:gmatch(['"]([^'"]*)['"]) do
+          table.insert(models, model_id)
+        end
+        in_static_models = false
+        buffer = ""
+      end
+    end
+  end
+
+  return models
+end
+
+-- Build replacement line for static_models
+local function build_static_models_line(models, indent)
+  if #models == 0 then
+    return indent .. "static_models = {},"
+  end
+  local items = {}
+  for _, m in ipairs(models) do
+    table.insert(items, '"' .. m .. '"')
+  end
+  return indent .. "static_models = { " .. table.concat(items, ", ") .. " },"
+end
+
+function M.list_static_models(provider_name)
+  local _, _, content = M.find_provider_block(provider_name)
+  if not content then
+    local def = Providers.get(provider_name)
+    return def and def.static_models and vim.deepcopy(def.static_models) or {}
+  end
+  return parse_static_models_from_block(content)
+end
+
+function M.add_static_model(provider_name, model_id)
+  local start, end_line, _ = M.find_provider_block(provider_name)
+  if not start then
+    vim.notify("Provider block not found in file", vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Get current static models
+  local current = M.list_static_models(provider_name)
+
+  -- Skip if duplicate
+  for _, m in ipairs(current) do
+    if m == model_id then
+      vim.notify("Model already exists: " .. model_id, vim.log.levels.WARN)
+      return false
+    end
+  end
+
+  table.insert(current, model_id)
+
+  -- Persist new list
+  return M._update_static_models_in_file(provider_name, start, end_line, current)
+end
+
+function M.remove_static_model(provider_name, model_id)
+  local start, end_line, _ = M.find_provider_block(provider_name)
+  if not start then return false end
+
+  local current = M.list_static_models(provider_name)
+  local filtered = {}
+  local found = false
+  for _, m in ipairs(current) do
+    if m == model_id then
+      found = true
+    else
+      table.insert(filtered, m)
+    end
+  end
+
+  if not found then
+    vim.notify("Model not found: " .. model_id, vim.log.levels.WARN)
+    return false
+  end
+
+  return M._update_static_models_in_file(provider_name, start, end_line, filtered)
+end
+
+function M.update_static_models(provider_name, new_models)
+  local start, end_line, _ = M.find_provider_block(provider_name)
+  if not start then return false end
+  return M._update_static_models_in_file(provider_name, start, end_line, new_models)
+end
+
+-- Internal: update static_models in providers.lua
+function M._update_static_models_in_file(provider_name, start, end_line, new_models)
+  local path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  local lines = vim.fn.readfile(path)
+
+  -- Determine indent from first line of provider block
+  local indent = lines[start]:match("^(%s*)") or "  "
+
+  -- Check if static_models line exists in block
+  local static_line_idx = nil
+  for i = start, end_line do
+    if lines[i]:match("static_models%s*=") then
+      static_line_idx = i
+      break
+    end
+  end
+
+  local new_content = build_static_models_line(new_models, indent)
+
+  if static_line_idx then
+    -- Replace existing line
+    lines[static_line_idx] = new_content
+  else
+    -- Insert before closing "})"
+    local insert_idx = end_line - 1
+    table.insert(lines, insert_idx, new_content)
+    -- Update end_line since we inserted
+    end_line = end_line + 1
+  end
+
+  -- Write atomically
+  local content = table.concat(lines, "\n")
+  local ok, err = FileUtil.safe_write_file(path, content)
+  if not ok then
+    vim.notify("Failed to save static models: " .. tostring(err), vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Update in-memory Providers table
+  local def = Providers.get(provider_name)
+  if def then
+    def.static_models = new_models
+  end
+
+  vim.notify("Static models updated for " .. provider_name, vim.log.levels.INFO)
+  return true
 end
 
 return M

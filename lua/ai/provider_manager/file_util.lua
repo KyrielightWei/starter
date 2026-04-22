@@ -30,18 +30,25 @@ function M.safe_write_file(path, content)
   local ok2, err2 = pcall(function()
     local uv = vim.loop or vim.uv
     if uv and uv.fs_rename then
-      local ok_rename, result = pcall(uv.fs_rename, uv, tmp_path, path)
-      if not ok_rename or result then
-        -- fs_rename failed or threw error, fallback to copy
-        local lines = vim.fn.readfile(tmp_path)
-        vim.fn.writefile(lines, path)
-        -- Try to clean up .tmp
+      local ok_rename = pcall(uv.fs_rename, uv, tmp_path, path)
+      if not ok_rename then
+        -- fs_rename failed, try os.rename as portable fallback
+        local ok_os = os.rename(tmp_path, path)
+        if not ok_os then
+          -- Last resort: direct write (non-atomic)
+          local lines = vim.fn.readfile(tmp_path)
+          vim.fn.writefile(lines, path)
+        end
         pcall(vim.fn.delete, tmp_path)
       end
     else
-      -- Fallback: copy then delete (more reliable than delete-then-copy)
-      local lines = vim.fn.readfile(tmp_path)
-      vim.fn.writefile(lines, path)
+      -- No uv.fs_rename, try os.rename
+      local ok_os = os.rename(tmp_path, path)
+      if not ok_os then
+        -- Last resort: direct write (non-atomic)
+        local lines = vim.fn.readfile(tmp_path)
+        vim.fn.writefile(lines, path)
+      end
       pcall(vim.fn.delete, tmp_path)
     end
   end)

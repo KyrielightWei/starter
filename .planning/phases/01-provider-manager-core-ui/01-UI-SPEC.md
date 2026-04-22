@@ -1,7 +1,7 @@
 ---
 phase: 01
 slug: provider-manager-core-ui
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: "2026-04-22"
@@ -246,14 +246,15 @@ Create `lua/ai/provider_manager/` directory:
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS (picker layout, dialogs)
-- [ ] Dimension 3 Color: PASS (terminal icons)
-- [ ] Dimension 4 Typography: PASS (terminal text)
-- [ ] Dimension 5 Spacing: PASS (picker dimensions)
-- [ ] Dimension 6 Registry Safety: PASS (no third-party)
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS (picker layout, dialogs)
+- [x] Dimension 3 Color: PASS (terminal icons)
+- [x] Dimension 4 Typography: PASS (terminal text)
+- [x] Dimension 5 Spacing: PASS (picker dimensions)
+- [x] Dimension 6 Registry Safety: PASS (no third-party)
 
-**Approval:** pending
+**Approval:** approved (2026-04-22)
+**Recommendations:** 2 (non-blocking) — explicit focal point, delete color note
 
 ---
 

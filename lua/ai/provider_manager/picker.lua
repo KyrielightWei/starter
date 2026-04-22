@@ -119,15 +119,20 @@ function M._select_model(provider_name)
   local id_map = {}
   local current_default = Registry.get_default_model(provider_name)
 
-  -- Sort: current default first
-  local sorted = {}
+  -- Sort: current default first (O(n) instead of O(n²) table.insert at position 1)
+  local default_item = nil
+  local others = {}
   for _, m in ipairs(models) do
     local model_id = type(m) == "table" and (m.id or m.model_id) or m
     if model_id == current_default then
-      table.insert(sorted, 1, model_id)
+      default_item = model_id
     else
-      table.insert(sorted, model_id)
+      table.insert(others, model_id)
     end
+  end
+  local sorted = default_item and { default_item } or {}
+  for _, m in ipairs(others) do
+    table.insert(sorted, m)
   end
 
   for _, model_id in ipairs(sorted) do

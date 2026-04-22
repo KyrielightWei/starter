@@ -45,12 +45,14 @@ This roadmap transforms v1 requirements into executable phases. Each phase deliv
 3. User can delete an existing provider/model configuration from the panel (persists to file)
 4. User can edit provider/model settings (rename, modify endpoint) directly in the panel
 
-**Plans:** 3 plans
+**Plans:** 5 plans (replanned with --reviews feedback)
 
 Plans:
-- [ ] 01-01-PLAN.md — Registry & Validator modules (TDD)
-- [ ] 01-02-PLAN.md — Picker UI with CRUD actions
-- [ ] 01-03-PLAN.md — Integration and keymap/command registration
+- [x] 01-01-PLAN.md — Registry, Validator, FileUtil modules (TDD, safe file writes)
+- [x] 01-02-PLAN.md — Picker UI with state machine and reduced keymap
+- [x] 01-03-PLAN.md — Integration and keymap/command registration with error feedback
+- [x] 01-04-PLAN.md — Model management functions (list/set/get default model)
+- [x] 01-05-PLAN.md — Static models editor with safe file persistence
 
 **UI hint:** yes
 

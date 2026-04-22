@@ -276,7 +276,7 @@ local function parse_static_models_from_block(content_lines)
         -- Extract model IDs from the buffer
         local str = buffer
         -- Match all string literals inside {}
-        for model_id in str:gmatch([['"]([^'"]*)['"]]) do
+        for model_id in str:gmatch('"([^"]*)"') do
           table.insert(models, model_id)
         end
         in_static_models = false

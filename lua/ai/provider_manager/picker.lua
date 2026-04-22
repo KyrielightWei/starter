@@ -165,9 +165,14 @@ function M._select_model(provider_name)
         -- Update default model via registry
         Registry.set_default_model(provider_name, model)
       end,
+
+      -- <C-e> Edit static models (no extra keymap on provider picker)
+      ["ctrl-e"] = function()
+        M._edit_static_models(provider_name)
+      end,
     },
     fzf_opts = {
-      ["--header"] = "Select model to set as default for " .. provider_name,
+      ["--header"] = "Select model to set as default for " .. provider_name .. " | <C-e> Edit static models",
     },
   })
 end
@@ -208,6 +213,135 @@ function M.edit_provider(name)
   vim.cmd("edit " .. path)
   vim.api.nvim_win_set_cursor(0, { line, 0 })
   vim.notify("Editing provider: " .. name .. " at line " .. line, vim.log.levels.INFO)
+end
+
+----------------------------------------------------------------------
+-- Static Models Editor (addresses PMGR-04, review: keymap density)
+-- Accessed from model picker, no extra keymap on provider picker
+----------------------------------------------------------------------
+function M._edit_static_models(provider_name)
+  local ok, fzf = pcall(require, "fzf-lua")
+  if not ok then return end
+
+  local current_models = Registry.list_static_models(provider_name)
+
+  -- Build items: each model plus action entries
+  local items = {}
+  local action_map = {}
+  local idx = 1
+
+  -- Action entries at top
+  table.insert(items, "+ Add new model")
+  action_map["+ Add new model"] = { type = "add" }
+
+  if #current_models > 0 then
+    for _, m in ipairs(current_models) do
+      local display = m .. "  —  [select to keep, - to remove]"
+      table.insert(items, display)
+      action_map[display] = { type = "keep", model_id = m }
+    end
+  end
+
+  fzf.fzf_exec(items, {
+    prompt = string.format("Static models for %s (%d)> ", provider_name, #current_models),
+    winopts = {
+      width = 0.6,
+      height = 0.4,
+      border = "rounded",
+    },
+    actions = {
+      -- <CR> on "+ Add new model" → input dialog
+      ["default"] = function(selected)
+        if not selected or #selected == 0 then return end
+        local item = selected[1]
+        local action = action_map[item]
+        if action and action.type == "add" then
+          M._add_static_model_dialog(provider_name)
+        end
+        -- Keep action: no-op (selecting a model does nothing, - removes)
+      end,
+
+      -- <C-a> Add new model
+      ["ctrl-a"] = function()
+        M._add_static_model_dialog(provider_name)
+      end,
+
+      -- <C-d> Remove selected model
+      ["ctrl-d"] = function(selected)
+        if not selected or #selected == 0 then return end
+        local item = selected[1]
+        local action = action_map[item]
+        if action and action.type == "keep" then
+          Registry.remove_static_model(provider_name, action.model_id)
+          -- Auto-refresh static models editor
+          vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+        else
+          vim.notify("Select a model to remove", vim.log.levels.WARN)
+        end
+      end,
+
+      -- <C-?> Help
+      ["ctrl-/"] = function()
+        M._show_static_models_help(provider_name)
+      end,
+    },
+    fzf_opts = {
+      ["--header"] = "Actions: <CR>Add Model <C-a>Add <C-d>Remove <C-?>Help | <Esc> Back to models",
+    },
+  })
+end
+
+-- Add static model dialog
+function M._add_static_model_dialog(provider_name)
+  vim.ui.input({ prompt = string.format("New model for %s: ", provider_name) }, function(model_id)
+    if not model_id or model_id == "" then return end
+    local ok = Registry.add_static_model(provider_name, model_id)
+    if ok then
+      -- Auto-refresh static models editor
+      vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+    end
+  end)
+end
+
+-- Static models help
+function M._show_static_models_help(provider_name)
+  local help_text = string.format([[
+Static Models Editor — %s
+
+Keymaps:
+  <CR>      Add new model (on '+ Add new model' line)
+  <C-a>     Add new model (any line)
+  <C-d>     Remove selected model
+  <C-?>     Show this help
+  <Esc>     Back to model picker
+
+Static models are the fallback list when
+dynamic model fetch is unavailable.
+
+Press q to close
+]], provider_name)
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
+  vim.api.nvim_buf_set_option(buf, "filetype", "help")
+
+  local width = 55
+  local height = 16
+  local opts = {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = (vim.o.columns - width) / 2,
+    row = (vim.o.lines - height) / 2,
+    style = "minimal",
+    border = "rounded",
+  }
+
+  local win = vim.api.nvim_open_win(buf, true, opts)
+
+  vim.keymap.set("n", "q", function()
+    vim.api.nvim_win_close(win, true)
+  end, { buffer = buf })
 end
 
 ----------------------------------------------------------------------

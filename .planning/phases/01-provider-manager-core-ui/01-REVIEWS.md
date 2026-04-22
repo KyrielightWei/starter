@@ -1,168 +1,125 @@
 ---
 phase: 01
 reviewers: [glm-5, qwen3.6-plus]
-reviewed_at: "2026-04-22"
-plans_reviewed: [01-01-PLAN.md, 01-02-PLAN.md, 01-03-PLAN.md]
+reviewed_at: "2026-04-22T18:30:00Z"
+plans_reviewed: [01-01-PLAN.md, 01-02-PLAN.md, 01-03-PLAN.md, 01-04-PLAN.md, 01-05-PLAN.md]
 ---
 
-# Cross-AI Plan Review — Phase 01
+# Cross-AI Plan Review — Phase 01 (Full 5-Plan Review)
+
+> **Note:** This is the SECOND review covering all 5 plans (01-01 through 01-05). The first review covered only plans 01-01 through 01-03. This review includes the gap closure plans 01-04 (Model Selection) and 01-05 (Static Models Editor).
+
+---
 
 ## glm-5 Review
 
-### Plan 01-01: Registry & Validator modules (TDD)
+### Summary
 
-**Summary:** 这个计划建立了 Provider Manager 的核心数据层——validator.lua 负责输入验证，registry.lua 提供 CRUD API。整体设计合理，测试驱动开发方法恰当。但存在几个关键技术问题：对 providers.lua 的理解有偏差、delete_provider 实现过于简化、find_provider_line 使用硬编码路径。
+整体计划设计较为完整，覆盖了从底层数据层（Registry & Validator）到 UI 层（Picker + CRUD），再到集成层（keymap/command）的完整链路。计划 01-04 和 01-05 作为 gap closure 补充了 Model Selection 和 Static Models Editor，体现了迭代思维。**但存在若干 HIGH 风险点：** 文件持久化策略（直接修改 `providers.lua`）过于激进，FZF-lua 双向交互（Ctrl-A/D/E/+/-M 等）的 API 一致性未充分验证，两步 Picker 的状态管理缺乏容错，且 TDD 策略与 Neovim 测试环境适配度存疑。
 
-**Strengths:**
-- TDD 方法得当，测试用例覆盖核心验证场景
-- Threat model 明确了输入验证边界
-- 接口契约定义清晰（validate_provider_name 返回 bool + error_msg）
-- 遵循现有 AGENTS.md 代码风格
+### Strengths
 
-**Concerns:**
+- **分层架构清晰**：01-01（数据层）→ 01-02（UI 层）→ 01-03（集成层）→ 01-04/01-05（功能增强）
+- **Validator 先行**：regex 校验 + duplicate check 避免脏数据
+- **动态 fetch + static fallback**：Plan 01-04 的双层 model 策略兼顾实时性与离线可用性
+- **Human verify checkpoint**：Plan 01-03 的 11 步验证清单提供了明确的质量门禁
+- **向后兼容考虑**：Keys cleanup 时保留旧 provider 的 key 文件
 
-| Severity | Issue |
-|----------|-------|
-| **HIGH** | `registry.lua` 第 191 行 `for name, def in pairs(Providers)` 错误——`Providers` 是模块而非 provider 列表。应使用 `Providers.list()` |
-| **HIGH** | `delete_provider()` 只清理内存状态，不持久化到 `providers.lua` 文件。重启后 provider 会恢复 |
-| **HIGH** | `find_provider_line()` 使用硬编码路径 `"lua/ai/providers.lua"` |
-| **MEDIUM** | validator 正则不允许 kebab-case 中使用 `-` |
-| **MEDIUM** | 未处理 `Providers.get(name)` 返回 nil 时的边界情况 |
-| **LOW** | 测试用例未 mock `vim.notify` |
+### Concerns (per plan)
 
-**Risk Assessment:** **MEDIUM** — 数据层实现有重大逻辑错误
+| Plan | Severity | Concern |
+|------|----------|---------|
+| 01-01 | **HIGH** | 直接修改 providers.lua（AST 不感知的正则替换易出错）|
+| 01-01 | MEDIUM | `add_provider()` 只是打开文件，缺少模板生成 |
+| 01-02 | **HIGH** | FZF-lua `fzf_exec` action 绑定需验证兼容性 |
+| 01-02 | MEDIUM | `vim.ui.input` 在 async callback 中可能 focus loss |
+| 01-03 | MEDIUM | `pcall(require)` 静默失败无用户反馈 |
+| 01-04 | **HIGH** | 两步 Picker 状态丢失（Esc 后如何返回第一步未定义）|
+| 01-04 | MEDIUM | `get_default_model()` 存储位置未明确 |
+| 01-05 | **HIGH** | 修改 providers.lua static_models 行风险高（可能跨多行）|
+| 01-05 | MEDIUM | Ctrl-M 嵌套 Picker 的退出路径不明确 |
+| 01-05 | LOW | `<CR>` 在不同 picker 语义冲突 |
 
----
+### Suggestions
 
-### Plan 01-02: Picker UI with CRUD actions
+1. **独立配置文件（P0）** — 改用 `~/.local/state/nvim/ai_providers_custom.lua`，启动时 merge
+2. **统一 Registry API（P1）** — 设计一致的 CRUD 接口
+3. **两步 Picker 状态机（P1）** — 明确状态转换：main → model_picker → (confirm|back|cancel)
+4. **嵌套 Picker 导航（P2）** — 提供明确返回键（如 `<BS>` 或 `Ctrl-B`）
 
-**Summary:** Picker UI 计划构建了用户交互层，使用 FZF-lua 展示 provider 列表并绑定 Ctrl-A/D/E 快捷键。设计遵循 skill_studio picker 模式，但存在 API 选择偏差、空状态处理不完整等问题。
+### Risk Assessment
 
-**Strengths:**
-- Help window 实现完整，遵循 skill_studio 模式
-- 确认对话框逻辑清晰
-- Header hints 符合 UI-SPEC 规范
-- Ctrl-key actions 绑定设计一致
+**Overall: HIGH**
 
-**Concerns:**
-
-| Severity | Issue |
-|----------|-------|
-| **HIGH** | FZF API 选择偏差（fzf_exec vs fzf_contents） |
-| **HIGH** | name_map 构建依赖 Plan 01 的错误输出 |
-| **MEDIUM** | 空状态提示文案语言不统一 |
-| **MEDIUM** | vim.ui.input 异步 API 在 headless 测试中行为不确定 |
-| **MEDIUM** | Ctrl-E 编辑未提示字段位置 |
-| **LOW** | show_help 窗口高度固定 |
-
-**Risk Assessment:** **HIGH** — FZF API 选择可能导致 picker 无法正常工作
-
----
-
-### Plan 01-03: Integration + keymap/command
-
-**Summary:** 集成计划负责将 Provider Manager 注册到 AI 模块。整体设计遵循 skill_studio 集成模式，但存在 ai/init.lua 结构理解偏差、keymap 位置未明确等问题。
-
-**Strengths:**
-- pcall 加载模式遵循 skill_studio 集成
-- setup() 返回模块支持链式调用
-- keymap/command 注册逻辑清晰
-
-**Concerns:**
-
-| Severity | Issue |
-|----------|-------|
-| **HIGH** | ai/init.lua setup() 函数结构理解偏差 |
-| **MEDIUM** | `<leader>kp` 可能与现有 keymap 冲突 |
-| **MEDIUM** | Human verify checkpoint 不够具体 |
-| **LOW** | 未给出具体代码位置 |
-
-**Risk Assessment:** **LOW** — 集成逻辑简单，主要是位置和冲突问题
+主要理由：文件持久化策略是最大风险源；FZF-lua 交互复杂度被低估；模型管理状态分散。
 
 ---
 
 ## qwen3.6-plus Review
 
-### Plan 01-01: Registry & Validator modules (TDD)
+### Summary
 
-**Summary:** 该计划设计良好，采用 TDD 方法构建 Provider Manager 的底层基础设施。但存在几个关键问题：`delete_provider` 的实现只是内存删除而非文件持久化、`find_provider_line` 使用硬编码路径、缺少与 keys.lua 的集成考虑。
+整体设计采用分层递进的方式（数据层 → UI 层 → 集成层 → 功能补全 → 扩展编辑器），结构清晰、依赖关系合理，TDD 方法贯穿始终。但在**文件持久化安全性**、**Keymap 密度**、**两步 Picker 状态管理**、以及**多 step picker 间的数据刷新**方面存在显著风险。Plan 01-05 尤其复杂——在 providers.lua 上做 AST 不感知的行级编辑，有较高的文件损坏风险。
 
-**Strengths:**
-- TDD 方法确保代码质量，测试用例明确
-- validator 的正则验证完整
-- 重复检查符合现有 API 模式
-- 威胁模型考虑了 Tampering 类别
+### Strengths
 
-**Concerns:**
+- **良好的分层架构**：01 → 02 → 03 → 04 → 05 依次构建，依赖链清晰
+- **TDD 贯穿始终**：每个计划都包含测试用例
+- **响应已有 Review**：删除持久化、empty state guard 等已修复
+- **Two-step picker 复用现有模式**：Fetch/fallback 模式正确
+- **Threat model 覆盖关键边界**：每个计划都有 STRIDE 分析
 
-| Severity | Issue |
-|----------|-------|
-| **HIGH** | `delete_provider()` 未持久化到文件 |
-| **HIGH** | `find_provider_line()` 使用硬编码路径 |
-| **MEDIUM** | `add_provider()` 缺少模板生成功能 |
-| **MEDIUM** | 未考虑 `keys.lua` 的 `ai_keys.lua` 文件同步 |
-| **LOW** | 测试用例未覆盖排序逻辑 |
+### Concerns (per plan)
 
-**Suggestions:**
-- `delete_provider()` 应追加文件修改逻辑
-- 路径应动态计算
-- `add_provider()` 应生成基础模板
-- 添加 keys.lua 清理
+| Plan | Severity | Concern |
+|------|----------|---------|
+| 01-01 | **HIGH** | `delete_provider()` 行级匹配 `M.register(...)` 到 `})` 不可靠 |
+| 01-01 | **HIGH** | 无文件备份/原子写入机制（`writefile` 覆盖写风险）|
+| 01-02 | **HIGH** | **Keymap 密度过高** — 5+ 快捷键，两步 `<CR>` 语义冲突 |
+| 01-02 | MEDIUM | CRUD 操作后 picker 不自动刷新 |
+| 01-02 | MEDIUM | `vim.ui.input` 异步回调在 FZF-lua 上下文中可能被吞 |
+| 01-03 | MEDIUM | `ai/init.lua` 修改位置描述基于行号，代码变动后会偏移 |
+| 01-04 | **HIGH** | **两步 Picker 交互流断裂** — 同一 `<CR>` 键在两步有不同含义 |
+| 01-04 | **HIGH** | `set_default_model()` 写入 ai_keys.lua 而非 providers.lua，设计意图不清 |
+| 01-05 | **HIGH** | **文件编辑风险最大** — static_models 行可能跨多行 |
+| 01-05 | **HIGH** | 无原子写入或备份机制（Threat model 提到但代码未实现）|
+| 01-05 | **HIGH** | `vim.defer_fn` 竞态条件 — 多次快速操作产生交错 picker |
+| 01-05 | MEDIUM | empty state placeholder 与前期 review 结论矛盾 |
 
-**Risk Assessment:** **MEDIUM**
+### Cross-Plan Issues
 
----
+| Issue | Plans Affected |
+|-------|----------------|
+| 文件持久化全局不可靠（无备份/原子写入）| 01-01, 01-05 |
+| Picker 状态刷新缺失 | 01-02, 01-04, 01-05 |
+| Keymap 膨胀（Ctrl-A/D/E/M/+/-/ 7+ 个）| 01-02, 01-05 |
+| 测试框架不统一 | 01-01, 01-02, 01-04, 01-05 |
+| Keys vs providers.lua 边界模糊 | 01-01, 01-04 |
 
-### Plan 01-02: Picker UI with CRUD actions
+### Suggestions
 
-**Summary:** Picker UI 设计遵循了 skill_studio/picker.lua 的成熟模式。但存在几个集成风险：empty state 的处理与 name_map 冲突、vim.ui.input 的回调上下文丢失、Step 2 model selection 标记 TODO 但未实现。
+1. **封装安全文件写入** — 创建 `file_util.lua`，先写 `.tmp` 再 rename
+2. **Picker 刷新机制** — CRUD 后调用 `vim.defer_fn(M.open, 50)` 自动刷新
+3. **精简 Keymap** — 保留核心 3-4 个，二级操作放 submenu
+4. **两步 Picker 重构** — 单 picker + 动态内容切换（`fzf.reload()`）
+5. **明确 Keys 和 providers.lua 边界** — 文档区分注册定义 vs 用户偏好
 
-**Strengths:**
-- Ctrl-key actions 绑定完整
-- Help Window 实现与 skill_studio 一致
-- Display format 符合 UI-SPEC
-- Header 提示字符串清晰
+### Risk Assessment
 
-**Concerns:**
+**Overall: MEDIUM-HIGH**
 
-| Severity | Issue |
-|----------|-------|
-| **HIGH** | Empty state 处理存在 bug |
-| **HIGH** | `vim.ui.input` 回调中 `selected` 变量上下文可能丢失 |
-| **MEDIUM** | `<CR>` Select action 标注 TODO，缺少 Step 2 实现 |
-| **MEDIUM** | 确认对话框应使用 `vim.ui.select` |
-| **LOW** | 测试未覆盖 action handlers |
+| Dimension | Risk |
+|-----------|------|
+| 数据完整性 | **HIGH** — providers.lua 行级编辑无备份机制 |
+| UI/UX 可用性 | **MEDIUM** — Keymap 密度高但可容忍 |
+| 集成复杂度 | **LOW** — Plan 01-03 简单明了 |
+| 测试覆盖 | **MEDIUM** — 核心数据层有测试，UI 集成层薄弱 |
 
-**Suggestions:**
-- Empty state 应检查并 early return
-- Add/Delete 后应刷新 picker
-- 复用 model_switch.lua 的模型获取逻辑
-- 确认改用 vim.ui.select
+### 阻塞项（应在执行前解决）
 
-**Risk Assessment:** **MEDIUM**
-
----
-
-### Plan 01-03: Integration + keymap/command
-
-**Summary:** Integration 计划简洁，遵循 skill_studio 的 pcall 加载模式。但 Human Verify checkpoint 的验证步骤缺少关键测试场景。
-
-**Strengths:**
-- `init.lua` 结构遵循 skill_studio 模式
-- Keymap 与现有 `<leader>k` prefix 一致
-- 命令命名符合风格
-- Human Verify 提供完整验证步骤清单
-
-**Concerns:**
-
-| Severity | Issue |
-|----------|-------|
-| **MEDIUM** | Human Verify 步骤未考虑操作后刷新 |
-| **MEDIUM** | ai/init.lua 整合位置不明确 |
-| **LOW** | 测试未验证 keymap/command 实际注册 |
-| **LOW** | delegation 可能丢失闭包上下文 |
-
-**Risk Assessment:** **LOW**
+1. 实现 `safe_write_file()` 统一模块
+2. 澄清两步 Picker 的 `<CR>` 语义冲突
+3. 补全 Picker 自动刷新机制
 
 ---
 
@@ -170,69 +127,72 @@ plans_reviewed: [01-01-PLAN.md, 01-02-PLAN.md, 01-03-PLAN.md]
 
 ### Agreed Strengths (2+ reviewers)
 
-1. **TDD 方法得当** — 两个 reviewer 都认可测试驱动开发方法
-2. **Ctrl-key actions 绑定完整** — Help window 和 header hints 设计一致
-3. **Integration 结构正确** — pcall 加载模式遵循 skill_studio
+1. **分层架构清晰** — 数据层 → UI 层 → 集成层 → 功能增强
+2. **TDD 方法** — 核心数据层有完整测试
+3. **动态 fetch + static fallback** — Provider model 策略合理
+4. **Human verify checkpoint 具体化** — 11 步验证清单可执行
 
-### Agreed Concerns (HIGH priority — both reviewers raised)
+### Agreed Concerns (HIGH — both reviewers raised)
 
-| Concern | Severity | Plan | Fix Required |
-|---------|----------|------|--------------|
-| `delete_provider()` 未持久化到文件 | HIGH | 01-01 | 实现文件修改逻辑，移除 M.register() 行 |
-| `find_provider_line()` 硬编码路径 | HIGH | 01-01 | 使用 `vim.fn.stdpath("config")` 或项目相对路径 |
-| Empty state name_map 处理 bug | HIGH | 01-02 | 检查并 early return，避免选中空提示行 |
-| Registry.list_providers() 返回结构错误 | HIGH | 01-01 | 使用 `Providers.list()` 而非 `pairs(Providers)` |
+| Concern | Severity | Plans | Fix Required |
+|---------|----------|-------|--------------|
+| 文件持久化不可靠（无备份/原子写入）| HIGH | 01-01, 01-05 | 封装 `safe_write_file()`，先写 `.tmp` 再 rename |
+| 两步 Picker `<CR>` 语义冲突 | HIGH | 01-02, 01-04 | 明确状态机或重构为单 picker + reload |
+| Keymap 密度过高（5+ 快捷键）| MEDIUM | 01-02, 01-05 | 精简到 3-4 个，二级操作放 submenu |
+| Picker 操作后不自动刷新 | MEDIUM | 01-02, 01-04, 01-05 | CRUD 后调用 `M.open()` 或 `fzf.reload()` |
+| 文件编辑的 AST 不感知风险 | HIGH | 01-01, 01-05 | 考虑独立配置文件格式 |
 
 ### Divergent Views
 
 | Issue | glm-5 View | qwen3.6-plus View | Resolution |
 |-------|------------|-------------------|------------|
-| FZF API 选择 | 认为 fzf_exec vs fzf_contents 是 HIGH 问题 | 未提及 API 选择问题 | **采用 fzf_exec**（与 model_switch.lua 一致，更简单） |
-| keys.lua 集成 | 未提及 | 认为 MEDIUM 问题（删除后 keys.lua 残留） | **采纳 qwen 建议**：添加 Keys.cleanup(name) |
-| Step 2 缺失 | 未明确提及 | 认为 MEDIUM 问题，核心功能不完整 | **采纳 qwen 建议**：实现 model selection 或明确标注 deferred |
+| 文件持久化方案 | 建议独立配置文件 | 建议安全写入封装 + 备份 | **折中：先实现安全写入封装，独立配置作为后续优化** |
+| 两步 Picker 重构 | 定义状态机 | 单 picker + reload | **采纳状态机方案（更简单，改动小）** |
+| 测试覆盖 | 关注 TDD 环境适配 | 关注 UI 行为测试 | **两者都需要：补充 UI 行为测试** |
 
-### Requirement Coverage Assessment
+### Requirement Coverage Assessment (All 5 Plans)
 
-| Requirement | Status | Notes |
-|-------------|--------|-------|
-| PMGR-01 查看所有 Provider | PARTIAL | `list_providers()` 完成，但 Step 2 model selection 缺失 |
-| PMGR-02 添加 Provider | PARTIAL | 打开文件编辑，但缺少模板生成 |
-| PMGR-03 删除 Provider | FAIL | 内存删除不持久化，重启后恢复 |
-| PMGR-04 编辑 Provider | PASS | Ctrl-E 打开 providers.lua 功能完整 |
+| Requirement | Status | Plans | Notes |
+|-------------|--------|-------|-------|
+| PMGR-01 查看所有 Provider/Model | PARTIAL | 01-02, 01-04 | Step 2 实现，但两步 picker 交互流断裂 |
+| PMGR-02 添加 Provider | PARTIAL | 01-02 | Ctrl-A 打开文件编辑，缺少模板生成 |
+| PMGR-03 删除 Provider | PARTIAL | 01-02 | 文件持久化有实现但无备份机制 |
+| PMGR-04 编辑 Provider 配置 | PARTIAL | 01-05 | static_models 编辑器有风险 |
 
----
-
-## Recommended Fixes Before Execution
-
-### Priority 1 (Blocking)
-
-1. **Plan 01-01 Task 2:** 修改 `delete_provider()` 实现文件持久化
-2. **Plan 01-01 Task 2:** 使用 `Providers.list()` 替代 `pairs(Providers)`
-3. **Plan 01-01 Task 2:** 动态计算 `providers.lua` 路径
-
-### Priority 2 (Important)
-
-4. **Plan 01-02 Task 1:** 修复 empty state 的 name_map 处理
-5. **Plan 01-02 Task 1:** 明确 FZF API 使用 `fzf_exec`
-6. **Plan 01-02:** 实现 Step 2 model selection 或标注 deferred
-
-### Priority 3 (Enhancement)
-
-7. **Plan 01-01:** 添加 keys.lua cleanup
-8. **Plan 01-01:** 添加 provider 配置模板生成
-9. **Plan 01-02:** 确认对话框改用 vim.ui.select
-
----
-
-## Overall Risk Assessment
+### Overall Risk Assessment
 
 **MEDIUM-HIGH**
 
-Phase 01 无法满足所有 acceptance criteria，主要因为：
-- PMGR-03（删除）功能不完整（不持久化）
-- PMGR-01（查看）Step 2 缺失
+---
+
+## Recommended Fixes Before Executing Plans 01-04 and 01-05
+
+### Priority 1 (Blocking)
+
+| # | Fix | Plan | Description |
+|---|-----|------|-------------|
+| 1 | 安全文件写入封装 | 01-05 | 创建 `file_util.lua`，实现 `safe_write()`（先写 `.tmp` 再 rename） |
+| 2 | 两步 Picker 状态机 | 01-04 | 明确定义状态转换，Provider → Model → (select|back|cancel) |
+| 3 | Picker 自动刷新 | 01-02 | CRUD 操作后调用 `vim.defer_fn(M.open, 50)` 自动刷新 |
+
+### Priority 2 (Important)
+
+| # | Fix | Plan | Description |
+|---|-----|------|-------------|
+| 4 | 精简 Keymap | 01-02, 01-05 | 保留 Ctrl-A/D/E/+/ 核心 5 个，Ctrl-M 改为 submenu 或 `Ctrl-E → Static Models` |
+| 5 | 补充 UI 行为测试 | 01-02, 01-04, 01-05 | 测试空状态、name_map 失败、两步 picker 状态流转 |
+| 6 | 静态模型跨行处理 | 01-05 | 处理 `static_models = { ... }` 跨多行格式 |
+
+### Priority 3 (Enhancement)
+
+| # | Fix | Plan | Description |
+|---|-----|------|-------------|
+| 7 | 独立配置文件 | Future | 改用 `ai_providers_custom.lua` 而非直接修改 providers.lua |
+| 8 | Loading 指示器 | 01-04 | 动态 fetch 时显示 loading 状态 |
+| 9 | 错误处理统一 | All | 统一网络/文件/用户取消的错误处理流程 |
 
 ---
 
-*Reviews completed: 2026-04-22*
+*Reviews completed: 2026-04-22T18:30:00Z*
+*Plans reviewed: 01-01 through 01-05*
 *To incorporate feedback: `/gsd-plan-phase 1 --reviews`*

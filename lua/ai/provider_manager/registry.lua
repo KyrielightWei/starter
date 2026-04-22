@@ -5,6 +5,7 @@
 local Providers = require("ai.providers")
 local Validator = require("ai.provider_manager.validator")
 local Keys = require("ai.keys")
+local Fetch = require("ai.fetch_models")
 
 local M = {}
 
@@ -123,6 +124,65 @@ function M.delete_provider(name)
   vim.fn.writefile(new_lines, config_path)
   vim.notify("Deleted provider: " .. name, vim.log.levels.INFO)
   return true
+end
+
+----------------------------------------------------------------------
+-- List models for a provider (dynamic fetch with static fallback)
+----------------------------------------------------------------------
+function M.list_models(provider_name)
+  local def = Providers.get(provider_name)
+  if not def then return {} end
+
+  -- Try dynamic fetch first, fallback to static_models
+  local ok, models = pcall(Fetch.fetch, provider_name)
+  if ok and models and #models > 0 then
+    return models
+  end
+
+  return def.static_models or {}
+end
+
+----------------------------------------------------------------------
+-- Set default model for a provider
+-- Updates both Keys config and in-memory Providers table
+----------------------------------------------------------------------
+function M.set_default_model(provider_name, model_id)
+  -- Read current keys config
+  local config = Keys.read()
+  if not config then
+    vim.notify("Failed to read keys config", vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Ensure provider section exists with proper profile structure
+  if not config[provider_name] then
+    config[provider_name] = {}
+  end
+  if not config[provider_name].default then
+    config[provider_name].default = {}
+  end
+
+  -- Update default model inside the default profile
+  config[provider_name].default.model = model_id
+  Keys.write(config)
+
+  -- Also update Providers table in memory
+  local def = Providers.get(provider_name)
+  if def then
+    def.model = model_id
+  end
+
+  vim.notify(string.format("Set %s default model to: %s", provider_name, model_id), vim.log.levels.INFO)
+  return true
+end
+
+----------------------------------------------------------------------
+-- Get current default model for a provider
+----------------------------------------------------------------------
+function M.get_default_model(provider_name)
+  local def = Providers.get(provider_name)
+  if not def then return nil end
+  return def.model or (def.static_models and def.static_models[1])
 end
 
 return M

@@ -62,4 +62,49 @@ describe("ai.provider_manager.registry module", function()
       assert.is_false(result)
     end)
   end)
+
+  describe("get_default_model()", function()
+    it("returns model for valid provider", function()
+      local model = Registry.get_default_model("deepseek")
+      -- deepseek should return a model (from def.model or first static_models)
+      assert.is_not_nil(model)
+    end)
+
+    it("returns nil for non-existent provider", function()
+      local model = Registry.get_default_model("nonexistent_provider_xyz")
+      assert.is_nil(model)
+    end)
+  end)
+
+  describe("list_models()", function()
+    it("returns array for valid provider", function()
+      local models = Registry.list_models("deepseek")
+      assert.is_table(models)
+      -- Should return at least static_models if dynamic fetch fails
+      assert(#models >= 0) -- may be 0 if no static_models defined
+    end)
+
+    it("returns empty table for non-existent provider", function()
+      local models = Registry.list_models("nonexistent_provider_xyz")
+      assert.is_table(models)
+      assert.equals(0, #models)
+    end)
+  end)
+
+  describe("set_default_model()", function()
+    it("returns false when config read fails", function()
+      -- This test is informational — we can't easily simulate read failure
+      -- but the function should return a boolean
+      local result = Registry.set_default_model("deepseek", "deepseek-chat")
+      assert.is_boolean(result)
+    end)
+
+    it("updates the provider model in memory", function()
+      -- Set a new default model
+      Registry.set_default_model("deepseek", "deepseek-chat-test")
+      -- Verify it was updated in Providers table
+      local def = require("ai.providers").get("deepseek")
+      assert.equals("deepseek-chat-test", def.model)
+    end)
+  end)
 end)

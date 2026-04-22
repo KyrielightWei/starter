@@ -108,6 +108,12 @@ local keys = {
   { "<leader>kk", mode = "n", fn = call("key_manager"), desc = "AI Key Manager", icon = "🔑" },
   { "<leader>kS", mode = "n", fn = call("sessions"), desc = "AI Chat Sessions", icon = "📁" },
 
+  -- Provider Manager (Phase 1, Plan 03)
+  { "<leader>kp", mode = "n", fn = function()
+      local ok, PM = pcall(require, "ai.provider_manager")
+      if ok then PM.open() end
+    end, desc = "AI Provider Manager" },
+
   -- 面板控制
   { "<leader>kt", mode = "n", fn = call("toggle"), desc = "AI Toggle Panel", icon = "📋" },
 
@@ -195,6 +201,12 @@ function M.setup(opts)
   local ok, SkillStudio = pcall(require, "ai.skill_studio")
   if ok then
     SkillStudio.setup()
+  end
+
+  -- Load Provider Manager subsystem
+  local ok_pm, ProviderManager = pcall(require, "ai.provider_manager")
+  if ok_pm then
+    ProviderManager.setup()
   end
 
   return M

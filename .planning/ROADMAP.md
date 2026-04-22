@@ -45,7 +45,12 @@ This roadmap transforms v1 requirements into executable phases. Each phase deliv
 3. User can delete an existing provider/model configuration from the panel
 4. User can edit provider/model settings (rename, modify endpoint) directly in the panel
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Registry & Validator modules (TDD)
+- [ ] 01-02-PLAN.md — Picker UI with CRUD actions
+- [ ] 01-03-PLAN.md — Integration and keymap/command registration
 
 **UI hint:** yes
 
@@ -172,7 +177,7 @@ This roadmap transforms v1 requirements into executable phases. Each phase deliv
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Provider Manager Core UI | 0/3 | Not started | - |
+| 1. Provider Manager Core UI | 0/3 | Planned | - |
 | 2. Provider Manager Detection Commands | 0/2 | Not started | - |
 | 3. Provider Manager Auto Detection & Status | 0/2 | Not started | - |
 | 4. Commit Picker Foundation | 0/2 | Not started | - |

@@ -30,17 +30,19 @@ function M.safe_write_file(path, content)
   local ok2, err2 = pcall(function()
     local uv = vim.loop or vim.uv
     if uv and uv.fs_rename then
-      local result = uv.fs_rename(tmp_path, path)
-      if result then
-        error("fs_rename failed: " .. tostring(result))
+      local ok_rename, result = pcall(uv.fs_rename, uv, tmp_path, path)
+      if not ok_rename or result then
+        -- fs_rename failed or threw error, fallback to copy
+        local lines = vim.fn.readfile(tmp_path)
+        vim.fn.writefile(lines, path)
+        -- Try to clean up .tmp
+        pcall(vim.fn.delete, tmp_path)
       end
     else
-      -- Fallback: delete old, copy new
-      if vim.fn.filereadable(path) == 1 then
-        pcall(vim.fn.delete, path)
-      end
+      -- Fallback: copy then delete (more reliable than delete-then-copy)
       local lines = vim.fn.readfile(tmp_path)
       vim.fn.writefile(lines, path)
+      pcall(vim.fn.delete, tmp_path)
     end
   end)
 
@@ -59,6 +61,13 @@ end
 function M.read_lua_table(path)
   if vim.fn.filereadable(path) == 0 then
     return nil, "File not found: " .. path
+  end
+  -- Validate path is within expected directory to prevent arbitrary code execution
+  local config_dir = vim.fn.stdpath("config") .. "/lua/ai/"
+  local abs_path = vim.fn.fnamemodify(path, ":p")
+  local abs_config_dir = vim.fn.fnamemodify(config_dir, ":p")
+  if abs_path:sub(1, #abs_config_dir) ~= abs_config_dir then
+    return nil, "Refusing to load file outside ai/ directory"
   end
   local ok, result = pcall(dofile, path)
   if not ok then

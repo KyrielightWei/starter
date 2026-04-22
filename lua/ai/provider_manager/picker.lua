@@ -1,11 +1,13 @@
 -- lua/ai/provider_manager/picker.lua
 -- FZF-lua picker for Provider Manager with CRUD actions
 -- Implements D-01, D-02, D-03, D-04, D-05 from CONTEXT.md
+-- Two-step flow: provider → model selection
 
 local M = {}
 
 local Registry = require("ai.provider_manager.registry")
 local Validator = require("ai.provider_manager.validator")
+local Util = require("ai.util")
 
 ----------------------------------------------------------------------
 -- Provider Picker (per UI-SPEC Section "Picker Layout")
@@ -44,15 +46,13 @@ function M.open()
       border = "rounded",
     },
     actions = {
-      -- <CR> Select: proceed to model selection (Step 2 deferred to Phase 3)
+      -- <CR> Select: proceed to model selection (Step 2)
       ["default"] = function(selected)
         if not selected or #selected == 0 then return end
         local display = selected[1]
         local name = name_map[display]
         if not name then return end
-        -- TODO: Step 2 model selection — deferred to Phase 3 (auto-detection)
-        -- For now, just select the provider
-        vim.notify("Selected provider: " .. name, vim.log.levels.INFO)
+        M._select_model(name)
       end,
 
       -- <C-a> Add: open vim.ui.input for new provider name (per D-03)
@@ -101,6 +101,73 @@ function M.open()
     -- Header with action hints (per UI-SPEC)
     fzf_opts = {
       ["--header"] = "Actions: <CR>Select <C-a>Add <C-d>Delete <C-e>Edit <C-?>Help",
+    },
+  })
+end
+
+----------------------------------------------------------------------
+-- Step 2: Model Selection Picker
+----------------------------------------------------------------------
+function M._select_model(provider_name)
+  local ok, fzf = pcall(require, "fzf-lua")
+  if not ok then return end
+
+  local models = Registry.list_models(provider_name)
+
+  -- Build display items and id map
+  local items = {}
+  local id_map = {}
+  local current_default = Registry.get_default_model(provider_name)
+
+  -- Sort: current default first
+  local sorted = {}
+  for _, m in ipairs(models) do
+    local model_id = type(m) == "table" and (m.id or m.model_id) or m
+    if model_id == current_default then
+      table.insert(sorted, 1, model_id)
+    else
+      table.insert(sorted, model_id)
+    end
+  end
+
+  for _, model_id in ipairs(sorted) do
+    local display = string.format("%s  —  unknown  —  unknown", model_id)
+    -- Try to beautify if it's a table with metadata
+    if type(model_id) == "table" and model_id.id then
+      display = Util.beautify_model_item(model_id)
+      id_map[display] = model_id.id
+    else
+      id_map[display] = model_id
+    end
+    table.insert(items, display)
+  end
+
+  -- Empty state
+  if #items == 0 then
+    vim.notify(string.format("No models available for %s. Check endpoint.", provider_name), vim.log.levels.WARN)
+    return
+  end
+
+  fzf.fzf_exec(items, {
+    prompt = string.format("Models for %s> ", provider_name),
+    winopts = {
+      width = 0.6,
+      height = 0.4,
+      border = "rounded",
+    },
+    actions = {
+      ["default"] = function(sel)
+        if not sel or #sel == 0 then return end
+        local label = sel[1]
+        local model = id_map[label]
+        if not model then return end
+
+        -- Update default model via registry
+        Registry.set_default_model(provider_name, model)
+      end,
+    },
+    fzf_opts = {
+      ["--header"] = "Select model to set as default for " .. provider_name,
     },
   })
 end

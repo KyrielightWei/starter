@@ -40,4 +40,9 @@ describe("Provider Manager Picker", function()
     -- This test ensures the module doesn't crash on empty state
     assert.True(providers ~= nil)
   end)
+
+  it("picker has _select_model function", function()
+    local Picker = require("ai.provider_manager.picker")
+    assert.is_function(Picker._select_model)
+  end)
 end)

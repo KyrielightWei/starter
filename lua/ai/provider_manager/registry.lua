@@ -41,7 +41,7 @@ function M.find_provider_block(name)
   local end_line = nil
 
   for i, line in ipairs(lines) do
-    if line:match("M%.register%(['\"]" .. name .. "['\"]") then
+    if line:match("M%.register%(['\"]" .. name .. "['\"]%s*,") then
       start_line = i
     end
     if start_line and line:match("^%s*%}%s*%)%s*$") and i > start_line then
@@ -130,7 +130,7 @@ function M.delete_provider(name)
     local new_lines = {}
     local skip = false
     for _, line in ipairs(lines) do
-      if line:match('M%.register%([\'"]' .. name .. '[\'"]') then
+      if line:match('M%.register%([\'"]' .. name .. '[\'"]%s*,') then
         skip = true
       elseif skip then
         if line:match("^%s*%}%s*%)%s*$") then

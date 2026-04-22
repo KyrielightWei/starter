@@ -322,11 +322,36 @@ function M._rename_static_model_dialog(provider_name, old_model_id)
     default = old_model_id,
   }, function(new_model_id)
     if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
-    
-    -- Remove old model and add new one
-    local remove_ok = Registry.remove_static_model(provider_name, old_model_id)
-    if remove_ok then
-      Registry.add_static_model(provider_name, new_model_id)
+
+    -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
+    local current = Registry.list_static_models(provider_name)
+    local found_old = false
+    for _, m in ipairs(current) do
+      if m == new_model_id then
+        vim.notify("Model already exists: " .. new_model_id, vim.log.levels.ERROR)
+        return
+      end
+      if m == old_model_id then
+        found_old = true
+      end
+    end
+    if not found_old then
+      vim.notify("Model not found: " .. old_model_id, vim.log.levels.ERROR)
+      return
+    end
+
+    -- Build new list with replacement
+    local new_models = {}
+    for _, m in ipairs(current) do
+      if m == old_model_id then
+        table.insert(new_models, new_model_id)
+      else
+        table.insert(new_models, m)
+      end
+    end
+
+    local ok = Registry.update_static_models(provider_name, new_models)
+    if ok then
       -- Auto-refresh static models editor
       vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
     end

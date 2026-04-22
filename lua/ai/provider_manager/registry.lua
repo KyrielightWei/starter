@@ -83,7 +83,7 @@ function M.add_provider(name)
 
   -- Open providers.lua for the user to add config
   local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
-  vim.cmd("edit " .. config_path)
+  vim.cmd.edit({ file = config_path })
 
   -- Jump to end of file (before `return M`)
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
@@ -276,7 +276,7 @@ local function parse_static_models_from_block(content_lines)
         -- Extract model IDs from the buffer
         local str = buffer
         -- Match all string literals inside {}
-        for model_id in str:gmatch(['"]([^'"]*)['"]) do
+        for model_id in str:gmatch([['"]([^'"]*)['"]]) do
           table.insert(models, model_id)
         end
         in_static_models = false

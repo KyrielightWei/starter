@@ -210,7 +210,7 @@ end
 function M.edit_provider(name)
   local line = Registry.find_provider_line(name)
   local path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
-  vim.cmd("edit " .. path)
+  vim.cmd.edit({ file = path })
   vim.api.nvim_win_set_cursor(0, { line, 0 })
   vim.notify("Editing provider: " .. name .. " at line " .. line, vim.log.levels.INFO)
 end

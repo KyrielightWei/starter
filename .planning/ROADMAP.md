@@ -42,7 +42,7 @@ This roadmap transforms v1 requirements into executable phases. Each phase deliv
 **Success Criteria** (what must be TRUE):
 1. User can open a management panel and see all configured providers with their models listed
 2. User can add a new provider/model configuration through the panel interface
-3. User can delete an existing provider/model configuration from the panel
+3. User can delete an existing provider/model configuration from the panel (persists to file)
 4. User can edit provider/model settings (rename, modify endpoint) directly in the panel
 
 **Plans:** 3 plans

@@ -5,7 +5,6 @@
 local Providers = require("ai.providers")
 local Validator = require("ai.provider_manager.validator")
 local Keys = require("ai.keys")
-local Fetch = require("ai.fetch_models")
 
 local M = {}
 
@@ -128,15 +127,22 @@ end
 
 ----------------------------------------------------------------------
 -- List models for a provider (dynamic fetch with static fallback)
+-- Threat T-01-08: pcall wrapper for Fetch require and fetch call
 ----------------------------------------------------------------------
 function M.list_models(provider_name)
   local def = Providers.get(provider_name)
-  if not def then return {} end
+  if not def then
+    vim.notify("Provider not found: " .. provider_name, vim.log.levels.ERROR)
+    return {}
+  end
 
   -- Try dynamic fetch first, fallback to static_models
-  local ok, models = pcall(Fetch.fetch, provider_name)
-  if ok and models and #models > 0 then
-    return models
+  local ok, Fetch = pcall(require, "ai.fetch_models")
+  if ok then
+    local ok2, models = pcall(Fetch.fetch, provider_name)
+    if ok2 and models and #models > 0 then
+      return models
+    end
   end
 
   return def.static_models or {}
@@ -178,11 +184,32 @@ end
 
 ----------------------------------------------------------------------
 -- Get current default model for a provider
+-- Priority: Keys config (default profile) > Providers.model > static_models[1]
 ----------------------------------------------------------------------
 function M.get_default_model(provider_name)
+  -- Level 1: Keys config (user preference, default profile)
+  local config = Keys.read()
+  if config then
+    local provider_config = config[provider_name]
+    if provider_config then
+      -- Try current profile first, then "default"
+      local profile = config.profile or "default"
+      local profile_config = provider_config[profile] or provider_config["default"]
+      if profile_config and profile_config.model and profile_config.model ~= "" then
+        return profile_config.model
+      end
+    end
+  end
+
+  -- Level 2: In-memory Providers table
   local def = Providers.get(provider_name)
   if not def then return nil end
-  return def.model or (def.static_models and def.static_models[1])
+  if def.model and def.model ~= "" then
+    return def.model
+  end
+
+  -- Level 3: First static model
+  return def.static_models and def.static_models[1] or nil
 end
 
 return M

@@ -8,9 +8,11 @@ local M = {}
 local Registry = require("ai.provider_manager.registry")
 local Validator = require("ai.provider_manager.validator")
 local Util = require("ai.util")
+local UIUtil = require("ai.provider_manager.ui_util")
 
 ----------------------------------------------------------------------
 -- Provider Picker (per UI-SPEC Section "Picker Layout")
+-- Beautified: icons, better formatting, clearer header
 ----------------------------------------------------------------------
 function M.open()
   local ok, fzf = pcall(require, "fzf-lua")
@@ -22,28 +24,35 @@ function M.open()
   -- Get provider list from registry
   local providers = Registry.list_providers()
 
-  -- Build display items and name map (per review concern: empty state guard)
+  -- Build display items and name map with beautified format
   local items = {}
   local name_map = {}
+  local icons = UIUtil.get_icons()
+
   for _, p in ipairs(providers) do
-    table.insert(items, p.display)
-    name_map[p.display] = p.name
+    local display = UIUtil.format_provider_display(p.name, {
+      endpoint = p.endpoint,
+      model = p.model,
+    })
+    table.insert(items, display)
+    name_map[display] = p.name
   end
 
-  -- Empty state handling — do NOT add placeholder to items (per review concern)
-  -- Instead, show a message and return early
+  -- Empty state handling — show friendly message with icon
   if #items == 0 then
-    vim.notify("No providers registered. Use <C-a> to add one.", vim.log.levels.WARN)
+    vim.notify(icons.provider .. " No providers registered. Use <C-a> to add one.", vim.log.levels.WARN)
     return
   end
 
-  -- fzf_exec API (per glm-5 review: fzf_exec not fzf_contents)
+  -- fzf_exec API with beautified prompt and header
   fzf.fzf_exec(items, {
-    prompt = "Providers> ",
+    prompt = icons.provider .. " Select Provider > ",
     winopts = {
-      width = 0.6,
-      height = 0.4,
+      width = 0.7,
+      height = 0.5,
       border = "rounded",
+      title = " Provider Manager ",
+      title_pos = "center",
     },
     actions = {
       -- <CR> Select: proceed to model selection (Step 2)
@@ -55,16 +64,16 @@ function M.open()
         M._select_model(name)
       end,
 
-      -- <C-a> Add: open vim.ui.input for new provider name (per D-03)
+      -- <C-a> Add: open floating input for new provider name (per D-03)
       ["ctrl-a"] = function()
         M.add_provider_dialog()
       end,
 
       -- <C-d> Delete: confirm then delete (per D-04)
-      -- FIX: capture name in closure BEFORE vim.ui.input async callback (per qwen review)
+      -- FIX: capture name in closure BEFORE async callback
       ["ctrl-d"] = function(selected)
         if not selected or #selected == 0 then
-          vim.notify("No provider selected", vim.log.levels.WARN)
+          vim.notify("Select a provider to delete", vim.log.levels.WARN)
           return
         end
         local display = selected[1]
@@ -80,7 +89,7 @@ function M.open()
       -- <C-e> Edit: open providers.lua at provider line (per D-05)
       ["ctrl-e"] = function(selected)
         if not selected or #selected == 0 then
-          vim.notify("No provider selected", vim.log.levels.WARN)
+          vim.notify("Select a provider to edit", vim.log.levels.WARN)
           return
         end
         local display = selected[1]
@@ -98,9 +107,12 @@ function M.open()
       end,
     },
 
-    -- Header with action hints (per UI-SPEC)
+    -- Header with icons and clearer action descriptions
     fzf_opts = {
-      ["--header"] = "Actions: <CR>Select <C-a>Add <C-d>Delete <C-e>Edit <C-?>Help",
+      ["--header"] = string.format(
+        "%s <C-a> Add  %s <C-d> Delete  %s <C-e> Edit  %s <C-?> Help",
+        icons.add, icons.delete, icons.edit, icons.help
+      ),
     },
   })
 end

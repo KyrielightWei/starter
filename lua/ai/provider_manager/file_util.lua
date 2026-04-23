@@ -30,7 +30,8 @@ function M.safe_write_file(path, content)
   local ok2, err2 = pcall(function()
     local uv = vim.loop or vim.uv
     if uv and uv.fs_rename then
-      local ok_rename = pcall(uv.fs_rename, uv, tmp_path, path)
+      -- FIX: uv.fs_rename(old_path, new_path) — no 'uv' as first arg
+      local ok_rename = pcall(uv.fs_rename, tmp_path, path)
       if not ok_rename then
         -- fs_rename failed, try os.rename as portable fallback
         local ok_os = os.rename(tmp_path, path)

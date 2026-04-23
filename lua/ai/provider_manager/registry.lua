@@ -10,6 +10,14 @@ local FileUtil = require("ai.provider_manager.file_util")
 local M = {}
 
 ----------------------------------------------------------------------
+-- Helper: Escape Lua pattern special characters
+-- FIX: Prevent regex injection when provider names contain magic chars
+----------------------------------------------------------------------
+local function escape_pattern(s)
+  return s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+end
+
+----------------------------------------------------------------------
 -- List all providers with display info
 -- FIX: Use Providers.list() API — NOT pairs(Providers)
 -- FIX: Include endpoint and model in result table
@@ -40,8 +48,11 @@ function M.find_provider_block(name)
   local start_line = nil
   local end_line = nil
 
+  -- FIX: Escape pattern special chars to prevent regex injection
+  local escaped_name = escape_pattern(name)
+
   for i, line in ipairs(lines) do
-    if line:match("M%.register%(['\"]" .. name .. "['\"]%s*,") then
+    if line:match("M%.register%(['\"]" .. escaped_name .. "['\"]%s*,") then
       start_line = i
     end
     if start_line and line:match("^%s*%}%s*%)%s*$") and i > start_line then
@@ -260,28 +271,47 @@ end
 ----------------------------------------------------------------------
 
 -- Parse static_models array from provider block content
+-- FIX: Only capture strings inside static_models = { ... }, not other fields
+-- FIX: Track brace depth to correctly identify end of array
 local function parse_static_models_from_block(content_lines)
-  local in_static_models = false
   local models = {}
-  local buffer = ""
+  local in_static_models = false
+  local brace_depth = 0
+  local collecting = false
 
   for _, line in ipairs(content_lines) do
-    if line:match("static_models%s*=") then
+    -- Start collecting when we hit static_models =
+    if line:match("static_models%s*=%s*{") then
       in_static_models = true
-      buffer = line
-    elseif in_static_models then
-      buffer = buffer .. line
+      collecting = true
+      brace_depth = 1
     end
 
-    if in_static_models and line:match("}") then
-      -- Extract model IDs from the buffer
-      local str = buffer
-      -- Match all string literals inside {}
-      for model_id in str:gmatch('"([^"]*)"') do
-        table.insert(models, model_id)
+    if collecting then
+      -- Count opening braces
+      for _ in line:gmatch("{") do
+        brace_depth = brace_depth + 1
       end
-      in_static_models = false
-      buffer = ""
+      
+      -- Count closing braces
+      for _ in line:gmatch("}") do
+        brace_depth = brace_depth - 1
+      end
+
+      -- Extract model IDs from current line
+      -- Only capture quoted strings that are array items (not keys)
+      for model_id in line:gmatch('"([^"]+)"') do
+        -- Skip if it appears to be a key (followed by =)
+        if not line:match('"' .. model_id .. '"%s*=') then
+          table.insert(models, model_id)
+        end
+      end
+
+      -- Stop when we close the static_models array
+      if brace_depth == 0 then
+        collecting = false
+        break
+      end
     end
   end
 
@@ -363,6 +393,7 @@ function M.update_static_models(provider_name, new_models)
 end
 
 -- Internal: update static_models in providers.lua
+-- FIX: Handle multi-line static_models blocks correctly
 function M._update_static_models_in_file(provider_name, start, end_line, new_models)
   local path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
   local lines = vim.fn.readfile(path)
@@ -370,26 +401,55 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
   -- Determine indent from first line of provider block
   local indent = lines[start]:match("^(%s*)") or "  "
 
-  -- Check if static_models line exists in block
-  local static_line_idx = nil
+  -- Find static_models block start and end
+  local static_start = nil
+  local static_end = nil
+  local brace_depth = 0
+
   for i = start, end_line do
-    if lines[i]:match("static_models%s*=") then
-      static_line_idx = i
-      break
+    local line = lines[i]
+    
+    if line:match("static_models%s*=%s*{") then
+      static_start = i
+      brace_depth = 1
+    end
+    
+    if static_start and not static_end then
+      -- Count braces to find end of static_models array
+      for _ in line:gmatch("{") do
+        if static_start and not static_end then
+          brace_depth = brace_depth + 1
+        end
+      end
+      
+      for _ in line:gmatch("}") do
+        if static_start and not static_end then
+          brace_depth = brace_depth - 1
+          if brace_depth == 0 then
+            static_end = i
+          end
+        end
+      end
     end
   end
 
   local new_content = build_static_models_line(new_models, indent)
 
-  if static_line_idx then
-    -- Replace existing line
-    lines[static_line_idx] = new_content
+  if static_start and static_end then
+    -- FIX: Remove entire multi-line block, then insert new line
+    -- Remove lines from static_end to static_start (reverse order to avoid index shifting)
+    for i = static_end, static_start, -1 do
+      table.remove(lines, i)
+    end
+    -- Insert new single-line content at static_start position
+    table.insert(lines, static_start, new_content)
+  elseif static_start then
+    -- Single line case - just replace
+    lines[static_start] = new_content
   else
-    -- Insert before closing "})"
+    -- No static_models line exists - insert before closing "})"
     local insert_idx = end_line - 1
     table.insert(lines, insert_idx, new_content)
-    -- Update end_line since we inserted
-    end_line = end_line + 1
   end
 
   -- Write atomically

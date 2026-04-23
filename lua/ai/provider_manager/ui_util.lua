@@ -1,7 +1,7 @@
 -- lua/ai/provider_manager/ui_util.lua
 -- UI utilities for Provider Manager — icons, formatting, floating input
 -- Performance-optimized: all functions use simple string ops
--- FIX: Softer icons, centered floating windows, modifiable buffer
+-- FIX: Softer icons, top-center floating windows, guaranteed insert mode
 
 local M = {}
 
@@ -73,31 +73,28 @@ end
 
 ----------------------------------------------------------------------
 -- Floating Input Dialog
--- FIX: Centered position, modifiable buffer, immediate response
+-- FIX: Larger window, top-center position, guaranteed insert mode
 ----------------------------------------------------------------------
 function M.floating_input(prompt, default, callback)
   -- Create scratch buffer
   local buf = vim.api.nvim_create_buf(false, true)
   
-  -- FIX: Ensure buffer is modifiable
+  -- Ensure buffer is modifiable
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
   vim.api.nvim_buf_set_option(buf, "filetype", "input")
   vim.api.nvim_buf_set_option(buf, "modifiable", true)
   vim.api.nvim_buf_set_option(buf, "buftype", "acwrite")
 
-  -- Calculate window dimensions
-  local prompt_width = vim.fn.strdisplaywidth(prompt)
-  local default_width = vim.fn.strdisplaywidth(default or "")
-  local width = math.max(50, prompt_width + default_width + 10)
+  -- FIX: Larger width, top-center position (row = 3 means near top)
+  local width = 60
   local height = 1
 
-  -- FIX: Center position relative to editor (not cursor)
   local opts = {
     relative = "editor",
     width = width,
     height = height,
     col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2),
+    row = 3,  -- Top-center position (3 lines from top)
     style = "minimal",
     border = "rounded",
     title = prompt,
@@ -111,7 +108,7 @@ function M.floating_input(prompt, default, callback)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { default })
   end
 
-  -- FIX: Immediate keymap response (no vim.schedule delay)
+  -- Keymaps for insert mode
   vim.keymap.set("i", "<CR>", function()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local input = lines[1] or ""
@@ -119,6 +116,7 @@ function M.floating_input(prompt, default, callback)
     if callback then callback(input) end
   end, { buffer = buf, nowait = true })
 
+  -- Keymaps for normal mode (exit/cancel)
   vim.keymap.set("n", "<Esc>", function()
     vim.api.nvim_win_close(win, true)
     if callback then callback(nil) end
@@ -129,8 +127,17 @@ function M.floating_input(prompt, default, callback)
     if callback then callback(nil) end
   end, { buffer = buf, nowait = true })
 
-  -- Start in insert mode
-  vim.cmd("startinsert")
+  -- FIX: Use autocmd to guarantee insert mode after window is fully created
+  vim.api.nvim_create_autocmd("BufEnter", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.cmd("startinsert!")
+    end,
+  })
+  
+  -- Also try immediate startinsert
+  vim.cmd("startinsert!")
 end
 
 ----------------------------------------------------------------------
@@ -139,20 +146,20 @@ end
 function M.confirm_dialog(prompt, callback)
   local buf = vim.api.nvim_create_buf(false, true)
   
-  -- FIX: Ensure buffer is modifiable
+  -- Ensure buffer is modifiable
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
   vim.api.nvim_buf_set_option(buf, "modifiable", true)
 
-  local width = math.max(40, vim.fn.strdisplaywidth(prompt) + 10)
+  -- FIX: Larger width, top-center position
+  local width = 50
   local height = 1
 
-  -- FIX: Center position
   local opts = {
     relative = "editor",
     width = width,
     height = height,
     col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2),
+    row = 3,  -- Top-center position
     style = "minimal",
     border = "rounded",
     title = prompt,
@@ -164,7 +171,7 @@ function M.confirm_dialog(prompt, callback)
   -- Set placeholder text
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "y/n" })
 
-  -- Map keys for confirm
+  -- Map keys for confirm (works in both insert and normal mode)
   vim.keymap.set({ "i", "n" }, "y", function()
     vim.api.nvim_win_close(win, true)
     if callback then callback(true) end
@@ -185,7 +192,16 @@ function M.confirm_dialog(prompt, callback)
     if callback then callback(false) end
   end, { buffer = buf, nowait = true })
 
-  vim.cmd("startinsert")
+  -- FIX: Use autocmd to guarantee insert mode
+  vim.api.nvim_create_autocmd("BufEnter", {
+    buffer = buf,
+    once = true,
+    callback = function()
+      vim.cmd("startinsert!")
+    end,
+  })
+  
+  vim.cmd("startinsert!")
 end
 
 ----------------------------------------------------------------------

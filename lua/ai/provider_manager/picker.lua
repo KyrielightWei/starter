@@ -229,11 +229,10 @@ end
 -- Edit provider: open providers.lua at register line (per D-05, D-06, D-07)
 function M.edit_provider(name)
   local line = Registry.find_provider_line(name)
-  local Registry2 = require("ai.provider_manager.registry")
-  -- Use the same path helper from registry
-  local path
+  -- Use the same path helper logic
   local cwd = vim.fn.getcwd()
   local project_path = cwd .. "/lua/ai/providers.lua"
+  local path
   if vim.fn.filereadable(project_path) == 1 then
     path = project_path
   else
@@ -337,69 +336,67 @@ function M._edit_static_models(provider_name)
 end
 
 -- Add static model dialog
--- FIX: Direct call (no vim.schedule delay), floating_input is immediate now
+-- FIX: Use vim.ui.input (reliable insert mode) instead of custom floating_input
 function M._add_static_model_dialog(provider_name)
   local icons = UIUtil.get_icons()
   
-  UIUtil.floating_input(
-    string.format("%s New model for %s:", icons.add, provider_name),
-    "",
-    function(model_id)
-      if not model_id or model_id == "" then return end
-      local ok = Registry.add_static_model(provider_name, model_id)
-      if ok then
-        -- Auto-refresh static models editor
-        vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
-      end
+  vim.ui.input({
+    prompt = string.format("%s New model for %s: ", icons.add, provider_name),
+    default = "",
+  }, function(model_id)
+    if not model_id or model_id == "" then return end
+    local ok = Registry.add_static_model(provider_name, model_id)
+    if ok then
+      -- Auto-refresh static models editor
+      vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
     end
-  )
+  end)
 end
 
 -- Rename static model dialog
--- FIX: Direct call (no vim.schedule delay)
+-- FIX: Use vim.ui.input (reliable insert mode)
 function M._rename_static_model_dialog(provider_name, old_model_id)
   local icons = UIUtil.get_icons()
   
-  UIUtil.floating_input(
-    string.format("%s Rename '%s' to:", icons.edit, old_model_id),
-    old_model_id,
-    function(new_model_id)
-      if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
+  vim.ui.input({
+    prompt = string.format("%s Rename '%s' to: ", icons.edit, old_model_id),
+    default = old_model_id,
+  }, function(new_model_id)
+    if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
 
-      -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
-      local current = Registry.list_static_models(provider_name)
-      local found_old = false
-      for _, m in ipairs(current) do
-        if m == new_model_id then
-          UIUtil.notify_with_icon("Model already exists: " .. new_model_id, vim.log.levels.ERROR, "error")
-          return
-        end
-        if m == old_model_id then
-          found_old = true
-        end
-      end
-      if not found_old then
-        UIUtil.notify_with_icon("Model not found: " .. old_model_id, vim.log.levels.ERROR, "error")
+    -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
+    local current = Registry.list_static_models(provider_name)
+    local found_old = false
+    for _, m in ipairs(current) do
+      if m == new_model_id then
+        UIUtil.notify_with_icon("Model already exists: " .. new_model_id, vim.log.levels.ERROR, "error")
         return
       end
-
-      -- Build new list with replacement
-      local new_models = {}
-      for _, m in ipairs(current) do
-        if m == old_model_id then
-          table.insert(new_models, new_model_id)
-        else
-          table.insert(new_models, m)
-        end
-      end
-
-      local ok = Registry.update_static_models(provider_name, new_models)
-      if ok then
-        -- Auto-refresh static models editor
-        vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+      if m == old_model_id then
+        found_old = true
       end
     end
-  )
+    if not found_old then
+      UIUtil.notify_with_icon("Model not found: " .. old_model_id, vim.log.levels.ERROR, "error")
+      return
+    end
+
+    -- Build new list with replacement
+    local new_models = {}
+    for _, m in ipairs(current) do
+      if m == old_model_id then
+        table.insert(new_models, new_model_id)
+      else
+        table.insert(new_models, m)
+      end
+    end
+
+    local ok = Registry.update_static_models(provider_name, new_models)
+    if ok then
+      -- Auto-refresh static models editor
+      vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+    end
+  end)
 end
 
 -- Static models help (with softer icons)

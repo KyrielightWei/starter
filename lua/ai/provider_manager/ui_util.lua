@@ -127,17 +127,14 @@ function M.floating_input(prompt, default, callback)
     if callback then callback(nil) end
   end, { buffer = buf, nowait = true })
 
-  -- FIX: Use autocmd to guarantee insert mode after window is fully created
-  vim.api.nvim_create_autocmd("BufEnter", {
-    buffer = buf,
-    once = true,
-    callback = function()
-      vim.cmd("startinsert!")
-    end,
-  })
-  
-  -- Also try immediate startinsert
-  vim.cmd("startinsert!")
+  -- FIX: Use vim.schedule + feedkeys to reliably enter insert mode
+  -- This is more reliable than startinsert for floating windows
+  vim.schedule(function()
+    -- Clear any pending mode state first
+    vim.cmd("stopinsert")
+    -- Use feedkeys with 'i' to enter insert mode
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("i", true, false, true), "n", false)
+  end)
 end
 
 ----------------------------------------------------------------------
@@ -192,16 +189,11 @@ function M.confirm_dialog(prompt, callback)
     if callback then callback(false) end
   end, { buffer = buf, nowait = true })
 
-  -- FIX: Use autocmd to guarantee insert mode
-  vim.api.nvim_create_autocmd("BufEnter", {
-    buffer = buf,
-    once = true,
-    callback = function()
-      vim.cmd("startinsert!")
-    end,
-  })
-  
-  vim.cmd("startinsert!")
+  -- FIX: Use vim.schedule + feedkeys to reliably enter insert mode
+  vim.schedule(function()
+    vim.cmd("stopinsert")
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("i", true, false, true), "n", false)
+  end)
 end
 
 ----------------------------------------------------------------------

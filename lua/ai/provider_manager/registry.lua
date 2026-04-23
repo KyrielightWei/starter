@@ -269,19 +269,19 @@ local function parse_static_models_from_block(content_lines)
     if line:match("static_models%s*=") then
       in_static_models = true
       buffer = line
-    end
-    if in_static_models then
+    elseif in_static_models then
       buffer = buffer .. line
-      if line:match("}") then
-        -- Extract model IDs from the buffer
-        local str = buffer
-        -- Match all string literals inside {}
-        for model_id in str:gmatch('"([^"]*)"') do
-          table.insert(models, model_id)
-        end
-        in_static_models = false
-        buffer = ""
+    end
+
+    if in_static_models and line:match("}") then
+      -- Extract model IDs from the buffer
+      local str = buffer
+      -- Match all string literals inside {}
+      for model_id in str:gmatch('"([^"]*)"') do
+        table.insert(models, model_id)
       end
+      in_static_models = false
+      buffer = ""
     end
   end
 

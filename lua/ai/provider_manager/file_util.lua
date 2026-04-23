@@ -27,36 +27,46 @@ function M.safe_write_file(path, content)
   end
 
   -- Step 2: Rename .tmp → target (atomic on most filesystems)
-  local ok2, err2 = pcall(function()
-    local uv = vim.loop or vim.uv
-    if uv and uv.fs_rename then
-      -- FIX: uv.fs_rename(old_path, new_path) — no 'uv' as first arg
-      local ok_rename = pcall(uv.fs_rename, tmp_path, path)
-      if not ok_rename then
-        -- fs_rename failed, try os.rename as portable fallback
-        local ok_os = os.rename(tmp_path, path)
-        if not ok_os then
-          -- Last resort: direct write (non-atomic)
-          local lines = vim.fn.readfile(tmp_path)
-          vim.fn.writefile(lines, path)
-        end
-        pcall(vim.fn.delete, tmp_path)
-      end
-    else
-      -- No uv.fs_rename, try os.rename
-      local ok_os = os.rename(tmp_path, path)
-      if not ok_os then
-        -- Last resort: direct write (non-atomic)
-        local lines = vim.fn.readfile(tmp_path)
-        vim.fn.writefile(lines, path)
-      end
-      pcall(vim.fn.delete, tmp_path)
-    end
-  end)
+  local rename_success = false
+  local rename_error = nil
 
-  if not ok2 then
-    vim.notify("Failed to rename temp file: " .. tostring(err2), vim.log.levels.ERROR)
-    return false, tostring(err2)
+  local uv = vim.loop or vim.uv
+  if uv and uv.fs_rename then
+    -- FIX: uv.fs_rename returns nil on success, error on failure (NOT throws exception)
+    -- pcall doesn't work here because fs_rename doesn't throw Lua errors
+    local result, err = uv.fs_rename(tmp_path, path)
+    if result == nil and err == nil then
+      rename_success = true
+    else
+      rename_error = err or "unknown error"
+    end
+  end
+
+  if not rename_success then
+    -- Fallback 1: Try os.rename (portable but less atomic)
+    local ok_os = os.rename(tmp_path, path)
+    if ok_os then
+      rename_success = true
+    else
+      -- Fallback 2: Direct write (non-atomic, last resort)
+      local lines = vim.fn.readfile(tmp_path)
+      local write_ok = pcall(vim.fn.writefile, lines, path)
+      if write_ok then
+        rename_success = true
+      else
+        rename_error = "all rename methods failed"
+      end
+    end
+  end
+
+  -- Clean up .tmp file
+  if vim.fn.filereadable(tmp_path) == 1 then
+    pcall(vim.fn.delete, tmp_path)
+  end
+
+  if not rename_success then
+    vim.notify("Failed to rename temp file: " .. tostring(rename_error), vim.log.levels.ERROR)
+    return false, rename_error
   end
 
   return true, nil

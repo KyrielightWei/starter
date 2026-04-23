@@ -301,8 +301,10 @@ local function parse_static_models_from_block(content_lines)
       -- Extract model IDs from current line
       -- Only capture quoted strings that are array items (not keys)
       for model_id in line:gmatch('"([^"]+)"') do
+        -- FIX: Escape model_id for pattern matching (regex injection prevention)
+        local escaped_model = escape_pattern(model_id)
         -- Skip if it appears to be a key (followed by =)
-        if not line:match('"' .. model_id .. '"%s*=') then
+        if not line:match('"' .. escaped_model .. '"%s*=') then
           table.insert(models, model_id)
         end
       end

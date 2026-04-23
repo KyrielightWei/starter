@@ -201,34 +201,54 @@ end
 -- Dialog Functions (per UI-SPEC "Input Dialogs")
 ----------------------------------------------------------------------
 
--- Add provider dialog (per D-03, UI-SPEC)
--- FIX: Use vim.schedule for reliable input after picker closes
-function M.add_provider_dialog()
-  vim.schedule(function()
-    vim.ui.input({ prompt = "New provider name: " }, function(name)
-      if not name or name == "" then return end
-
-      local valid, err = Validator.validate_provider_name(name)
-      if not valid then
-        vim.notify(err, vim.log.levels.ERROR)
-        return
+-- Helper: Force insert mode when vim.ui.input opens
+local function force_insert_on_input()
+  -- Create autocmd to force insert mode when input buffer opens
+  local group = vim.api.nvim_create_augroup("ProviderManagerInput", { clear = true })
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
+    pattern = "*",  -- Match any buffer
+    once = true,
+    callback = function()
+      -- Check if this is an input buffer (usually unnamed scratch buffer)
+      if vim.bo.buftype == "acwrite" or vim.bo.filetype == "input" or vim.fn.bufname() == "" then
+        vim.schedule(function()
+          -- Clear any pending mode state
+          vim.cmd("stopinsert")
+          -- Force insert mode
+          vim.cmd("startinsert!")
+        end)
       end
+    end,
+  })
+end
 
-      Registry.add_provider(name)
-      vim.notify("Provider added: " .. name .. ". Please add config to providers.lua", vim.log.levels.INFO)
-    end)
+-- Add provider dialog (per D-03, UI-SPEC)
+-- FIX: Force insert mode via autocmd before calling vim.ui.input
+function M.add_provider_dialog()
+  force_insert_on_input()
+  vim.ui.input({ prompt = "New provider name: " }, function(name)
+    if not name or name == "" then return end
+
+    local valid, err = Validator.validate_provider_name(name)
+    if not valid then
+      vim.notify(err, vim.log.levels.ERROR)
+      return
+    end
+
+    Registry.add_provider(name)
+    vim.notify("Provider added: " .. name .. ". Please add config to providers.lua", vim.log.levels.INFO)
   end)
 end
 
 -- Delete provider dialog (per D-04, UI-SPEC)
--- FIX: Use vim.schedule for reliable input after picker closes
+-- FIX: Force insert mode via autocmd
 function M.delete_provider_dialog(name)
-  vim.schedule(function()
-    vim.ui.input({ prompt = "Delete provider " .. name .. "? (y/n): " }, function(answer)
-      if answer == "y" then
-        Registry.delete_provider(name)
-      end
-    end)
+  force_insert_on_input()
+  vim.ui.input({ prompt = "Delete provider " .. name .. "? (y/n): " }, function(answer)
+    if answer == "y" then
+      Registry.delete_provider(name)
+    end
   end)
 end
 
@@ -342,71 +362,69 @@ function M._edit_static_models(provider_name)
 end
 
 -- Add static model dialog
--- FIX: Use vim.schedule to ensure fzf-lua picker is fully closed before calling vim.ui.input
+-- FIX: Force insert mode via autocmd before calling vim.ui.input
 function M._add_static_model_dialog(provider_name)
   local icons = UIUtil.get_icons()
   
-  vim.schedule(function()
-    vim.ui.input({
-      prompt = string.format("%s New model for %s: ", icons.add, provider_name),
-      default = "",
-    }, function(model_id)
-      if not model_id or model_id == "" then return end
-      local ok = Registry.add_static_model(provider_name, model_id)
-      if ok then
-        -- Auto-refresh static models editor
-        vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
-      end
-    end)
+  force_insert_on_input()
+  vim.ui.input({
+    prompt = string.format("%s New model for %s: ", icons.add, provider_name),
+    default = "",
+  }, function(model_id)
+    if not model_id or model_id == "" then return end
+    local ok = Registry.add_static_model(provider_name, model_id)
+    if ok then
+      -- Auto-refresh static models editor
+      vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
+    end
   end)
 end
 
 -- Rename static model dialog
--- FIX: Use vim.schedule for reliable input after picker closes
+-- FIX: Force insert mode via autocmd
 function M._rename_static_model_dialog(provider_name, old_model_id)
   local icons = UIUtil.get_icons()
   
-  vim.schedule(function()
-    vim.ui.input({
-      prompt = string.format("%s Rename '%s' to: ", icons.edit, old_model_id),
-      default = old_model_id,
-    }, function(new_model_id)
-      if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
+  force_insert_on_input()
+  vim.ui.input({
+    prompt = string.format("%s Rename '%s' to: ", icons.edit, old_model_id),
+    default = old_model_id,
+  }, function(new_model_id)
+    if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
 
-      -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
-      local current = Registry.list_static_models(provider_name)
-      local found_old = false
-      for _, m in ipairs(current) do
-        if m == new_model_id then
-          UIUtil.notify_with_icon("Model already exists: " .. new_model_id, vim.log.levels.ERROR, "error")
-          return
-        end
-        if m == old_model_id then
-          found_old = true
-        end
-      end
-      if not found_old then
-        UIUtil.notify_with_icon("Model not found: " .. old_model_id, vim.log.levels.ERROR, "error")
+    -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
+    local current = Registry.list_static_models(provider_name)
+    local found_old = false
+    for _, m in ipairs(current) do
+      if m == new_model_id then
+        UIUtil.notify_with_icon("Model already exists: " .. new_model_id, vim.log.levels.ERROR, "error")
         return
       end
-
-      -- Build new list with replacement
-      local new_models = {}
-      for _, m in ipairs(current) do
-        if m == old_model_id then
-          table.insert(new_models, new_model_id)
-        else
-          table.insert(new_models, m)
-        end
+      if m == old_model_id then
+        found_old = true
       end
+    end
+    if not found_old then
+      UIUtil.notify_with_icon("Model not found: " .. old_model_id, vim.log.levels.ERROR, "error")
+      return
+    end
 
-      local ok = Registry.update_static_models(provider_name, new_models)
-      if ok then
-        -- Auto-refresh static models editor
-        vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
+    -- Build new list with replacement
+    local new_models = {}
+    for _, m in ipairs(current) do
+      if m == old_model_id then
+        table.insert(new_models, new_model_id)
+      else
+        table.insert(new_models, m)
       end
-    end)  -- vim.ui.input callback
-  end)    -- vim.schedule callback
+    end
+
+    local ok = Registry.update_static_models(provider_name, new_models)
+    if ok then
+      -- Auto-refresh static models editor
+      vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
+    end
+  end)  -- vim.ui.input callback
 end
 
 -- Static models help (with softer icons)

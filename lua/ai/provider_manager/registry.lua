@@ -393,7 +393,7 @@ function M.update_static_models(provider_name, new_models)
 end
 
 -- Internal: update static_models in providers.lua
--- FIX: Handle multi-line static_models blocks correctly
+-- FIX: Handle multi-line static_models blocks correctly, preserve closing braces
 function M._update_static_models_in_file(provider_name, start, end_line, new_models)
   local path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
   local lines = vim.fn.readfile(path)
@@ -401,33 +401,59 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
   -- Determine indent from first line of provider block
   local indent = lines[start]:match("^(%s*)") or "  "
 
-  -- Find static_models block start and end
+  -- Find static_models block and identify closing brace type
   local static_start = nil
   local static_end = nil
   local brace_depth = 0
+  local close_type = "inline" -- "inline", "separate_comma", "separate_close"
 
   for i = start, end_line do
     local line = lines[i]
     
     if line:match("static_models%s*=%s*{") then
       static_start = i
-      brace_depth = 1
+      -- FIX: Count braces on this line to get accurate depth
+      -- Count opening braces (excluding the one in static_models = {)
+      local open_count = 0
+      for _ in line:gmatch("{") do
+        open_count = open_count + 1
+      end
+      -- Count closing braces on same line (for inline case)
+      local close_count = 0
+      for _ in line:gmatch("}") do
+        close_count = close_count + 1
+      end
+      brace_depth = open_count - close_count
+      
+      -- If inline (same line has `},` or `})`), set static_end immediately
+      if close_count > 0 and brace_depth == 0 then
+        static_end = i
+        if line:match("^%s*}%s*,%s*$") then
+          close_type = "separate_comma"
+        elseif line:match("%)") then
+          close_type = "inline" -- has `}` followed by `)`
+        end
+      end
     end
     
-    if static_start and not static_end then
+    -- Only count braces on subsequent lines (after static_start)
+    if static_start and not static_end and i > static_start then
       -- Count braces to find end of static_models array
       for _ in line:gmatch("{") do
-        if static_start and not static_end then
-          brace_depth = brace_depth + 1
-        end
+        brace_depth = brace_depth + 1
       end
       
       for _ in line:gmatch("}") do
-        if static_start and not static_end then
-          brace_depth = brace_depth - 1
-          if brace_depth == 0 then
-            static_end = i
+        brace_depth = brace_depth - 1
+        if brace_depth == 0 then
+          static_end = i
+          -- Determine close type from the line content
+          if line:match("^%s*}%s*,%s*$") then
+            close_type = "separate_comma" -- `  },`
+          elseif line:match("^%s*}%s*%)%s*$") then
+            close_type = "separate_close" -- `})`
           end
+          break
         end
       end
     end
@@ -436,15 +462,48 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
   local new_content = build_static_models_line(new_models, indent)
 
   if static_start and static_end then
-    -- FIX: Remove entire multi-line block, then insert new line
-    -- Remove lines from static_end to static_start (reverse order to avoid index shifting)
-    for i = static_end, static_start, -1 do
-      table.remove(lines, i)
+    -- Handle multi-line vs single-line differently
+    if static_start == static_end then
+      -- Single line: just replace the line
+      lines[static_start] = new_content
+    else
+      -- Multi-line: replace entire block with single line
+      -- Strategy: remove all lines between static_start and static_end, 
+      -- then insert new_content at static_start
+      
+      -- First, check if static_end line is `})` (closes M.register)
+      -- If so, we need to keep it and add `},` before it
+      local static_end_line = lines[static_end]
+      
+      if static_end_line:match("^%s*}%s*%)%s*$") then
+        -- static_end is `})` — we need to preserve it and add `},`
+        -- Remove lines from static_end-1 down to static_start
+        for i = static_end - 1, static_start, -1 do
+          table.remove(lines, i)
+        end
+        -- Now insert new_content at static_start, and `},` at static_start+1
+        table.insert(lines, static_start, new_content)
+        table.insert(lines, static_start + 1, indent .. "},")
+      elseif static_end_line:match("^%s*}%s*,%s*$") then
+        -- static_end is `},` — good, we can just replace
+        -- Remove lines from static_end down to static_start
+        for i = static_end, static_start, -1 do
+          table.remove(lines, i)
+        end
+        -- Insert new_content at static_start
+        table.insert(lines, static_start, new_content)
+      else
+        -- Other case: the `}` is part of a larger line
+        -- Just replace static_start, keep other lines as-is
+        lines[static_start] = new_content
+        -- Remove middle lines (static_start+1 to static_end-1)
+        for i = static_end - 1, static_start + 1, -1 do
+          table.remove(lines, i)
+        end
+      end
     end
-    -- Insert new single-line content at static_start position
-    table.insert(lines, static_start, new_content)
   elseif static_start then
-    -- Single line case - just replace
+    -- Only found start, no end (malformed?) - just replace
     lines[static_start] = new_content
   else
     -- No static_models line exists - insert before closing "})"

@@ -87,10 +87,12 @@ function M.floating_input(opts, callback)
   vim.api.nvim_buf_set_option(buf, "swapfile", false)
   
   -- Set initial content AFTER modifiable is set
+  -- Add left padding for better visual appearance
+  local padding = "  "  -- Two spaces for left margin
   if default and #default > 0 then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { default })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { padding .. default })
   else
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "" })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { padding })
   end
 
   -- Calculate dimensions - top-center position, larger width
@@ -120,10 +122,12 @@ function M.floating_input(opts, callback)
   vim.api.nvim_win_set_option(win, "cursorline", false)
 
   -- Define keymaps AFTER window is open
-  -- Enter: confirm input
+  -- Enter: confirm input (strip leading padding)
   vim.keymap.set("i", "<CR>", function()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local input = lines[1] or ""
+    -- Strip leading padding (2 spaces)
+    input = input:gsub("^%s*", "")
     vim.api.nvim_win_close(win, true)
     if callback then callback(input) end
   end, { buffer = buf, nowait = true, silent = true })
@@ -141,8 +145,8 @@ function M.floating_input(opts, callback)
   end, { buffer = buf, nowait = true, silent = true })
 
   -- CRITICAL: Enter insert mode IMMEDIATELY using feedkeys
-  -- Must be done AFTER window is fully created and focused
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>i", true, false, true), "n", false)
+  -- Move cursor to end of content (after padding + default text)
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>A", true, false, true), "n", false)
 end
 
 return M

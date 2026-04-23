@@ -1,11 +1,13 @@
 ---
-status: partial
+status: passed
 phase: 01-provider-manager-core-ui
 source: [01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md, 01-05-SUMMARY.md]
 started: "2026-04-22T15:00:00Z"
-updated: "2026-04-22T15:30:00Z"
+updated: "2026-04-24T00:00:00Z"
 auto_verified: "2026-04-22T15:30:00Z"
+human_verified: "2026-04-24T00:00:00Z"
 auto_results: "17/19 function checks passed, 34/34 unit tests passed"
+human_results: "4/4 UX tests passed, persistence verified"
 ---
 
 ## Current Test
@@ -64,19 +66,17 @@ result: pass (auto-verified: remove_static_model exists, persists to file, auto-
 
 ### 13. Persistence After Restart
 expected: Restart Neovim, open picker — all changes from tests above persist
-result: blocked
-blocked_by: physical-restart
-reason: "Cannot verify cross-restart persistence in headless mode"
+result: pass (human-verified: 2026-04-24 — changes persisted across restart)
 
 ## Summary
 
 total: 13
-passed: 12
+passed: 13
 issues: 0
 pending: 0
 skipped: 0
-blocked: 1
+blocked: 0
 
 ## Gaps
 
-[none — all testable items passed auto-verification]
+[none — all tests passed]

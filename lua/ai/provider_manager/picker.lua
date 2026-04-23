@@ -201,33 +201,13 @@ end
 -- Dialog Functions (per UI-SPEC "Input Dialogs")
 ----------------------------------------------------------------------
 
--- Helper: Force insert mode when vim.ui.input opens
-local function force_insert_on_input()
-  -- Create autocmd to force insert mode when input buffer opens
-  local group = vim.api.nvim_create_augroup("ProviderManagerInput", { clear = true })
-  vim.api.nvim_create_autocmd("BufEnter", {
-    group = group,
-    pattern = "*",  -- Match any buffer
-    once = true,
-    callback = function()
-      -- Check if this is an input buffer (usually unnamed scratch buffer)
-      if vim.bo.buftype == "acwrite" or vim.bo.filetype == "input" or vim.fn.bufname() == "" then
-        vim.schedule(function()
-          -- Clear any pending mode state
-          vim.cmd("stopinsert")
-          -- Force insert mode
-          vim.cmd("startinsert!")
-        end)
-      end
-    end,
-  })
-end
-
 -- Add provider dialog (per D-03, UI-SPEC)
--- FIX: Force insert mode via autocmd before calling vim.ui.input
+-- Use UIUtil.floating_input for reliable modifiable + insert mode
 function M.add_provider_dialog()
-  force_insert_on_input()
-  vim.ui.input({ prompt = "New provider name: " }, function(name)
+  UIUtil.floating_input({
+    prompt = "New provider name: ",
+    default = "",
+  }, function(name)
     if not name or name == "" then return end
 
     local valid, err = Validator.validate_provider_name(name)
@@ -242,10 +222,11 @@ function M.add_provider_dialog()
 end
 
 -- Delete provider dialog (per D-04, UI-SPEC)
--- FIX: Force insert mode via autocmd
 function M.delete_provider_dialog(name)
-  force_insert_on_input()
-  vim.ui.input({ prompt = "Delete provider " .. name .. "? (y/n): " }, function(answer)
+  UIUtil.floating_input({
+    prompt = "Delete provider " .. name .. "? (y/n): ",
+    default = "",
+  }, function(answer)
     if answer == "y" then
       Registry.delete_provider(name)
     end
@@ -362,37 +343,32 @@ function M._edit_static_models(provider_name)
 end
 
 -- Add static model dialog
--- FIX: Force insert mode via autocmd before calling vim.ui.input
+-- Use UIUtil.floating_input for reliable modifiable + insert mode
 function M._add_static_model_dialog(provider_name)
   local icons = UIUtil.get_icons()
   
-  force_insert_on_input()
-  vim.ui.input({
+  UIUtil.floating_input({
     prompt = string.format("%s New model for %s: ", icons.add, provider_name),
     default = "",
   }, function(model_id)
     if not model_id or model_id == "" then return end
     local ok = Registry.add_static_model(provider_name, model_id)
     if ok then
-      -- Auto-refresh static models editor
       vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
     end
   end)
 end
 
 -- Rename static model dialog
--- FIX: Force insert mode via autocmd
 function M._rename_static_model_dialog(provider_name, old_model_id)
   local icons = UIUtil.get_icons()
   
-  force_insert_on_input()
-  vim.ui.input({
+  UIUtil.floating_input({
     prompt = string.format("%s Rename '%s' to: ", icons.edit, old_model_id),
     default = old_model_id,
   }, function(new_model_id)
     if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
 
-    -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
     local current = Registry.list_static_models(provider_name)
     local found_old = false
     for _, m in ipairs(current) do
@@ -409,7 +385,6 @@ function M._rename_static_model_dialog(provider_name, old_model_id)
       return
     end
 
-    -- Build new list with replacement
     local new_models = {}
     for _, m in ipairs(current) do
       if m == old_model_id then
@@ -421,10 +396,9 @@ function M._rename_static_model_dialog(provider_name, old_model_id)
 
     local ok = Registry.update_static_models(provider_name, new_models)
     if ok then
-      -- Auto-refresh static models editor
       vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
     end
-  end)  -- vim.ui.input callback
+  end)
 end
 
 -- Static models help (with softer icons)

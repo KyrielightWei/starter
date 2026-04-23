@@ -303,30 +303,35 @@ function M._edit_static_models(provider_name)
       end,
     },
     fzf_opts = {
-      ["--header"] = "Actions: <CR>Add <C-a>Add <C-e>Rename <C-d>Remove <C-?>Help | <Esc> Back",
+      ["--header"] = "Select model: <C-a>Add <C-e>Rename <C-d>Delete <C-?>Help | <CR>on '+Add' line to add",
     },
   })
 end
 
 -- Add static model dialog
+-- FIX: Use vim.schedule to ensure FZF window closes before input opens
 function M._add_static_model_dialog(provider_name)
-  vim.ui.input({ prompt = string.format("New model for %s: ", provider_name) }, function(model_id)
-    if not model_id or model_id == "" then return end
-    local ok = Registry.add_static_model(provider_name, model_id)
-    if ok then
-      -- Auto-refresh static models editor
-      vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
-    end
+  vim.schedule(function()
+    vim.ui.input({ prompt = string.format("New model for %s: ", provider_name) }, function(model_id)
+      if not model_id or model_id == "" then return end
+      local ok = Registry.add_static_model(provider_name, model_id)
+      if ok then
+        -- Auto-refresh static models editor
+        vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+      end
+    end)
   end)
 end
 
 -- Rename static model dialog
+-- FIX: Use vim.schedule to ensure FZF window closes before input opens
 function M._rename_static_model_dialog(provider_name, old_model_id)
-  vim.ui.input({
-    prompt = string.format("Rename '%s' to: ", old_model_id),
-    default = old_model_id,
-  }, function(new_model_id)
-    if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
+  vim.schedule(function()
+    vim.ui.input({
+      prompt = string.format("Rename '%s' to: ", old_model_id),
+      default = old_model_id,
+    }, function(new_model_id)
+      if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
 
     -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
     local current = Registry.list_static_models(provider_name)
@@ -360,6 +365,7 @@ function M._rename_static_model_dialog(provider_name, old_model_id)
       -- Auto-refresh static models editor
       vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
     end
+  end)
   end)
 end
 

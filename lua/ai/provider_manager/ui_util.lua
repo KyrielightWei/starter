@@ -1,55 +1,34 @@
 -- lua/ai/provider_manager/ui_util.lua
 -- UI utilities for Provider Manager — icons, formatting, floating input
 -- Performance-optimized: all functions use simple string ops
+-- FIX: Softer icons, centered floating windows, modifiable buffer
 
 local M = {}
 
 ----------------------------------------------------------------------
--- Icons and Colors (performance: pre-defined constants)
--- FIX: Provide ASCII fallback for terminals without emoji support
+-- Icons - Softer style (Unicode symbols, not large emoji)
+-- More subtle and professional appearance
 ----------------------------------------------------------------------
-local USE_EMOJI = vim.fn.has("nvim-0.9") == 1 and vim.env.TERM ~= nil and not vim.env.TERM:match("dumb")
-
-local ICONS = USE_EMOJI and {
-  provider = "📦",
-  model = "🤖",
-  add = "➕",
-  delete = "🗑️",
-  edit = "✏️",
-  rename = "📝",
-  help = "❓",
-  check = "✓",
-  cross = "✗",
-  clock = "⏱",
-  default = "⭐",
-  success = "✅",
-  warn = "⚠️",
-  error = "❌",
-} or {
-  provider = "[P]",
-  model = "[M]",
+local ICONS = {
+  -- Provider/Model markers (smaller, cleaner)
+  provider = "•",      -- Bullet point
+  model = "◦",         -- White bullet
+  default = "★",       -- Star for default (subtle)
+  
+  -- Action indicators (minimal)
   add = "[+]",
   delete = "[-]",
-  edit = "[E]",
-  rename = "[R]",
-  help = "[?]",
-  check = "[OK]",
-  cross = "[X]",
-  clock = "[...]",
-  default = "[*]",
-  success = "[OK]",
-  warn = "[WARN]",
-  error = "[ERR]",
-}
-
--- Simple ANSI colors (works in most terminals)
-local COLORS = {
-  highlight = "\x1b[1m", -- bold
-  reset = "\x1b[0m",
-  green = "\x1b[32m",
-  yellow = "\x1b[33m",
-  red = "\x1b[31m",
-  cyan = "\x1b[36m",
+  edit = "[e]",
+  rename = "[r]",
+  help = "?",
+  
+  -- Status markers
+  check = "✔",
+  cross = "✘",
+  clock = "…",
+  success = "✓",
+  warn = "!",
+  error = "✗",
 }
 
 ----------------------------------------------------------------------
@@ -93,37 +72,37 @@ function M.format_model_display(model_id, is_default, metadata)
 end
 
 ----------------------------------------------------------------------
--- Floating Input Dialog (performance: minimal buffer operations)
+-- Floating Input Dialog
+-- FIX: Centered position, modifiable buffer, immediate response
 ----------------------------------------------------------------------
 function M.floating_input(prompt, default, callback)
   -- Create scratch buffer
   local buf = vim.api.nvim_create_buf(false, true)
+  
+  -- FIX: Ensure buffer is modifiable
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
   vim.api.nvim_buf_set_option(buf, "filetype", "input")
+  vim.api.nvim_buf_set_option(buf, "modifiable", true)
+  vim.api.nvim_buf_set_option(buf, "buftype", "acwrite")
 
-  -- FIX: Calculate window dimensions using display width (not byte length)
+  -- Calculate window dimensions
   local prompt_width = vim.fn.strdisplaywidth(prompt)
   local default_width = vim.fn.strdisplaywidth(default or "")
-  local width = math.max(60, prompt_width + default_width + 20)
+  local width = math.max(50, prompt_width + default_width + 10)
   local height = 1
 
-  -- Open floating window
-  -- FIX: Check Neovim version for title support (requires 0.8+)
+  -- FIX: Center position relative to editor (not cursor)
   local opts = {
-    relative = "cursor",
+    relative = "editor",
     width = width,
     height = height,
-    row = 1,
-    col = 0,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2),
     style = "minimal",
     border = "rounded",
+    title = prompt,
+    title_pos = "center",
   }
-
-  -- Add title only if Neovim >= 0.8
-  if vim.fn.has("nvim-0.8") == 1 then
-    opts.title = prompt
-    opts.title_pos = "center"
-  end
 
   local win = vim.api.nvim_open_win(buf, true, opts)
 
@@ -132,30 +111,23 @@ function M.floating_input(prompt, default, callback)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { default })
   end
 
-  -- Map keys
+  -- FIX: Immediate keymap response (no vim.schedule delay)
   vim.keymap.set("i", "<CR>", function()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local input = lines[1] or ""
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(input)
-    end
-  end, { buffer = buf })
+    if callback then callback(input) end
+  end, { buffer = buf, nowait = true })
 
   vim.keymap.set("n", "<Esc>", function()
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(nil)
-    end
-  end, { buffer = buf })
+    if callback then callback(nil) end
+  end, { buffer = buf, nowait = true })
 
-  -- FIX: Also allow 'q' to close (common Neovim pattern)
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(nil)
-    end
-  end, { buffer = buf })
+    if callback then callback(nil) end
+  end, { buffer = buf, nowait = true })
 
   -- Start in insert mode
   vim.cmd("startinsert")
@@ -165,27 +137,27 @@ end
 -- Confirm Dialog (for delete operations, single char input)
 ----------------------------------------------------------------------
 function M.confirm_dialog(prompt, callback)
-  -- Create scratch buffer
   local buf = vim.api.nvim_create_buf(false, true)
+  
+  -- FIX: Ensure buffer is modifiable
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "modifiable", true)
 
   local width = math.max(40, vim.fn.strdisplaywidth(prompt) + 10)
   local height = 1
 
+  -- FIX: Center position
   local opts = {
-    relative = "cursor",
+    relative = "editor",
     width = width,
     height = height,
-    row = 1,
-    col = 0,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2),
     style = "minimal",
     border = "rounded",
+    title = prompt,
+    title_pos = "center",
   }
-
-  if vim.fn.has("nvim-0.8") == 1 then
-    opts.title = prompt
-    opts.title_pos = "center"
-  end
 
   local win = vim.api.nvim_open_win(buf, true, opts)
 
@@ -195,33 +167,24 @@ function M.confirm_dialog(prompt, callback)
   -- Map keys for confirm
   vim.keymap.set({ "i", "n" }, "y", function()
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(true)
-    end
-  end, { buffer = buf })
+    if callback then callback(true) end
+  end, { buffer = buf, nowait = true })
 
   vim.keymap.set({ "i", "n" }, "n", function()
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(false)
-    end
-  end, { buffer = buf })
+    if callback then callback(false) end
+  end, { buffer = buf, nowait = true })
 
   vim.keymap.set("n", "<Esc>", function()
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(false)
-    end
-  end, { buffer = buf })
+    if callback then callback(false) end
+  end, { buffer = buf, nowait = true })
 
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(win, true)
-    if callback then
-      callback(false)
-    end
-  end, { buffer = buf })
+    if callback then callback(false) end
+  end, { buffer = buf, nowait = true })
 
-  -- Start in insert mode
   vim.cmd("startinsert")
 end
 

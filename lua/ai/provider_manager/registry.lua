@@ -10,6 +10,29 @@ local FileUtil = require("ai.provider_manager.file_util")
 local M = {}
 
 ----------------------------------------------------------------------
+-- Helper: Get providers.lua path
+-- FIX: Use project directory when running from project, not stdpath("config")
+-- Priority: project root > user config directory
+----------------------------------------------------------------------
+local function _get_providers_path()
+  -- Try project root first (when running as a standalone project)
+  local cwd = vim.fn.getcwd()
+  local project_path = cwd .. "/lua/ai/providers.lua"
+  if vim.fn.filereadable(project_path) == 1 then
+    return project_path
+  end
+
+  -- Fallback to user config directory (when installed as plugin)
+  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  if vim.fn.filereadable(config_path) == 1 then
+    return config_path
+  end
+
+  -- Last resort: return project path even if doesn't exist (for creating new file)
+  return project_path
+end
+
+----------------------------------------------------------------------
 -- Helper: Escape Lua pattern special characters
 -- FIX: Prevent regex injection when provider names contain magic chars
 ----------------------------------------------------------------------
@@ -40,7 +63,7 @@ end
 -- Addresses review: block-aware parser for reliable editing
 ----------------------------------------------------------------------
 function M.find_provider_block(name)
-  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  local config_path = _get_providers_path()
   if vim.fn.filereadable(config_path) == 0 then
     return nil, nil, nil
   end
@@ -74,7 +97,6 @@ end
 
 ----------------------------------------------------------------------
 -- Find the line number of a provider's M.register() call
--- FIX: Use dynamic path via vim.fn.stdpath("config") — NOT hardcoded
 ----------------------------------------------------------------------
 function M.find_provider_line(name)
   local start, _, _ = M.find_provider_block(name)
@@ -93,7 +115,7 @@ function M.add_provider(name)
   end
 
   -- Open providers.lua for the user to add config
-  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  local config_path = _get_providers_path()
   vim.cmd.edit({ file = config_path })
 
   -- Jump to end of file (before `return M`)
@@ -128,7 +150,7 @@ function M.delete_provider(name)
   end
 
   -- PERSIST: Remove M.register(...) block from providers.lua file
-  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  local config_path = _get_providers_path()
   if vim.fn.filereadable(config_path) == 0 then
     vim.notify("Deleted provider: " .. name .. " (in-memory only, file not found)", vim.log.levels.WARN)
     return true
@@ -397,7 +419,7 @@ end
 -- Internal: update static_models in providers.lua
 -- FIX: Handle multi-line static_models blocks correctly, preserve closing braces
 function M._update_static_models_in_file(provider_name, start, end_line, new_models)
-  local path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  local path = _get_providers_path()
   local lines = vim.fn.readfile(path)
 
   -- Determine indent from first line of provider block

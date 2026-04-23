@@ -229,7 +229,16 @@ end
 -- Edit provider: open providers.lua at register line (per D-05, D-06, D-07)
 function M.edit_provider(name)
   local line = Registry.find_provider_line(name)
-  local path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  local Registry2 = require("ai.provider_manager.registry")
+  -- Use the same path helper from registry
+  local path
+  local cwd = vim.fn.getcwd()
+  local project_path = cwd .. "/lua/ai/providers.lua"
+  if vim.fn.filereadable(project_path) == 1 then
+    path = project_path
+  else
+    path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+  end
   vim.cmd.edit({ file = path })
   vim.api.nvim_win_set_cursor(0, { line, 0 })
   vim.notify("Editing provider: " .. name .. " at line " .. line, vim.log.levels.INFO)
@@ -328,76 +337,72 @@ function M._edit_static_models(provider_name)
 end
 
 -- Add static model dialog
--- FIX: Use floating_input instead of vim.ui.input for better UX
+-- FIX: Direct call (no vim.schedule delay), floating_input is immediate now
 function M._add_static_model_dialog(provider_name)
   local icons = UIUtil.get_icons()
   
-  vim.schedule(function()
-    UIUtil.floating_input(
-      string.format("%s New model for %s:", icons.add, provider_name),
-      "",
-      function(model_id)
-        if not model_id or model_id == "" then return end
-        local ok = Registry.add_static_model(provider_name, model_id)
-        if ok then
-          -- Auto-refresh static models editor
-          vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
-        end
+  UIUtil.floating_input(
+    string.format("%s New model for %s:", icons.add, provider_name),
+    "",
+    function(model_id)
+      if not model_id or model_id == "" then return end
+      local ok = Registry.add_static_model(provider_name, model_id)
+      if ok then
+        -- Auto-refresh static models editor
+        vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
       end
-    )
-  end)
+    end
+  )
 end
 
 -- Rename static model dialog
--- FIX: Use floating_input instead of vim.ui.input for better UX
+-- FIX: Direct call (no vim.schedule delay)
 function M._rename_static_model_dialog(provider_name, old_model_id)
   local icons = UIUtil.get_icons()
   
-  vim.schedule(function()
-    UIUtil.floating_input(
-      string.format("%s Rename '%s' to:", icons.edit, old_model_id),
-      old_model_id,
-      function(new_model_id)
-        if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
+  UIUtil.floating_input(
+    string.format("%s Rename '%s' to:", icons.edit, old_model_id),
+    old_model_id,
+    function(new_model_id)
+      if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
 
-        -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
-        local current = Registry.list_static_models(provider_name)
-        local found_old = false
-        for _, m in ipairs(current) do
-          if m == new_model_id then
-            UIUtil.notify_with_icon("Model already exists: " .. new_model_id, vim.log.levels.ERROR, "error")
-            return
-          end
-          if m == old_model_id then
-            found_old = true
-          end
-        end
-        if not found_old then
-          UIUtil.notify_with_icon("Model not found: " .. old_model_id, vim.log.levels.ERROR, "error")
+      -- Atomically replace: read all, swap, write all (prevents data loss if add fails)
+      local current = Registry.list_static_models(provider_name)
+      local found_old = false
+      for _, m in ipairs(current) do
+        if m == new_model_id then
+          UIUtil.notify_with_icon("Model already exists: " .. new_model_id, vim.log.levels.ERROR, "error")
           return
         end
-
-        -- Build new list with replacement
-        local new_models = {}
-        for _, m in ipairs(current) do
-          if m == old_model_id then
-            table.insert(new_models, new_model_id)
-          else
-            table.insert(new_models, m)
-          end
-        end
-
-        local ok = Registry.update_static_models(provider_name, new_models)
-        if ok then
-          -- Auto-refresh static models editor
-          vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+        if m == old_model_id then
+          found_old = true
         end
       end
-    )
-  end)
+      if not found_old then
+        UIUtil.notify_with_icon("Model not found: " .. old_model_id, vim.log.levels.ERROR, "error")
+        return
+      end
+
+      -- Build new list with replacement
+      local new_models = {}
+      for _, m in ipairs(current) do
+        if m == old_model_id then
+          table.insert(new_models, new_model_id)
+        else
+          table.insert(new_models, m)
+        end
+      end
+
+      local ok = Registry.update_static_models(provider_name, new_models)
+      if ok then
+        -- Auto-refresh static models editor
+        vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+      end
+    end
+  )
 end
 
--- Static models help (beautified with icons)
+-- Static models help (with softer icons)
 function M._show_static_models_help(provider_name)
   local icons = UIUtil.get_icons()
   
@@ -405,15 +410,15 @@ function M._show_static_models_help(provider_name)
 %s Static Models Editor — %s
 
 Keymaps:
-  %s <CR>      Add new model (on '%s Add new model' line)
-  %s <C-a>     Add new model (any line)
+  %s <CR>      Add new model (on '%s Add' line)
+  %s <C-a>     Add new model
   %s <C-e>     Rename selected model
   %s <C-d>     Remove selected model
   %s <C-?>     Show this help
-  ⬅️ <Esc>     Back to model picker
+  <Esc>        Back to model picker
 
 Tips:
-  %s Default models are marked with ⭐
+  %s Default models marked with ★
   %s Changes persist to providers.lua
 
 Press q to close
@@ -423,14 +428,14 @@ Press q to close
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
   vim.api.nvim_buf_set_option(buf, "filetype", "help")
 
-  local width = 55
-  local height = 18
+  local width = 50
+  local height = 16
   local opts = {
     relative = "editor",
     width = width,
     height = height,
-    col = (vim.o.columns - width) / 2,
-    row = (vim.o.lines - height) / 2,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2),
     style = "minimal",
     border = "rounded",
     title = " Static Models Help ",
@@ -445,8 +450,7 @@ Press q to close
 end
 
 ----------------------------------------------------------------------
--- Help Window (per UI-SPEC "Help Window")
--- Beautified: icons, better layout, highlighted keymaps
+-- Help Window
 ----------------------------------------------------------------------
 function M.show_help()
   local icons = UIUtil.get_icons()
@@ -455,33 +459,33 @@ function M.show_help()
 %s Provider Manager - Help
 
 Keymaps:
-  %s <CR>      Select provider → show models
-  %s <C-a>     Add new provider
-  %s <C-d>     Delete selected provider
-  %s <C-e>     Edit providers.lua directly
-  %s <C-?>     Show this help
+  <CR>        Select provider → show models
+  %s <C-a>    Add new provider
+  %s <C-d>    Delete selected provider
+  %s <C-e>    Edit providers.lua directly
+  %s <C-?>    Show this help
 
 Fields managed:
-  %s Provider name (kebab-case)
-  %s Endpoint/base_url
-  %s Default model
-  %s Static models list
+  Provider name (kebab-case)
+  Endpoint/base_url
+  Default model
+  Static models list
 
 Press q to close
-]], icons.provider, icons.model, icons.add, icons.delete, icons.edit, icons.help, icons.edit, icons.clock, icons.default, icons.model)
+]], icons.provider, icons.add, icons.delete, icons.edit, icons.help)
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
   vim.api.nvim_buf_set_option(buf, "filetype", "help")
 
-  local width = 60
-  local height = 17
+  local width = 45
+  local height = 15
   local opts = {
     relative = "editor",
     width = width,
     height = height,
-    col = (vim.o.columns - width) / 2,
-    row = (vim.o.lines - height) / 2,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2),
     style = "minimal",
     border = "rounded",
     title = " Provider Manager Help ",
@@ -506,30 +510,30 @@ function M._show_model_picker_help(provider_name)
 %s Model Picker — %s
 
 Keymaps:
-  %s <CR>      Set selected model as default
-  %s <C-e>     Open Static Models Editor
-  %s <C-?>     Show this help
-  ⬅️ <Esc>     Back to provider picker
+  <CR>        Set selected model as default
+  %s <C-e>    Open Static Models Editor
+  %s <C-?>    Show this help
+  <Esc>       Back to provider picker
 
 Tips:
-  %s Default model marked with ⭐
-  %s Setting default updates ai_keys.lua
+  Default model marked with ★
+  Setting default updates ai_keys.lua
 
 Press q to close
-]], icons.model, provider_name, icons.default, icons.edit, icons.help, icons.check, icons.clock)
+]], icons.model, provider_name, icons.edit, icons.help)
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
   vim.api.nvim_buf_set_option(buf, "filetype", "help")
 
-  local width = 50
-  local height = 14
+  local width = 40
+  local height = 12
   local opts = {
     relative = "editor",
     width = width,
     height = height,
-    col = (vim.o.columns - width) / 2,
-    row = (vim.o.lines - height) / 2,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2),
     style = "minimal",
     border = "rounded",
     title = " Model Picker Help ",

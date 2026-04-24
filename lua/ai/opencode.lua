@@ -556,6 +556,12 @@ function M.write_config()
   local config_content = format_json(config)
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
 
+  -- 生成 TUI 配置和主题（美化界面）
+  local ok_tui, TuiConfig = pcall(require, "ai.opencode_tui")
+  if ok_tui then
+    TuiConfig.generate_tui_config()
+  end
+
   -- 打印配置结果
   local ecc = Ecc.get_status()
   local notify_lines = { "✅ OpenCode 配置生成成功", "" }
@@ -567,6 +573,11 @@ function M.write_config()
     local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
     table.insert(notify_lines, "  Commands: " .. xdg_config .. "/opencode/commands/")
   end
+
+  table.insert(notify_lines, "")
+  table.insert(notify_lines, "🎨 TUI 主题: lytmode (已自动生成)")
+  table.insert(notify_lines, "   主题文件: ~/.config/opencode/themes/lytmode.json")
+  table.insert(notify_lines, "   TUI 配置: ~/.config/opencode/tui.json")
 
   vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
 
@@ -592,8 +603,119 @@ if vim.fn.filereadable(template_path) == 0 then
   // 会话共享
   "share": "manual",
 
-  // 权限配置
-  "permission": {},
+  // 权限配置 - 安全优先
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      ".env*": "ask",
+      "*credentials*": "ask",
+      "*secret*": "ask",
+      "*password*": "ask",
+      "*token*": "ask",
+      "*key*.pem": "ask",
+      "*key*.key": "ask"
+    },
+    "edit": {
+      "*": "allow",
+      "*.lock": "ask"
+    },
+    "bash": {
+      "*": "allow",
+      "ls *": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "find *": "allow",
+      "stat *": "allow",
+      "du *": "allow",
+      "df *": "allow",
+      "wc *": "allow",
+      "which *": "allow",
+      "whereis *": "allow",
+      "uname *": "allow",
+      "date *": "allow",
+      "echo *": "allow",
+      "grep *": "allow",
+      "rg *": "allow",
+      "ag *": "allow",
+      "ack *": "allow",
+      "git status*": "allow",
+      "git log*": "allow",
+      "git diff*": "allow",
+      "git show*": "allow",
+      "git branch*": "allow",
+      "git tag*": "allow",
+      "git remote*": "allow",
+      "git fetch*": "allow",
+      "git rev-parse*": "allow",
+      "git ls-files*": "allow",
+      "git describe*": "allow",
+      "git reflog*": "allow",
+      "npm run build*": "allow",
+      "npm run test*": "allow",
+      "npm run lint*": "allow",
+      "yarn run*": "allow",
+      "pnpm run*": "allow",
+      "make*": "allow",
+      "cargo build*": "allow",
+      "cargo test*": "allow",
+      "cargo check*": "allow",
+      "go build*": "allow",
+      "go test*": "allow",
+      "go vet*": "allow",
+      "python -m pytest*": "allow",
+      "pytest*": "allow",
+      "npm install*": "allow",
+      "npm ci*": "allow",
+      "yarn install*": "allow",
+      "pnpm install*": "allow",
+      "cargo install*": "allow",
+      "go get*": "allow",
+      "pip install*": "allow",
+      "pip3 install*": "allow",
+      "stylua*": "allow",
+      "prettier*": "allow",
+      "eslint*": "allow",
+      "rustfmt*": "allow",
+      "gofmt*": "allow",
+      "goimports*": "allow",
+      "git pull*": "ask",
+      "git merge*": "ask",
+      "rm *": "ask",
+      "rm -rf *": "ask",
+      "rm -r *": "ask",
+      "unlink *": "ask",
+      "delete *": "ask",
+      "mv * /dev/null": "ask",
+      "trash *": "ask",
+      "git push*": "ask",
+      "git push -f*": "ask",
+      "git push --force*": "ask",
+      "git push --force-with-lease*": "ask",
+      "git reset --hard*": "ask",
+      "git reset --hard": "ask",
+      "git checkout -f*": "ask",
+      "git clean*": "ask",
+      "git clean -f*": "ask",
+      "git clean -fd*": "ask",
+      "chmod *": "ask",
+      "chown *": "ask",
+      "chgrp *": "ask",
+      "sudo *": "ask",
+      "apt-get *": "ask",
+      "yum *": "ask",
+      "brew *": "ask",
+      "systemctl *": "ask",
+      "service *": "ask"
+    },
+    "external_directory": "ask",
+    "doom_loop": "ask",
+    "task": "ask",
+    "skill": "allow"
+  },
+
   // 文件监视器配置
   "watcher": {
     "ignore": [

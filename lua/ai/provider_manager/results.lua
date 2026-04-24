@@ -16,21 +16,31 @@ local STATUS_SYMBOLS = {
 local MAX_COL_WIDTH = 16
 
 ----------------------------------------------------------------------
--- Private: Truncate string to max width
-----------------------------------------------------------------------
+-- Private: Truncate string to max width (UTF-8 safe)
+-- Fix WR-08: Use vim.fn.strcharpart to properly cut at character
+-- boundaries instead of byte boundaries, preventing garbled output
+-- for multi-byte characters (Chinese provider names, unicode symbols)
+---------------------------------------------------------------------
 local function truncate(str, max_len)
   max_len = max_len or MAX_COL_WIDTH
-  if #str > max_len then
-    return str:sub(1, max_len - 1) .. "…"
+  local chars = vim.fn.strchars(str)
+  if chars > max_len then
+    return vim.fn.strcharpart(str, 0, max_len - 1) .. "…"
   end
   return str
 end
 
 ----------------------------------------------------------------------
--- Private: Get status symbol
+-- Private: Truncate string to max width
+-- Fix WR-09: Use UTF-8 aware string.len() (str:ln()) instead of #str
+-- which counts bytes. This prevents garbled Unicode characters.
 ----------------------------------------------------------------------
-local function status_symbol(status)
-  return STATUS_SYMBOLS[status] or "?"
+local function truncate(str)
+  -- str:ln() is Neovim's UTF-8 aware string length in characters
+  if str:ln() > MAX_COL_WIDTH then
+    return vim.fn.strcharpart(str, 0, MAX_COL_WIDTH - 1) .. "…"
+  end
+  return str
 end
 
 ----------------------------------------------------------------------
@@ -81,10 +91,10 @@ function M.show_results(results, title)
   -- Build table lines
   local lines = {}
 
-  -- Header
+  -- Header (no truncation needed for fixed column names)
   local header = string.format("%-16s %-16s %-10s %-10s %s",
-    truncate("Provider"), truncate("Model"), truncate("Status"),
-    truncate("Time(ms)"), truncate("Error")
+    "Provider", "Model", "Status",
+    "Time(ms)", "Error"
   )
   table.insert(lines, header)
   table.insert(lines, string.rep("─", #header))

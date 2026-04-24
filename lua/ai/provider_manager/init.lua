@@ -23,6 +23,8 @@ end
 
 ----------------------------------------------------------------------
 -- Helper: Command callback — check single provider/model
+-- CR-03: Use async Detector.check_provider_model instead of
+-- blocking Detector.check_single to prevent UI freeze
 ----------------------------------------------------------------------
 local function cmd_check_provider(opts)
   local args = opts.fargs
@@ -61,13 +63,15 @@ local function cmd_check_provider(opts)
     end
   end
 
-  -- Run sync check
-  local result = Detector.check_single(provider, model)
-  if result then
-    Results.show_single_result(result, "Detection Result: " .. provider .. "/" .. model)
-  else
-    vim.notify("Detection timed out for " .. provider, vim.log.levels.WARN)
-  end
+  -- Run async check (non-blocking — does not freeze UI)
+  vim.notify("Checking " .. provider .. "/" .. model .. "...", vim.log.levels.INFO)
+  Detector.check_provider_model(provider, model, function(result)
+    if result then
+      Results.show_single_result(result, "Detection Result: " .. provider .. "/" .. model)
+    else
+      vim.notify("Check failed for " .. provider .. "/" .. model, vim.log.levels.ERROR)
+    end
+  end)
 end
 
 ----------------------------------------------------------------------

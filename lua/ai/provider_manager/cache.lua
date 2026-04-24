@@ -1,6 +1,9 @@
 -- lua/ai/provider_manager/cache.lua
 -- Detection result caching with TTL-based invalidation
 -- Stores results at vim.fn.stdpath("state")/ai_detection_cache.lua
+-- CR-02 FIX: Uses vim.json.decode instead of dofile() to prevent
+-- arbitrary code execution via tampered cache files
+-- WR-03 FIX: In-memory cache layer to reduce disk I/O during batch checks
 
 local M = {}
 
@@ -12,6 +15,9 @@ local TTL_BY_STATUS = {
 }
 
 local DEFAULT_TTL = 60
+
+-- In-memory cache layer to avoid repeated disk I/O during batch checks
+local _memory_cache = nil
 
 ----------------------------------------------------------------------
 -- Path helpers
@@ -27,7 +33,8 @@ local function cache_file()
 end
 
 ----------------------------------------------------------------------
--- Private: Load cache from disk
+-- Private: Load cache from disk using safe JSON deserialization
+-- CR-02 FIX: Replaced pcall(dofile, path) — dofile runs arbitrary code
 ----------------------------------------------------------------------
 local function load_cache()
   local path = cache_file()
@@ -35,8 +42,14 @@ local function load_cache()
     return {}
   end
 
-  local ok, data = pcall(dofile, path)
+  local lines = vim.fn.readfile(path)
+  if not lines or #lines == 0 then
+    return {}
+  end
+  local content = table.concat(lines, "\n")
+  local ok, data = pcall(vim.json.decode, content, { luanil = { object = true, array = true } })
   if not ok or type(data) ~= "table" then
+    vim.notify("Cache file corrupted, resetting", vim.log.levels.WARN)
     return {}
   end
 
@@ -44,29 +57,26 @@ local function load_cache()
 end
 
 ----------------------------------------------------------------------
--- Private: Write cache to disk
+-- Private: Write cache to disk as JSON
 ----------------------------------------------------------------------
 local function save_cache(data)
   local path = cache_file()
   local dir = cache_dir()
   vim.fn.mkdir(dir, "p")
 
-  local serialized = { "return {" }
-  for provider, models in pairs(data) do
-    table.insert(serialized, string.format("  [%q] = {", provider))
-    for model, entry in pairs(models) do
-      table.insert(serialized, string.format("    [%q] = {", model))
-      table.insert(serialized, string.format("      status = %q,", entry.status or ""))
-      table.insert(serialized, string.format("      response_time = %s,", entry.response_time or 0))
-      table.insert(serialized, string.format("      error_msg = %q,", entry.error_msg or ""))
-      table.insert(serialized, string.format("      timestamp = %s,", entry.timestamp or 0))
-      table.insert(serialized, "    },")
-    end
-    table.insert(serialized, "  },")
-  end
-  table.insert(serialized, "}")
+  local content = vim.json.encode(data)
+  vim.fn.writefile(vim.split(content, "\n"), path)
+end
 
-  vim.fn.writefile(serialized, path)
+----------------------------------------------------------------------
+-- Private: Get cache data (from memory or disk)
+----------------------------------------------------------------------
+local function get_cache_data()
+  if _memory_cache then
+    return _memory_cache
+  end
+  _memory_cache = load_cache()
+  return _memory_cache
 end
 
 ----------------------------------------------------------------------
@@ -74,15 +84,15 @@ end
 ----------------------------------------------------------------------
 
 function M.get(provider, model)
-  local data = load_cache()
-  if data[provider] and data[provider][model] then
+  local data = get_cache_data()
+  if data[provider] then
     return data[provider][model]
   end
   return nil
 end
 
 function M.set(provider, model, result)
-  local data = load_cache()
+  local data = get_cache_data()
 
   if not data[provider] then
     data[provider] = {}
@@ -111,7 +121,7 @@ function M.is_valid(provider, model)
 end
 
 function M.invalidate(provider, model)
-  local data = load_cache()
+  local data = get_cache_data()
 
   if data[provider] then
     data[provider][model] = nil
@@ -123,10 +133,11 @@ function M.invalidate(provider, model)
 end
 
 function M.get_all()
-  return load_cache()
+  return get_cache_data()
 end
 
 function M.clear()
+  _memory_cache = nil
   local path = cache_file()
   if vim.fn.filereadable(path) == 1 then
     os.remove(path)

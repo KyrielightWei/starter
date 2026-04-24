@@ -18,6 +18,43 @@ vim.api.nvim_create_user_command("OpenCodePreviewConfig", function()
   require("ai.opencode").preview_config()
 end, { desc = "Preview merged OpenCode config" })
 
+-- OpenCode TUI 和主题命令
+vim.api.nvim_create_user_command("OpenCodeGenerateTUI", function()
+  local ok, TuiConfig = pcall(require, "ai.opencode_tui")
+  if ok then
+    TuiConfig.generate_tui_config()
+  else
+    vim.notify("TUI 配置模块未找到", vim.log.levels.ERROR)
+  end
+end, { desc = "Generate OpenCode TUI config and theme" })
+
+vim.api.nvim_create_user_command("OpenCodePreviewTUI", function()
+  local ok, TuiConfig = pcall(require, "ai.opencode_tui")
+  if ok then
+    TuiConfig.preview_tui_config()
+  else
+    vim.notify("TUI 配置模块未找到", vim.log.levels.ERROR)
+  end
+end, { desc = "Preview OpenCode TUI config" })
+
+vim.api.nvim_create_user_command("OpenCodePreviewTheme", function()
+  local ok, TuiConfig = pcall(require, "ai.opencode_tui")
+  if ok then
+    TuiConfig.preview_theme()
+  else
+    vim.notify("TUI 配置模块未找到", vim.log.levels.ERROR)
+  end
+end, { desc = "Preview OpenCode lytmode theme" })
+
+vim.api.nvim_create_user_command("OpenCodeEditTheme", function()
+  local ok, TuiConfig = pcall(require, "ai.opencode_tui")
+  if ok then
+    TuiConfig.edit_theme()
+  else
+    vim.notify("TUI 配置模块未找到", vim.log.levels.ERROR)
+  end
+end, { desc = "Edit OpenCode lytmode theme" })
+
 vim.api.nvim_create_user_command("OpenCodeStatus", function()
   local status = require("ai.opencode").get_status()
   local lines = {
@@ -173,6 +210,8 @@ return {
   keys = {
     { "<leader>kC", "<cmd>AICopyContext<CR>", desc = "Copy AI Context" },
     { "<leader>kY", "<cmd>AISyncAll<CR>", desc = "Sync All AI Configs" },
+    { "<leader>kT", "<cmd>OpenCodeGenerateTUI<CR>", desc = "Generate OpenCode TUI Theme" },
+    { "<leader>kP", "<cmd>OpenCodePreviewTheme<CR>", desc = "Preview OpenCode Theme" },
   },
   config = function()
     vim.schedule(function()

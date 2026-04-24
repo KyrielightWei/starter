@@ -35,15 +35,12 @@ LazyVim Plugin Enhancement (Lua, Neovim ecosystem)
 
 ## Current Position
 
-Phase: 01 (provider-manager-core-ui) — EXECUTING
-Plan: 1 of 6
-**Phase:** 2
-**Plan:** Not started
-**Status:** Ready to plan
-**Progress Bar:** `[░░░░░░░░░░] 0%`
+**Phase:** 3
+**Status:** Not started
+**Progress Bar:** `[██░░░░░░░░] 33%` (2/6 phases complete)
 
 **Next Action:**
-User approval of roadmap, then `/gsd-plan-phase 1`
+`/gsd-plan-phase 3` or `/gsd-execute-phase 3` (if already planned)
 
 ---
 
@@ -52,13 +49,13 @@ User approval of roadmap, then `/gsd-plan-phase 1`
 | Metric | Value |
 |--------|-------|
 | Phases Total | 6 |
-| Phases Planned | 0 |
-| Phases Executed | 0 |
-| Plans Total | 0 (estimated 12-14) |
-| Plans Completed | 0 |
+| Phases Planned | 2 (Phase 1 + Phase 2) |
+| Phases Executed | 2 (Phase 1 + Phase 2) |
+| Plans Total | 7 (P1:5 + P2:2) |
+| Plans Completed | 7 |
 | v1 Requirements | 14 |
-| Requirements Delivered | 0 |
-| Commits Made | 0 |
+| Requirements Delivered | 6 (PMGR-01~06) |
+| Commits Made | 5 (latest Phase 2) |
 | Session Tokens | ~5,000 |
 
 ---
@@ -84,12 +81,21 @@ None. Ready to proceed.
 
 ### Key Patterns Identified
 
-From research summary:
+**Wave 1 Patterns (Cache + Results):**
+- Differentiated TTLs for caching: available=5min, timeout=1min, error=30s, unavailable=2min
+- Cache directory auto-creation with `vim.fn.mkdir(dir, "p")`
+- Floating window with rounded border, centered, 'q' close keymap
+- Truncation at 16 chars per column, scrollable for >15 rows
 
-- **Skill Studio subsystem pattern**: Create `lua/ai/provider_manager/` and `lua/ai/commit_review/` directories
-- **FZF-lua picker pattern**: Reuse `model_switch.lua` approach for all picker UIs
-- **Backend adapter delegation**: Extend existing modules, don't modify
-- **Command-driven detection**: Avoid async UI blocking with manual triggers
+**Wave 2 Patterns (Detector + Commands):**
+- `vim.system()` replacing `io.popen` for true async HTTP (Neovim 0.10+)
+- Injectable `M._http_fn` for testability
+- Recursive `run_next()` queue with max 3 concurrent (async semaphore)
+- `{replace=true}` on `vim.notify()` to prevent notification coalescing
+- Sync wrapper via `vim.wait()` for command usage
+- Endpoint compatibility validation before sending request
+- Error message sanitization (API key redaction via gsub)
+- Keymaps: `<leader>kP` (current), `<leader>kA` (all) — avoid `<leader>kc` collision
 
 ---
 
@@ -97,6 +103,16 @@ From research summary:
 
 ### What Was Done
 
+**Session: Phase 2 Planning & Execution (2026-04-24)**
+1. Ran cross-AI review with 3 models (GLM-5, Qwen3.6-Plus, Kimi-K2.5) via OpenCode
+2. All 3 identified io.popen blocking as HIGH risk; replanned with vim.system()
+3. Planner split Phase 2 into 2 waves (Wave 1: cache+results, Wave 2: detector+init)
+4. Phase 2 Wave 1: cache.lua (24 tests) + results.lua (11 tests) — all pass
+5. Phase 2 Wave 2: detector.lua (22 tests) + init.lua wiring — all pass
+6. Atomic commits: f2b6225, 9d4d2e0, 3006959, 7659e80, 9ae14ec
+7. Updated STATE.md and ROADMAP.md with Phase 2 completion
+
+**Previous Sessions (Phase 1)**
 1. Read all planning context files (PROJECT.md, REQUIREMENTS.md, research/SUMMARY.md, config.json)
 2. Extracted 14 v1 requirements from REQUIREMENTS.md
 3. Identified natural phase boundaries based on requirement dependencies
@@ -140,10 +156,14 @@ From research summary:
 
 **For next session:**
 
-- Review ROADMAP.md before starting Phase 1 planning
-- Research flags: Phase 2 (async patterns), Phase 4 (worktree resolution)
-- Consider `/gsd-ui-phase` for Phases 1, 3, 4, 5, 6 during planning
-- Two streams can parallelize: Provider Manager (1-3) vs Commit Review (4-6)
+- Phase 1 (Provider Manager Core UI): ✅ Complete
+- Phase 2 (Provider Manager Detection Commands): ✅ Complete
+  - Commands: `:AICheckProvider`, `:AICheckAllProviders`, `:AIClearDetectionCache`
+  - Keymaps: `<leader>kP` (current), `<leader>kA` (all)
+  - Code review: 02-REVIEW.md — 2 CRITICAL, 6 WARNINGS found (BLOCKED, needs fixes)
+- Phase 3 (Auto Detection & Status): Next — auto-validation + visual status indicators
+- Phase 4 (Commit Picker Foundation): Independent stream, can parallelize
+- Review `02-REVIEWS.md` for cross-AI review findings already incorporated
 
 ---
 *STATE.md created: 2026-04-21*

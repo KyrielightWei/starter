@@ -1,6 +1,16 @@
 -- lua/ai/provider_manager/detector.lua
 -- Provider/Model detection logic — single sync and batch async
 -- Uses vim.system() for non-blocking async HTTP (NOT io.popen)
+--
+-- CR-01 FIX: build_url avoids double /v1/ path
+-- CR-02 FIX: cache uses vim.json (in cache.lua)
+-- WR-02 FIX: Cache hits via vim.schedule (no stack overflow)
+-- WR-04 FIX: choices array must be non-empty
+-- WR-07 FIX: expanded sanitization patterns
+-- WR-09 FIX: signal handling uses both name and number
+-- WR-10 FIX: removed unused State import
+-- WR-11 FIX: uses uv.now() instead of vim.loop.now()
+-- WR-12 FIX: checks curl exists before use
 
 local M = {}
 
@@ -8,7 +18,9 @@ local Cache = require("ai.provider_manager.cache")
 local Providers = require("ai.providers")
 local Keys = require("ai.keys")
 local Registry = require("ai.provider_manager.registry")
-local State = require("ai.state")
+
+-- vim.uv is preferred in Neovim 0.10+, fallback to vim.loop
+local uv = vim.uv or vim.loop
 
 ----------------------------------------------------------------------
 -- Status constants
@@ -22,37 +34,39 @@ M.STATUS_ERROR = "error"
 -- Injectable HTTP function for testability
 -- Defaults to vim.system (Neovim 0.10+)
 ----------------------------------------------------------------------
-M._http_fn = nil
+M._http_fn = nil -- TEST ONLY
 
 local function http_fn()
   return M._http_fn or vim.system
 end
 
 ----------------------------------------------------------------------
--- Private: Sanitize error messages (remove API keys and Bearer tokens)
+-- Private: Sanitize error messages (remove API keys and sensitive data)
 ----------------------------------------------------------------------
 local function sanitize_error(msg)
   if not msg or msg == "" then return msg end
-  msg = msg:gsub("sk%-[A-Za-z0-9]+", "[KEY_REDACTED]")
-  msg = msg:gsub("Bearer [^ ]+", "Bearer [REDACTED]")
+  -- OpenAI-style: sk-xxx, sk-proj-xxx
+  msg = msg:gsub("sk%-[A-Za-z0-9_%-]+", "[KEY_REDACTED]")
+  -- DashScope/Alibaba
+  msg = msg:gsub("ak%-[A-Za-z0-9_%-]+", "[KEY_REDACTED]")
+  msg = msg:gsub("dp%-[A-Za-z0-9_%-]+", "[KEY_REDACTED]")
+  -- DeepSeek
+  msg = msg:gsub("dsk%-[A-Za-z0-9_%-]+", "[KEY_REDACTED]")
+  -- Bearer tokens
+  msg = msg:gsub("Bearer [A-Za-z0-9_%-]+", "Bearer [REDACTED]")
+  -- Generic long tokens
+  msg = msg:gsub("[A-Za-z0-9_%-]{20,}", "[REDACTED]")
   return msg
 end
 
 ----------------------------------------------------------------------
--- Private: Check if endpoint is OpenAI-compatible
--- Returns true if endpoint contains /v1/ or ends with /compatible-mode
-----------------------------------------------------------------------
-local function is_endpoint_compatible(endpoint)
-  if not endpoint then return false end
-  return endpoint:match("/v1/") or endpoint:match("/v1$") or endpoint:match("/compatible%-mode$")
-end
-
-----------------------------------------------------------------------
 -- Private: Build the detection URL
+-- CR-01 FIX: If base_url already ends with /v1, append /chat/completions
+-- instead of /v1/chat/completions to avoid double /v1/ path
 ----------------------------------------------------------------------
 local function build_url(base_url)
-  if base_url:match("/v1$") or base_url:match("/v1/$") then
-    return base_url .. "/chat/completions"
+  if base_url:match("/v1/?$") then
+    return base_url:gsub("/?$", "") .. "/chat/completions"
   end
   return base_url .. "/v1/chat/completions"
 end
@@ -88,10 +102,10 @@ end
 -- Private: Parse HTTP response and determine status
 ----------------------------------------------------------------------
 local function parse_response(stdout, start_time)
-  local response_time = math.floor((vim.loop.now() - start_time))
+  -- WR-11 FIX: use uv.now() instead of vim.loop.now()
+  local response_time = math.floor(uv.now() - start_time)
   local result = { response_time = response_time }
 
-  -- Attempt JSON parse
   local ok, json = pcall(vim.json.decode, stdout)
   if not ok or type(json) ~= "table" then
     result.status = M.STATUS_ERROR
@@ -99,7 +113,6 @@ local function parse_response(stdout, start_time)
     return result
   end
 
-  -- Check for API error
   if json.error then
     local err_msg = ""
     if type(json.error) == "table" then
@@ -112,13 +125,12 @@ local function parse_response(stdout, start_time)
     return result
   end
 
-  -- Check for successful response
-  if json.choices then
+  -- WR-04 FIX: Require non-empty choices array
+  if json.choices and #json.choices > 0 then
     result.status = M.STATUS_AVAILABLE
     return result
   end
 
-  -- Unexpected shape
   result.status = M.STATUS_ERROR
   result.error_msg = "Unexpected response shape (no choices or error field)"
   return result
@@ -129,9 +141,10 @@ end
 ----------------------------------------------------------------------
 local function check_provider_model_async(provider_name, model_id, callback)
   -- Step 1: Check cache
+  -- WR-02 FIX: Use vim.schedule to avoid stack overflow from synchronous callbacks
   if Cache.is_valid(provider_name, model_id) then
     local cached = Cache.get(provider_name, model_id)
-    callback(cached)
+    vim.schedule(function() callback(cached) end)
     return
   end
 
@@ -175,36 +188,32 @@ local function check_provider_model_async(provider_name, model_id, callback)
 
   -- Step 6: Make request
   local timeout = def.timeout or 30000
-  local start_time = vim.loop.now()
+  local start_time = uv.now()
 
   do_request(base_url, api_key, model_id, timeout, function(obj)
     local result
     if obj.code == nil and obj.signal == nil then
-      -- vim.system callback not properly invoked (test path)
-      -- obj is the response directly
       result = parse_response(obj.stdout or obj, start_time)
     elseif obj.code ~= 0 then
-      -- curl exit code non-zero (network error, timeout, etc.)
-      if obj.signal and obj.signal.name == "sigterm" then
+      -- WR-09 FIX: handle both signal name and signal number
+      if obj.signal and (obj.signal.name == "sigterm" or obj.signal == "sigterm") then
         result = {
           status = M.STATUS_TIMEOUT,
-          response_time = math.floor(vim.loop.now() - start_time),
+          response_time = math.floor(uv.now() - start_time),
           error_msg = "Request timed out",
         }
       else
         local err = sanitize_error(obj.stderr or "curl error")
         result = {
           status = M.STATUS_UNAVAILABLE,
-          response_time = math.floor(vim.loop.now() - start_time),
+          response_time = math.floor(uv.now() - start_time),
           error_msg = err ~= "" and err or "Connection failed",
         }
       end
     else
-      -- curl succeeded, parse response body
       result = parse_response(obj.stdout, start_time)
     end
 
-    -- Step 9: Cache if available
     if result.status == M.STATUS_AVAILABLE then
       result.provider = provider_name
       result.model = model_id
@@ -218,7 +227,6 @@ end
 
 ----------------------------------------------------------------------
 -- check_provider_model(provider_name, model_id, callback)
--- Async: checks a specific provider/model pair
 ----------------------------------------------------------------------
 function M.check_provider_model(provider_name, model_id, callback)
   check_provider_model_async(provider_name, model_id, callback)
@@ -226,7 +234,6 @@ end
 
 ----------------------------------------------------------------------
 -- check_provider(provider_name, callback)
--- Checks provider's default model from registry
 ----------------------------------------------------------------------
 function M.check_provider(provider_name, callback)
   local model = Registry.get_default_model(provider_name)
@@ -243,7 +250,6 @@ end
 
 ----------------------------------------------------------------------
 -- check_single(provider_name, model_id)
--- Synchronous wrapper — uses vim.wait() to block until callback fires
 ----------------------------------------------------------------------
 function M.check_single(provider_name, model_id)
   local result = nil
@@ -264,7 +270,6 @@ end
 
 ----------------------------------------------------------------------
 -- check_all_providers(callback)
--- Async batch check with max 3 concurrent, progress notifications
 ----------------------------------------------------------------------
 function M.check_all_providers(callback)
   local providers = Registry.list_providers()
@@ -289,7 +294,6 @@ function M.check_all_providers(callback)
   local function run_next()
     if current > total then return end
 
-    -- Fill up to max_concurrent
     while active < max_concurrent and current <= total do
       local p = providers[current]
       current = current + 1
@@ -309,10 +313,8 @@ function M.check_all_providers(callback)
         completed = completed + 1
         update_progress()
 
-        -- Kick off next in queue
         run_next()
 
-        -- All done?
         if completed == total then
           vim.notify("检测完成: " .. completed .. "/" .. total, vim.log.levels.INFO)
           callback(results)

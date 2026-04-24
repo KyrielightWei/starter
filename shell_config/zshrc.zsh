@@ -125,3 +125,15 @@ export NVM_DIR="$HOME/.nvm"
 # Added by CodeFuse CLI installer
 export PATH="$HOME/.local/bin:$PATH"
 # API key 通过 ~/.local/state/nvim/ai_keys.lua 管理，不要在此硬编码
+
+# Edit ~/.zshrc or ~/.bashrc
+# "ANTHROPIC_BASE_URL":"https://work.oceanbase-dev.com/tokensflow/api/anthropic",
+# "ANTHROPIC_AUTH_TOKEN":"sk-ss-v1-484fe811a80d2dce90993e3d4351bd428f6263ba42307341e54abc3a836174eb,
+#     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5",
+#     "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6",
+#     "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
+#     "ANTHROPIC_MODEL": "claude-opus-4-6",
+#     "ANTHROPIC_SMALL_FAST_MODEL": "claude-sonnet-4-6",
+
+
+

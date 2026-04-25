@@ -92,11 +92,11 @@ Plans:
 1. When user switches default model, system automatically tests availability before confirming the switch
 2. User sees availability status indicators (✓ available, ✗ unavailable, ⏱ timeout, ⚠ error) for each provider/model in displays
 
-**Plans:** 2 plans (Wave 1 + Wave 2)
+**Plans:** 2 plans (replanned with --reviews feedback)
 
 Plans:
-- [ ] 03-01-PLAN.md — Status module (TDD) + auto-detection integration in model_switch.lua
-- [ ] 03-02-PLAN.md — Status icons in ui_util.lua + picker.lua status display (Wave 2, depends on 01)
+- [ ] 03-01-PLAN.md — Status module (TDD) with vim.schedule + stale guard + auto-detection in model_switch.lua (Wave 1)
+- [ ] 03-02-PLAN.md — Status icons with ASCII fallbacks in ui_util.lua + picker.lua status display (Wave 2, depends on 01)
 
 **UI hint:** yes
 

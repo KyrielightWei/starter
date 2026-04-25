@@ -5,6 +5,7 @@
 local Providers = require("ai.providers")
 local Fetch = require("ai.fetch_models")
 local Util = require("ai.util")
+local Status = require("ai.provider_manager.status")
 
 local M = {}
 
@@ -81,7 +82,6 @@ function M.select(callback)
               -- 返回最终选择结果
               ----------------------------------------------------------------
               -- PMGR-07: Auto-detect availability in background before callback
-              local Status = require("ai.provider_manager.status")
               Status.trigger_async_check(provider, model, function(result)
                 if result and result.status ~= "available" then
                   local msg = string.format("[AI] %s / %s 状态: %s", provider, model, result.status or "unknown")

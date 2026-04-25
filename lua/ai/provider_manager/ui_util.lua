@@ -46,7 +46,17 @@ end
 ----------------------------------------------------------------------
 -- Status icon lookup with ASCII fallback (addresses C-04)
 ----------------------------------------------------------------------
-function M.get_status_icon(status)
+function M.get_status_icon(status, use_ascii)
+  if use_ascii then
+    local ascii_map = {
+      available   = ICONS.fallback_available,
+      unavailable = ICONS.fallback_unavailable,
+      timeout     = ICONS.fallback_timeout,
+      error       = ICONS.fallback_error,
+      unchecked   = ICONS.fallback_unchecked,
+    }
+    return ascii_map[status] or ICONS.fallback_unchecked
+  end
   local icon_map = {
     available   = ICONS.status_available,
     unavailable = ICONS.status_unavailable,

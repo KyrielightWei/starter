@@ -100,6 +100,8 @@ local function reset_state()
   _schedule_wrap_calls = 0
   _schedule_wrap_args = {}
   _state_current = { provider = nil, model = nil }
+  -- Note: vim.schedule_wrap wrapper is NOT reset here — it's applied once at module load
+  -- and must stay active for all tests to count calls. See WR-04 fix discussion.
 end
 
 ----------------------------------------------------------------------

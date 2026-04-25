@@ -1,101 +1,68 @@
 ---
 status: partial
-padphase: 03
-iteration: 1
+padded_phase: 03
+iteration: 2
 fix_scope: critical_warning
-findings_in_scope: 5
+findings_in_scope: 3
 fixed: 3
-skipped: 2
-skipped_detail:
-  WR-01: "Acceptable risk — stale guard implementation is correct with current State.get() behavior. Coupling to return shape is low-risk; documented but no code change needed."
-  WR-03: "Known tradeoff per PLAN.md (addresses C-05, C-13). fzf-lua doesn't support reactive list updates. No fix required — accepted design decision."
+skipped: 0
 ---
 
-## Phase 03 Code Review Fix Report
+## Phase 03 Code Review Fix Report (Iteration 2)
 
 ### Fixes Applied
 
-#### FIX-01: CR-01 — Move require to module level in model_switch.lua (FIXED)
+#### FIX-04: WR-05 — Add tests for `use_ascii` parameter in get_status_icon (FIXED)
 
-**File:** `lua/ai/model_switch.lua`
+**File:** `tests/ai/provider_manager/ui_util_spec.lua`
 
-Moved `local Status = require("ai.provider_manager.status")` from inside the nested fzf callback (line 84) to the module-level imports (line 8). This eliminates the anti-pattern of requiring modules inside UI callbacks and ensures consistent module loading behavior.
-
-**Before:**
-```lua
-function M.select(callback)
-  ...
-  fzf.fzf_exec(..., {
-    actions = {
-      ["default"] = function(sel)
-        local Status = require("ai.provider_manager.status")  -- inside callback
-        Status.trigger_async_check(provider, model, ...)
-```
-
-**After:**
-```lua
-local Status = require("ai.provider_manager.status")  -- at module level
-
-function M.select(callback)
-  ...
-  Status.trigger_async_check(provider, model, ...)  -- direct call
-```
+Added two test cases to cover the ASCII fallback code path added in WR-02:
+1. `"returns ASCII fallback when use_ascii is true"` — tests all 5 status values (available→[ok], unavailable→[--], timeout→[..], error→[!!], unchecked→[  ])
+2. `"returns ASCII fallback for unknown status when use_ascii is true"` — tests fallback for unrecognized status strings
 
 **Commit:** Atomic
 
-#### FIX-02: WR-02 — Activate ASCII fallbacks in get_status_icon (FIXED)
+#### FIX-05: WR-06 — Replace unused variables with `_` placeholder (FIXED)
 
-**File:** `lua/ai/provider_manager/ui_util.lua`
+**File:** `lua/ai/model_switch.lua:39`
 
-Added `use_ascii` optional boolean parameter to `M.get_status_icon(status, use_ascii)`. When `true`, returns ASCII fallback icons (`[ok]`, `[--]`, `[..]`, `[!!]`, `[  ]`) instead of Unicode icons. When `false` or nil (default), returns Unicode icons (current behavior).
-
-This activates the previously dead-code ASCII fallback entries in the ICONS table.
-
-**Before:**
+Changed:
 ```lua
-function M.get_status_icon(status)
-  local icon_map = {
-    available   = ICONS.status_available,
-    ...
-  }
-  return icon_map[status] or ICONS.status_unchecked
-end
+local models_raw, tried, succ, fail = Fetch.fetch(provider)
+```
+To:
+```lua
+local models_raw, _, _, _ = Fetch.fetch(provider)
 ```
 
-**After:**
+This eliminates Luacheck "unused variable" warnings for `tried`, `succ`, and `fail` which were never referenced in the function body. Pre-existing code quality issue from Phase 1.
+
+**Commit:** Atomic
+
+#### FIX-06: WR-07 — Wrap detector callback in vim.schedule_wrap for thread safety consistency (FIXED)
+
+**File:** `lua/ai/provider_manager/init.lua:69`
+
+Changed:
 ```lua
-function M.get_status_icon(status, use_ascii)
-  if use_ascii then
-    local ascii = {
-      available   = ICONS.fallback_available,
-      ...
-    }
-    return ascii[status] or ICONS.fallback_unchecked
-  end
-  -- Unicode path (unchanged behavior)
+Detector.check_provider_model(provider, model, function(result)
   ...
-end
+end)
+```
+To:
+```lua
+Detector.check_provider_model(provider, model, vim.schedule_wrap(function(result)
+  ...
+end))
 ```
 
-Backward compatible: all existing callers pass no second argument, so they continue to get Unicode icons.
+This brings `cmd_check_provider` in line with the Phase 3 thread-safety standard where all UI-interacting callbacks are wrapped in `vim.schedule_wrap`. The `Results.show_single_result` function may interact with Neovim UI, so this ensures consistency and prevents potential E5560 errors in edge cases.
 
-#### FIX-03: WR-04 — Document test wrapper behavior in status_spec.lua (FIXED)
-
-**File:** `tests/ai/provider_manager/status_spec.lua`
-
-Added clarifying comment to `reset_state()` explaining why `vim.schedule_wrap` is NOT restored: the wrapper must stay active across all tests to count calls. Restoring it would break the "uses vim.schedule_wrap" verification test on subsequent test runs.
-
-**Action:** Added inline comment documenting the design decision.
-
-### Skipped Findings
-
-| Finding | Reason |
-|---------|--------|
-| WR-01 | Acceptable risk. Stale guard is functionally correct with current `State.get()` implementation. Coupling to return shape is implicit but low-risk since `State.get()` is stable API. |
-| WR-03 | Known and documented tradeoff. fzf-lua doesn't support reactive list updates. Users can re-open picker for fresh status. Accepted per PLAN.md. |
+**Commit:** Atomic
 
 ### Summary
 
-- **Fixed:** 3 (CR-01, WR-02, WR-04)
-- **Skipped:** 2 (WR-01, WR-03 — documented trade-offs)
-- **Status:** partial — remaining findings are accepted design decisions, not code defects
+- **Fixed:** 3 (WR-05, WR-06, WR-07)
+- **Skipped:** 0
+- **Status:** partial — remaining warnings from previous rounds are accepted design decisions (WR-01, WR-03)
+- **All 7 issues from both reviews are now either fixed or formally accepted**

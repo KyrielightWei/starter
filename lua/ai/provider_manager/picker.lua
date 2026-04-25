@@ -9,6 +9,7 @@ local Registry = require("ai.provider_manager.registry")
 local Validator = require("ai.provider_manager.validator")
 local Util = require("ai.util")
 local UIUtil = require("ai.provider_manager.ui_util")
+local Status = require("ai.provider_manager.status")
 
 ----------------------------------------------------------------------
 -- Provider Picker (per UI-SPEC Section "Picker Layout")
@@ -30,10 +31,16 @@ function M.open()
   local icons = UIUtil.get_icons()
 
   for _, p in ipairs(providers) do
-    local display = UIUtil.format_provider_display(p.name, {
+    local def_info = {
       endpoint = p.endpoint,
       model = p.model,
-    })
+    }
+    -- Get status for provider's default model from cache
+    local default_model = Registry.get_default_model(p.name) or p.model
+    local status = Status.get_cached_status(p.name, default_model)
+    def_info._status = status
+
+    local display = UIUtil.format_provider_display(p.name, def_info, status)
     table.insert(items, display)
     name_map[display] = p.name
   end
@@ -151,7 +158,8 @@ function M._select_model(provider_name)
 
   for _, model_id in ipairs(sorted) do
     local is_default = model_id == current_default
-    local display = UIUtil.format_model_display(model_id, is_default, nil)
+    local status = Status.get_cached_status(provider_name, model_id)
+    local display = UIUtil.format_model_display(model_id, is_default, nil, status)
     id_map[display] = model_id
     table.insert(items, display)
   end

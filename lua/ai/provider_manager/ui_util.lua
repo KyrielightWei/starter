@@ -22,6 +22,18 @@ local ICONS = {
   success = "✓",
   warn = "!",
   error = "✗",
+  -- Status icons with ASCII fallbacks (addresses C-04 Unicode compatibility concern)
+  status_available   = "✓",
+  status_unavailable = "✗",
+  status_timeout     = "⏱",
+  status_error       = "⚠",
+  status_unchecked   = "○",
+  -- ASCII fallbacks for font compatibility
+  fallback_available   = "[ok]",
+  fallback_unavailable = "[--]",
+  fallback_timeout     = "[..]",
+  fallback_error       = "[!!]",
+  fallback_unchecked   = "[  ]",
 }
 
 ----------------------------------------------------------------------
@@ -32,22 +44,59 @@ function M.get_icons()
 end
 
 ----------------------------------------------------------------------
+-- Status icon lookup with ASCII fallback (addresses C-04)
+----------------------------------------------------------------------
+function M.get_status_icon(status)
+  local icon_map = {
+    available   = ICONS.status_available,
+    unavailable = ICONS.status_unavailable,
+    timeout     = ICONS.status_timeout,
+    error       = ICONS.status_error,
+    unchecked   = ICONS.status_unchecked,
+  }
+  return icon_map[status] or ICONS.status_unchecked
+end
+
+----------------------------------------------------------------------
+-- Status label for color/hint assignment
+----------------------------------------------------------------------
+function M.get_status_label(status)
+  local labels = {
+    available   = "success",
+    unavailable = "error",
+    timeout     = "warn",
+    error       = "error",
+    unchecked   = "comment",
+  }
+  return labels[status] or "comment"
+end
+
+----------------------------------------------------------------------
 -- Format Provider Display
 ----------------------------------------------------------------------
-function M.format_provider_display(name, def)
+function M.format_provider_display(name, def, status)
   def = def or {}
   local model = def.model or "unknown"
   local endpoint = def.endpoint or "unknown"
   if #endpoint > 40 then
     endpoint = endpoint:sub(1, 37) .. "..."
   end
-  return string.format("%s %s  %s  %s", ICONS.provider, name, endpoint, model)
+
+  local base = string.format("%s %s  %s  %s", ICONS.provider, name, endpoint, model)
+
+  -- Only prepend icon if status is provided and is a known state (not nil/unchecked)
+  if status and status ~= "unchecked" then
+    local icon = M.get_status_icon(status)
+    return string.format("%s %s", icon, base)
+  end
+
+  return base
 end
 
 ----------------------------------------------------------------------
 -- Format Model Display
 ----------------------------------------------------------------------
-function M.format_model_display(model_id, is_default, metadata)
+function M.format_model_display(model_id, is_default, metadata, status)
   metadata = metadata or {}
   local icon = is_default and ICONS.default or ICONS.model
   local context = metadata.context_length or ""
@@ -56,7 +105,15 @@ function M.format_model_display(model_id, is_default, metadata)
   else
     context = ""
   end
-  return string.format("%s %s %s", icon, model_id, context)
+  local base = string.format("%s %s %s", icon, model_id, context)
+
+  -- Only prepend icon if status is provided and is a known state (not nil/unchecked)
+  if status and status ~= "unchecked" then
+    local sicon = M.get_status_icon(status)
+    return string.format("%s %s", sicon, base)
+  end
+
+  return base
 end
 
 ----------------------------------------------------------------------

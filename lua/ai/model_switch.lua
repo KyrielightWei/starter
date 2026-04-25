@@ -36,7 +36,7 @@ function M.select(callback)
         ----------------------------------------------------------------
         -- Step 2: 动态拉取模型
         ----------------------------------------------------------------
-        local models_raw, tried, succ, fail = Fetch.fetch(provider)
+        local models_raw, _, _, _ = Fetch.fetch(provider)
 
         local models_for_display = {}
         local id_map = {}

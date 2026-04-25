@@ -66,13 +66,13 @@ local function cmd_check_provider(opts)
 
   -- Run async check (non-blocking — does not freeze UI)
   vim.notify("Checking " .. provider .. "/" .. model .. "...", vim.log.levels.INFO)
-  Detector.check_provider_model(provider, model, function(result)
+  Detector.check_provider_model(provider, model, vim.schedule_wrap(function(result)
     if result then
       Results.show_single_result(result, "Detection Result: " .. provider .. "/" .. model)
     else
       vim.notify("Check failed for " .. provider .. "/" .. model, vim.log.levels.ERROR)
     end
-  end)
+  end))
 end
 
 ----------------------------------------------------------------------

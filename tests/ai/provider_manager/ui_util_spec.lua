@@ -53,6 +53,18 @@ describe("ai.provider_manager.ui_util", function()
       local icon = UIUtil.get_status_icon(nil)
       assert.are.equal("○", icon)
     end)
+
+    it("returns ASCII fallback when use_ascii is true", function()
+      assert.are.equal("[ok]", UIUtil.get_status_icon("available", true))
+      assert.are.equal("[--]", UIUtil.get_status_icon("unavailable", true))
+      assert.are.equal("[..]", UIUtil.get_status_icon("timeout", true))
+      assert.are.equal("[!!]", UIUtil.get_status_icon("error", true))
+      assert.are.equal("[  ]", UIUtil.get_status_icon("unchecked", true))
+    end)
+
+    it("returns ASCII fallback for unknown status when use_ascii is true", function()
+      assert.are.equal("[  ]", UIUtil.get_status_icon("unknown", true))
+    end)
   end)
 
   describe("get_status_label()", function()

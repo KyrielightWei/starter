@@ -95,8 +95,8 @@ Plans:
 **Plans:** 2 plans (replanned with --reviews feedback)
 
 Plans:
-- [ ] 03-01-PLAN.md — Status module (TDD) with vim.schedule + stale guard + auto-detection in model_switch.lua (Wave 1)
-- [ ] 03-02-PLAN.md — Status icons with ASCII fallbacks in ui_util.lua + picker.lua status display (Wave 2, depends on 01)
+- [x] 03-01-PLAN.md — Status module (TDD) with vim.schedule + stale guard + auto-detection in model_switch.lua (Wave 1)
+- [x] 03-02-PLAN.md — Status icons with ASCII fallbacks in ui_util.lua + picker.lua status display (Wave 2, depends on 01)
 
 **UI hint:** yes
 

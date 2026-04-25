@@ -10,6 +10,7 @@ local Results = require("ai.provider_manager.results")
 local Cache = require("ai.provider_manager.cache")
 local Registry = require("ai.provider_manager.registry")
 local State = require("ai.state")
+local Status = require("ai.provider_manager.status")
 
 ----------------------------------------------------------------------
 -- Helper: Check if provider exists in registry
@@ -172,5 +173,10 @@ M.check_all = function(callback)
     if callback then callback(results) end
   end)
 end
+
+-- Phase 3: Status module exports
+M.get_cached_status = Status.get_cached_status
+M.trigger_async_check = Status.trigger_async_check
+M.check_all_batch = Status.check_all_batch
 
 return M

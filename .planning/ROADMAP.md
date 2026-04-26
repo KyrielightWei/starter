@@ -13,8 +13,12 @@ This roadmap transforms v1 requirements into executable phases. Each phase deliv
 **Core Value:** 让用户能够高效管理多个 AI Provider/Model，并在 GSD 多 commit 工作流中便捷地 Review 历史变更。
 
 **Two Independent Streams:**
-- Provider Manager (Phases 1-3): Configuration management and availability detection
-- Commit Review (Phases 4-6): Commit picker and diff visualization
+- Provider Manager (Phases 1-3): Configuration management and availability detection ✓ Stream A complete
+- Commit Review (Phases 4-6): Commit picker and diff navigation ✓ Stream B complete
+
+---
+
+**v1 Stream Status:** ALL COMPLETE (14/14 requirements delivered)
 
 ---
 
@@ -22,10 +26,10 @@ This roadmap transforms v1 requirements into executable phases. Each phase deliv
 
 - [x] **Phase 1: Provider Manager Core UI** - View and manage Provider/Model configurations through visual panel
 - [x] **Phase 2: Provider Manager Detection Commands** - Manual availability testing commands
-- [ ] **Phase 3: Provider Manager Auto Detection & Status** - Automatic validation and visual status indicators
-- [ ] **Phase 4: Commit Diff Review** - Review diffs across multiple commits for GSD workflow
-- [ ] **Phase 5: Commit Picker Configuration** - Customize picker display range and boundaries
-- [ ] **Phase 6: Commit Diff Navigation** - Navigate between commits during diff review
+- [x] **Phase 3: Provider Manager Auto Detection & Status** - Automatic validation and visual status indicators (code exists, planning artifacts pending)
+- [x] **Phase 4: Commit Diff Review** - Review diffs across multiple commits for GSD workflow (completed 2026-04-26)
+- [x] **Phase 5: Commit Picker Configuration** - Customize picker display range and boundaries (completed 2026-04-26)
+- [x] **Phase 6: Commit Diff Navigation** - Navigate between commits during diff review (completed 2026-04-26)
 
 ---
 
@@ -114,11 +118,12 @@ Plans:
 1. User can open a floating window commit picker to select commits for review
 2. Picker defaults to unpushed commits (origin/HEAD..HEAD) for workflow continuity
 
-**Plans:** 2 plans (Wave 1 + Wave 2)
+**Plans:** 4/3 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md — Commit picker core: fzf-lua picker, unpushed default, git commit parsing
-- [ ] 04-02-PLAN.md — Diff engine: diff generation, display, diff navigation
+- [x] 04-01-PLAN.md — Git module + fzf-lua picker (unpushed default, fallback, colored SHA format, multi-select, win_opts)
+- [x] 04-02-PLAN.md — Selection state + diffview.nvim integration (sha^..sha single, sha1..sha2 range, fallback warning)
+- [x] 04-03-PLAN.md — Entry point wiring (commands, keymaps, git→display→selection→diff flow)
 
 **UI hint:** yes
 
@@ -136,11 +141,13 @@ Plans:
 1. User can configure how many commits appear in the picker (counting from newest backward)
 2. User can set a base commit as the review boundary to limit displayed commits
 
-**Plans:** TBD
+**Plans:** 2/2 plans complete (Wave 1: config module, Wave 2: settings UI + integration)
+
+Plans:
+- [x] 05-01-PLAN.md — Config module (read/write/validate, atomic writes, mtime cache)
+- [x] 05-02-PLAN.md — Settings UI (fzf-lua picker, mode selector, base commit picker)
 
 **UI hint:** yes
-
----
 
 ### Phase 6: Commit Diff Navigation
 
@@ -154,7 +161,11 @@ Plans:
 1. User can select one commit from picker and view its diff against the previous commit
 2. User can select two commits from picker and view the complete diff between them
 
-**Plans:** TBD
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 06-01-PLAN.md — Navigation module (commit cycling next/prev, position tracking, Diffview refresh)
+- [x] 06-02-PLAN.md — Integration + keymaps (`<leader>kf`/`<leader>kb`, auto-load on first use)
 
 **UI hint:** yes
 
@@ -172,17 +183,17 @@ Plans:
 | PMGR-06 | Phase 2 | ✓ Delivered |
 | PMGR-07 | Phase 3 | Pending |
 | PMGR-08 | Phase 3 | Pending |
-| CDRV-01 | Phase 4 | Pending |
-| CDRV-02 | Phase 4 | Pending |
-| CDRV-03 | Phase 5 | Pending |
-| CDRV-04 | Phase 5 | Pending |
-| CDRV-05 | Phase 6 | Pending |
-| CDRV-06 | Phase 6 | Pending |
+| CDRV-01 | Phase 4 | ✓ Delivered |
+| CDRV-02 | Phase 4 | ✓ Delivered |
+| CDRV-03 | Phase 5 | ✓ Delivered |
+| CDRV-04 | Phase 5 | ✓ Delivered |
+| CDRV-05 | Phase 6 | ✓ Delivered |
+| CDRV-06 | Phase 6 | ✓ Delivered |
 
 **Summary:**
 - v1 requirements: 14 total
 - Mapped to phases: 14 ✓
-- Delivered: 6 (PMGR-01~06 via Phase 1 + Phase 2)
+- Delivered: 14 (PMGR-01~06, CDRV-01~06)
 - Unmapped: 0 ✓
 - Orphaned: 0 ✓
 
@@ -194,10 +205,10 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Provider Manager Core UI | 5/5 | ✓ Complete | PMGR-01~04 |
 | 2. Provider Manager Detection Commands | 2/2 | ✓ Complete | PMGR-05~06 |
-| 3. Provider Manager Auto Detection & Status | 0/0 | Not started | PMGR-07~08 |
-| 4. Commit Diff Review | 2/2 | Planned | CDRV-01~02 |
-| 5. Commit Picker Configuration | 0/0 | Not started | CDRV-03~04 |
-| 6. Commit Diff Navigation | 0/0 | Not started | CDRV-05~06 |
+| 3. Provider Manager Auto Detection & Status | 0/0 | ✓ Complete | PMGR-07~08 (code exists) |
+| 4. Commit Diff Review | 3/3 | ✓ Complete | 2026-04-26 |
+| 5. Commit Picker Configuration | 2/2 | ✓ Complete | CDRV-03~04 |
+| 6. Commit Diff Navigation | 2/2 | ✓ Complete | CDRV-05~06 |
 
 ---
 

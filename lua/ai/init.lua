@@ -114,6 +114,52 @@ local keys = {
       if ok then PM.open() end
     end, desc = "AI Provider Manager" },
 
+  -- Commit Picker (Phase 4)
+  { "<leader>kC", mode = "n", fn = function()
+      local ok, CP = pcall(require, "commit_picker.init")
+      if ok then CP.open() end
+    end, desc = "AI Commit Picker" },
+
+  -- Commit Diff Navigation (Phase 6) — D-22/D-23: kf=forward, kb=backward
+  { "<leader>kf", mode = "n", fn = function()
+      local ok, Nav = pcall(require, "commit_picker.navigation")
+      if not ok or not Nav.is_loaded() then
+        -- Auto-load commits and open first commit on first use
+        local ok_cp, CP = pcall(require, "commit_picker.init")
+        if ok_cp then
+          local ok_git, Git = pcall(require, "commit_picker.git")
+          if ok_git then
+            local ok_diff, Diff = pcall(require, "commit_picker.diff")
+            if ok_diff then
+              local commits = Git.get_commits_for_mode()
+              if commits and #commits > 0 then
+                -- Open first commit's diff
+                Diff.open_diff({ commits[1].sha })
+                -- Load navigation state
+                if ok then
+                  Nav.load_commits()
+                end
+                vim.notify(string.format("1/%d: %s", #commits, commits[1].subject), vim.log.levels.INFO)
+              else
+                vim.notify("没有可导航的提交", vim.log.levels.INFO)
+              end
+            end
+          end
+        end
+      else
+        Nav.cycle_next()
+      end
+    end, desc = "AI Next Commit" },
+
+  { "<leader>kb", mode = "n", fn = function()
+      local ok, Nav = pcall(require, "commit_picker.navigation")
+      if not ok or not Nav.is_loaded() then
+        vim.notify("请先打开 Commit Picker 加载提交列表", vim.log.levels.INFO)
+        return
+      end
+      Nav.cycle_prev()
+    end, desc = "AI Previous Commit" },
+
   -- 面板控制
   { "<leader>kt", mode = "n", fn = call("toggle"), desc = "AI Toggle Panel", icon = "📋" },
 
@@ -207,6 +253,12 @@ function M.setup(opts)
   local ok_pm, ProviderManager = pcall(require, "ai.provider_manager")
   if ok_pm then
     ProviderManager.setup()
+  end
+
+  -- Initialize Commit Picker (Phase 4)
+  local ok_cp, CommitPicker = pcall(require, "commit_picker.init")
+  if ok_cp then
+    CommitPicker.setup()
   end
 
   return M

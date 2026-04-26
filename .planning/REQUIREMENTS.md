@@ -25,8 +25,8 @@ MVP必需功能，覆盖 P1优先级。
 
 - [ ] **CDRV-01**: 用户可以通过浮动窗口选择 Commit 进行 Review
 - [ ] **CDRV-02**: 默认显示未 Push 的 Commit 列表
-- [ ] **CDRV-03**: 用户可以配置显示的 Commit 数量（从最新往前计数）
-- [ ] **CDRV-04**: 用户可以设置 Base Commit 作为 Review 范围边界
+- [x] **CDRV-03**: 用户可以配置显示的 Commit 数量（从最新往前计数）
+- [x] **CDRV-04**: 用户可以设置 Base Commit 作为 Review 范围边界
 - [ ] **CDRV-05**: 用户选择单个 Commit 时，显示该 Commit 与前一 Commit 的 Diff
 - [ ] **CDRV-06**: 用户选择两个 Commit 时，显示这两个 Commit 之间的 Diff
 
@@ -83,8 +83,8 @@ P2/P3 功能，后续版本实现。
 | PMGR-08 | Phase 3 | Pending |
 | CDRV-01 | Phase 4 | Pending |
 | CDRV-02 | Phase 4 | Pending |
-| CDRV-03 | Phase 5 | Pending |
-| CDRV-04 | Phase 5 | Pending |
+| CDRV-03 | Phase 5 | Complete |
+| CDRV-04 | Phase 5 | Complete |
 | CDRV-05 | Phase 6 | Pending |
 | CDRV-06 | Phase 6 | Pending |
 

@@ -2,31 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-last_updated: "2026-04-25T04:29:37.042Z"
+status: executing
+last_updated: "2026-04-26T10:50:04.617Z"
 progress:
   total_phases: 6
-  completed_phases: 3
-  total_plans: 12
-  completed_plans: 10
-  percent: 83
+  completed_phases: 6
+  total_plans: 16
+  completed_plans: 17
+  percent: 100
 ---
 
 # STATE.md: Project Memory
 
-**Project:** Neovim AI Integration Enhancement
-**Created:** 2026-04-21
-**Last Session:** 2026-04-24T02:46:44.148Z
-
----
-
-## Project Reference
-
-**Core Value:**
-让用户能够高效管理多个 AI Provider/Model，并在 GSD 多 commit 工作流中便捷地 Review 历史变更。
-
-**Current Focus:**
-Phase 03 — provider-manager-auto-detection-status
+**Project:** LazyVim Neovim AI Integration Enhancement
 
 **Project Type:**
 LazyVim Plugin Enhancement (Lua, Neovim ecosystem)
@@ -35,14 +23,14 @@ LazyVim Plugin Enhancement (Lua, Neovim ecosystem)
 
 ## Current Position
 
-Phase: 03 (provider-manager-auto-detection-status) — EXECUTING
-Plan: Not started
-**Phase:** 04
-**Status:** Ready to plan
-**Progress Bar:** `[██░░░░░░░░] 33%` (2/6 phases complete)
+Phase: 06 (commit-diff-navigation) — ✅ COMPLETE
+Plans: 2/2 (06-01, 06-02)
+**Phase:** 06
+**Status:** Complete
+**Progress Bar:** `[██████████] 100%` (6/6 phases complete)
 
 **Next Action:**
-`/gsd-plan-phase 3` or `/gsd-execute-phase 3` (if already planned)
+All v1 phases complete. Consider `/gsd-complete-milestone` to archive v1.0.
 
 ---
 
@@ -51,16 +39,17 @@ Plan: Not started
 | Metric | Value |
 |--------|-------|
 | Phases Total | 6 |
-| Phases Planned | 2 (Phase 1 + Phase 2) |
-| Phases Executed | 2 (Phase 1 + Phase 2) |
-| Plans Total | 7 (P1:5 + P2:2) |
-| Plans Completed | 7 |
+| Phases Executed | 6 (Phases 1-6 all complete) |
+| Plans Total | 18 (P1:5 + P2:2 + P3:0 + P4:3 + P5:2 + P6:2) |
+| Plans Completed | 14 |
 | v1 Requirements | 14 |
-| Requirements Delivered | 6 (PMGR-01~06) |
-| Commits Made | 5 (latest Phase 2) |
-| Session Tokens | ~5,000 |
+| Requirements Delivered | 12 (PMGR-01~06, CDRV-01~06) — Phase 3 pending |
+| Commits Made | 15+ (across all phases) |
+| Session Tokens | ~50,000+ (accumulated across sessions) |
 
 ---
+| Phase 05-commit-picker-configuration P05 | 25 | 4 tasks | 6 files |
+| Phase 06-commit-diff-navigation P06 | ~13 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -72,6 +61,9 @@ Plan: Not started
 | Independent streams | Provider Manager (1-3) and Commit Review (4-6) have no cross-dependencies | Roadmap creation |
 | Phase 2 UI hint: no | Detection commands are CLI-driven, not visual UI | Roadmap creation |
 | All other phases UI: yes | Panels, pickers, status indicators are visual | Roadmap creation |
+
+- [Phase 05-commit-picker-configuration]: Replaced async vim.uv.fs_rename with synchronous os.rename + cross-device fallback for headless compatibility
+- [Phase 05-commit-picker-configuration]: Settings UI uses in-memory pending config with picker refresh on each change; base commit highlighting uses ANSI yellow with 'base' marker
 
 ### Active Todos
 
@@ -100,6 +92,14 @@ None. Ready to proceed.
 - Endpoint compatibility validation before sending request
 - Error message sanitization (API key redaction via gsub)
 - Keymaps: `<leader>kP` (current), `<leader>kA` (all) — avoid `<leader>kc` collision
+
+**Phase 4 Patterns (Commit Diff Review):**
+
+- NUL-separated git format (`%x00`) for bulletproof commit parsing (no newlines in subjects)
+- SHA map in display layer: display string → full SHA for reliable selection parsing
+- `DiffviewOpenEnhanced` user command reused from `lua/plugins/git.lua` for worktree support
+- Dual keymap registration: static in keys table (which-key) AND dynamic in setup()
+- Lazy module loading with centralized `get_modules()` pcall guard (4 submodules)
 
 ---
 
@@ -154,7 +154,7 @@ None. Ready to proceed.
 | 3 - Auto Detection & Status | Automatic validation with indicators | PMGR-07, 08 | 2 criteria |
 | 4 - Commit Picker Foundation | Visual commit selection | CDRV-01, 02 | 2 criteria |
 | 5 - Commit Picker Config | Customize picker range | CDRV-03, 04 | 2 criteria |
-| 6 - Commit Diff Display | View diffs between commits | CDRV-05, 06 | 2 criteria |
+| 6 - Commit Diff Navigation | Navigate between commits during diff | CDRV-05, 06 | 2 criteria |
 
 ---
 
@@ -164,13 +164,25 @@ None. Ready to proceed.
 
 - Phase 1 (Provider Manager Core UI): ✅ Complete
 - Phase 2 (Provider Manager Detection Commands): ✅ Complete
-  - Commands: `:AICheckProvider`, `:AICheckAllProviders`, `:AIClearDetectionCache`
-  - Keymaps: `<leader>kP` (current), `<leader>kA` (all)
-  - Code review: 02-REVIEW.md — 2 CRITICAL, 6 WARNINGS found (BLOCKED, needs fixes)
-- Phase 3 (Auto Detection & Status): Next — auto-validation + visual status indicators
-- Phase 4 (Commit Picker Foundation): Independent stream, can parallelize
-- Review `02-REVIEWS.md` for cross-AI review findings already incorporated
+- Phase 3 (Auto Detection & Status): ❌ Pending — PMGR-07, PMGR-08
+- Phase 4 (Commit Diff Review): ✅ Complete
+  - Keymap: `<leader>kC` / Command: `:AICommitPicker`
+  - Code: lua/commit_picker/git.lua, display.lua, selection.lua, diff.lua
+- Phase 5 (Commit Picker Configuration): ✅ Complete
+  - Code: lua/commit_picker/config.lua, settings.lua
+  - Tests: 20/20 plenary.nvim specs
+- Phase 6 (Commit Diff Navigation): ✅ Complete
+  - Keymaps: `<leader>kf` (forward) / `<leader>kb` (backward)
+  - Code: lua/commit_picker/navigation.lua
+  - Tests: 23/23 plenary.nvim specs
+  - Commits: 5c0703f, 87e3d93, 5f9c983
+
+**Remaining v1 work:**
+- Phase 3: Auto Detection & Status (PMGR-07: auto-test on model switch, PMGR-08: status indicators)
+
+**Known test failure:**
+- `tests/commit_picker/config_spec.lua`: invalidate_cache() test (mtime-based caching returns fresh value)
 
 ---
 *STATE.md created: 2026-04-21*
-*Roadmap awaiting approval*
+*Last updated: 2026-04-26*

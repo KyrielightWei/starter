@@ -146,7 +146,7 @@ function M.get_commits_for_mode()
   if config.mode == "unpushed" then
     local commits = M.get_unpushed()
     if #commits > 0 then
-      return commits
+      return commits, nil
     end
     -- Fallback: no unpushed commits, use last N with diagnostic info
     local ok_ab, ab = pcall(M.get_ahead_behind)
@@ -163,26 +163,25 @@ function M.get_commits_for_mode()
         vim.log.levels.WARN
       )
     end
-    return M.get_commit_list(nil, nil, { count = count })
+    return M.get_commit_list(nil, nil, { count = count }), nil
   end
 
   if config.mode == "last_n" then
     local count = config.count or 20
-    return M.get_commit_list(nil, nil, { count = count })
+    return M.get_commit_list(nil, nil, { count = count }), nil
   end
 
   if config.mode == "since_base" and config.base_commit then
-    -- Validate SHA exists before using
-    local sha_ok = config.base_commit:match("^%x%x%x%x%x%x%x[%x]*$")
-    if sha_ok then
+    -- Validate SHA format before using (WR-03 fix: guard nil access)
+    if type(config.base_commit) == "string" and config.base_commit:match("^%x%x%x%x%x%x%x[%x]*$") then
       local commits = M.get_commit_list(config.base_commit, "HEAD")
       if type(commits) == "table" and not commits.error and #commits > 0 then
         return commits, config.base_commit
       end
     end
-    -- Fallback: invalid base, use last N
+    -- Fallback: invalid base, use last N (WR-03 fix: consistent return with nil base)
     local count = config.count or 20
-    local short = config.base_commit:sub(1, 7)
+    local short = (config.base_commit and config.base_commit:sub(1, 7)) or "?"
     vim.notify(
       string.format("基础提交不可用 (%s)，回退到最近 %d 条", short, count),
       vim.log.levels.WARN
@@ -190,9 +189,9 @@ function M.get_commits_for_mode()
     return M.get_commit_list(nil, nil, { count = count }), nil
   end
 
-  -- Default fallback
+  -- Default fallback (WR-03 fix: consistent return with nil base)
   local count = config.count or 20
-  return M.get_commit_list(nil, nil, { count = count })
+  return M.get_commit_list(nil, nil, { count = count }), nil
 end
 
 return M

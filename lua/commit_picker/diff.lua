@@ -6,7 +6,7 @@ local M = {}
 ----------------------------------------------------------------------
 -- Validate SHA format: 7-40 hex characters (T-04-05 mitigation)
 ----------------------------------------------------------------------
-local function is_valid_sha(sha)
+function M.is_valid_sha(sha)
   return sha and sha:match("^%x%x%x%x%x%x%x+$")
 end
 
@@ -24,7 +24,7 @@ function M.open_diff(shas)
 
   -- Validate all SHAs before passing to vim.cmd (T-04-05)
   for _, sha in ipairs(shas) do
-    if not is_valid_sha(sha) then
+    if not M.is_valid_sha(sha) then
       vim.notify("无效的 SHA 格式: " .. sha, vim.log.levels.ERROR)
       return
     end
@@ -36,6 +36,25 @@ function M.open_diff(shas)
     vim.notify("diffview.nvim 未配置，请手动运行 :DiffviewOpen", vim.log.levels.WARN)
     return
   end
+
+  -- Check if diffview is already open (WR-03 fix)
+  -- Use vim.cmd to check — safer than direct API access across diffview versions
+  local already_open = false
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    local bufname = vim.api.nvim_buf_get_name(buf)
+    if bufname:match("diffview") then
+      already_open = true
+      break
+    end
+  end
+  if already_open then
+    vim.notify("Diffview 已打开，请先关闭当前 diff", vim.log.levels.INFO)
+    return
+  end
+
+   -- Skip secondary guard — the buffer-name check at lines 42-49 already handles
+  -- the common case. The diffview.lib API varies across versions, so we avoid
+  -- relying on it directly (UAT bug fix).
 
   local range
 

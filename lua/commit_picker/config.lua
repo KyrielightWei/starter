@@ -28,6 +28,17 @@ local cached_config = nil
 local cached_mtime = nil
 
 ----------------------------------------------------------------------
+-- Deep copy helper (IN-04 fix: defined early for use below)
+----------------------------------------------------------------------
+local function deep_copy(t)
+  local copy = {}
+  for k, v in pairs(t) do
+    copy[k] = v
+  end
+  return copy
+end
+
+----------------------------------------------------------------------
 -- M.get_config_path()
 -- Returns the absolute path to the config file
 ----------------------------------------------------------------------
@@ -53,13 +64,13 @@ local function validate_sha_exists(sha)
     return false
   end
 
-  -- Format check: 7-40 hex characters
+  -- Format check: 7-40 hex characters (regex enforces minimum 7 chars)
   if not sha:match("^%x%x%x%x%x%x%x[%x]*$") then
     return false
   end
 
-  -- Length check
-  if #sha < 7 or #sha > 40 then
+  -- Max length check (regex enforces minimum, but not maximum)
+  if #sha > 40 then
     return false
   end
 
@@ -151,6 +162,8 @@ end
 
 ----------------------------------------------------------------------
 -- Merge raw config with defaults
+-- NOTE: This provides type coercion and fallback only — not full validation.
+-- validate_config() should be called separately for user input (IN-03 fix).
 ----------------------------------------------------------------------
 local function merge_with_defaults(raw)
   local config = {}
@@ -160,22 +173,15 @@ local function merge_with_defaults(raw)
   -- Clamp count to valid range
   config.count = math.max(MIN_COUNT, math.min(MAX_COUNT, config.count))
 
-  -- Validate mode
+  -- Fallback mode if invalid
   if not ALLOWED_MODES[config.mode] then
     config.mode = DEFAULT_CONFIG.mode
-    vim.notify(string.format("配置文件中模式 '%s' 无效，使用默认值 'unpushed'", raw.mode), vim.log.levels.WARN)
   end
 
-  -- Validate base_commit
-  if raw.base_commit ~= nil then
-    if type(raw.base_commit) == "string" and raw.base_commit:match("^%x%x%x%x%x%x%x[%x]*$") and
-       #raw.base_commit >= 7 and #raw.base_commit <= 40 then
-      config.base_commit = raw.base_commit
-    else
-      if raw.base_commit ~= nil then
-        vim.notify("配置文件中 base_commit 格式无效，已忽略", vim.log.levels.WARN)
-      end
-    end
+  -- Accept base_commit if format looks reasonable (full validation in validate_config)
+  if raw.base_commit ~= nil and type(raw.base_commit) == "string"
+     and raw.base_commit:match("^%x%x%x%x%x%x%x[%x]*$") then
+    config.base_commit = raw.base_commit
   end
 
   return config
@@ -199,7 +205,7 @@ function M.get_config()
 
   -- File doesn't exist — return defaults (no caching for missing file)
   if not stat then
-    return M._deep_copy(DEFAULT_CONFIG)
+    return deep_copy(DEFAULT_CONFIG)
   end
 
   -- Parse config file using pcall(dofile) — safe for user-owned files
@@ -207,7 +213,7 @@ function M.get_config()
 
   if not ok or type(raw) ~= "table" then
     vim.notify("commit_picker 配置文件格式错误，使用默认设置", vim.log.levels.WARN)
-    return M._deep_copy(DEFAULT_CONFIG)
+    return deep_copy(DEFAULT_CONFIG)
   end
 
   -- Merge with defaults and validate fields
@@ -222,7 +228,7 @@ end
 
 ----------------------------------------------------------------------
 -- Atomic write helper: write to .tmp, then os.rename with cross-device fallback
--- Uses synchronous os.rename (NOT async vim.uv.fs_rename) for headless compatibility
+-- Uses synchronous os.rename for headless compatibility (IN-02 fix)
 ----------------------------------------------------------------------
 local function atomic_write(path, content)
   local tmp_path = path .. ".tmp"
@@ -235,35 +241,30 @@ local function atomic_write(path, content)
   f:write(content)
   f:close()
 
-  -- Try os.rename first (synchronous, works on same filesystem)
-  -- os.rename returns (nil, nil) on success, (nil, error_string) on failure
+  -- Try os.rename first (works on same filesystem)
+  -- os.rename returns (true) or (nil, nil) on success, (nil, error_string) on failure
   local success, err = os.rename(tmp_path, path)
-  if success == nil and err == nil then
-    -- Success: os.rename returned (nil, nil)
+  if success or (success == nil and err == nil) then
     return true
   end
-  if success == nil and err then
-    -- Failed (likely cross-device)
-    -- Fallback to read + write
-    local tmp_f = io.open(tmp_path, "r")
-    if not tmp_f then
-      os.remove(tmp_path)
-      return false, "无法读取临时文件"
-    end
-    local data = tmp_f:read("*all")
-    tmp_f:close()
 
-    local final_f = io.open(path, "w")
-    if not final_f then
-      os.remove(tmp_path)
-      return false, "无法写入目标文件"
-    end
-    final_f:write(data)
-    final_f:close()
+  -- Fallback: cross-device — read temp and write directly
+  local tmp_f = io.open(tmp_path, "r")
+  if not tmp_f then
     os.remove(tmp_path)
-
-    return true
+    return false, "无法读取临时文件"
   end
+  local data = tmp_f:read("*all")
+  tmp_f:close()
+
+  local final_f = io.open(path, "w")
+  if not final_f then
+    os.remove(tmp_path)
+    return false, "无法写入目标文件"
+  end
+  final_f:write(data)
+  final_f:close()
+  os.remove(tmp_path)
 
   return true
 end
@@ -316,22 +317,14 @@ end
 -- Writes default config file
 ----------------------------------------------------------------------
 function M.reset_to_defaults()
-  local ok, err = M.save_config(M._deep_copy(DEFAULT_CONFIG))
+  local ok, err = M.save_config(deep_copy(DEFAULT_CONFIG))
   if not ok then
     return false, err
   end
   return true
 end
 
-----------------------------------------------------------------------
--- Deep copy helper for DEFAULT_CONFIG
-----------------------------------------------------------------------
-function M._deep_copy(t)
-  local copy = {}
-  for k, v in pairs(t) do
-    copy[k] = v
-  end
-  return copy
-end
+-- Backward compatibility: expose on M for test access
+M._deep_copy = deep_copy
 
 return M

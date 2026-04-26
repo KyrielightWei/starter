@@ -60,6 +60,14 @@ local function sanitize_error(msg)
 end
 
 ----------------------------------------------------------------------
+-- Private: Check if endpoint is OpenAI-compatible
+----------------------------------------------------------------------
+local function is_endpoint_compatible(endpoint)
+  if not endpoint then return false end
+  return endpoint:match("/v1/") or endpoint:match("/v1$") or endpoint:match("/compatible%-mode$")
+end
+
+----------------------------------------------------------------------
 -- Private: Build the detection URL
 -- CR-01 FIX: If base_url already ends with /v1, append /chat/completions
 -- instead of /v1/chat/completions to avoid double /v1/ path

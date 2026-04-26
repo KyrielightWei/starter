@@ -27,8 +27,12 @@ end
 ----------------------------------------------------------------------
 -- M.open() — fzf-lua picker showing current settings
 ----------------------------------------------------------------------
+----------------------------------------------------------------------
+-- M.open() — fzf-lua picker showing current settings
+----------------------------------------------------------------------
 function M.open()
-  local ok, fzf = pcall(require, "fzf-lua")
+  -- Check fzf-lua availability (WR-02 fix: discard unused variable)
+  local ok = pcall(require, "fzf-lua")
   if not ok then
     vim.notify("[commit_picker] fzf-lua not installed", vim.log.levels.ERROR)
     return
@@ -307,7 +311,7 @@ function M._select_base_commit(pending, on_update)
         local sha = sha_map[line]
         if sha == "__CLEAR__" then
           pending.base_commit = nil
-        elseif sha then
+        elseif sha and sha:match("^%x%x%x%x%x%x%x[%x]*$") then
           pending.base_commit = sha
         end
         on_update(pending)

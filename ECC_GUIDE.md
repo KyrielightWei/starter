@@ -8,7 +8,9 @@ ECC 是一套增强 Claude Code 能力的工具集，包含：
 - **代理 (Agents)** - 专门化的子代理，处理特定任务
 - **技能 (Skills)** - 深度参考资料和模式
 
-## 当前安装状态
+---
+
+## 安装状态
 
 ```
 ~/.claude/
@@ -18,9 +20,10 @@ ECC 是一套增强 Claude Code 能力的工具集，包含：
 │   ├── python/      # Python 规则
 │   ├── golang/      # Go 规则
 │   ├── rust/        # Rust 规则
-│   └── ...          # 其他语言
+│   └── zh/          # 中文翻译版本
 ├── commands/        # ✅ 已安装 (60+ 命令)
 ├── agents/          # ✅ 已安装 (30+ 代理)
+├── skills/          # ✅ 已安装
 └── ecc/             # ✅ 安装状态文件
 ```
 
@@ -28,7 +31,19 @@ ECC 是一套增强 Claude Code 能力的工具集，包含：
 
 ## 安装
 
-ECC 需要从 GitHub 克隆安装：
+### 方式 1: 使用组件管理器（推荐）
+
+通过 AI Component Manager 安装：
+
+```vim
+:AIComponents
+```
+
+在选择器中选择 ECC，按 `i` 安装。
+
+### 方式 2: 手动安装
+
+从 GitHub 克隆安装：
 
 ```bash
 # 克隆仓库
@@ -37,14 +52,87 @@ git clone https://github.com/affaan-m/everything-claude-code.git /tmp/ecc --dept
 # 安装依赖
 cd /tmp/ecc && npm install --no-audit --no-fund --loglevel=error
 
-# 安装到 Claude Code (默认)
+# 安装到 Claude Code
 node scripts/install-apply.js --profile developer
 
 # 安装到 OpenCode
 node scripts/install-apply.js --target opencode --profile developer
-
-# 可选 profiles: core, developer, security, research, full
 ```
+
+### Profile 选择
+
+| Profile | 内容 |
+|---------|------|
+| `core` | 核心规则和命令 |
+| `developer` | 开发者常用（推荐） |
+| `security` | 安全相关工具 |
+| `research` | 研究和学习工具 |
+| `full` | 全量安装 |
+
+---
+
+## 状态检查
+
+### 通过组件管理器
+
+```vim
+:AIComponents
+```
+
+选择器显示：
+- 安装状态 (✓ 已安装 / ○ 未安装)
+- 版本信息
+- 依赖状态
+
+### 通过命令
+
+```vim
+:AIComponentList
+```
+
+输出示例：
+```
+✓ ECC (Everything Claude Code) - Framework - installed
+○ GSD (Get Shit Done) - Framework - not installed
+```
+
+### 健康检查
+
+```vim
+:checkhealth ai
+```
+
+---
+
+## 更新
+
+### 通过组件管理器
+
+```vim
+:AIComponents
+```
+
+选择 ECC，按 `u` 更新。
+
+### 命令方式
+
+```vim
+:AIComponentUpdate ecc
+```
+
+---
+
+## 卸载
+
+### 通过组件管理器
+
+```vim
+:AIComponents
+```
+
+选择 ECC，按 `x` 卸载（会有确认对话框）。
+
+---
 
 ## 配置目录
 
@@ -54,8 +142,6 @@ node scripts/install-apply.js --target opencode --profile developer
 |------|----------|----------|------|
 | Claude Code | `~/.claude/` | - | rules, commands, agents, skills |
 | OpenCode | `~/.config/opencode/` | `~/.local/share/opencode/` | 配置文件、API 凭证 |
-
-> **迁移提示**: 如果你有旧版 `~/.opencode/` 目录，系统会自动迁移到 `~/.config/opencode/`
 
 ---
 
@@ -137,126 +223,6 @@ node scripts/install-apply.js --target opencode --profile developer
 
 ---
 
-## 详细使用示例
-
-### 1. 规划功能实现
-
-```
-用户: /plan 我需要添加实时通知功能
-
-Claude 会:
-1. 重述需求
-2. 识别风险和依赖
-3. 分阶段实现步骤
-4. 估算复杂度
-5. 等待你确认后才开始写代码
-```
-
-**输出示例:**
-```
-# 实现计划: 实时通知功能
-
-## 需求重述
-- 用户收到市场结算通知
-- 支持多渠道 (应用内、邮件、webhook)
-
-## 实现阶段
-
-### Phase 1: 数据库设计
-- 添加 notifications 表
-- 添加用户通知偏好表
-
-### Phase 2: 通知服务
-- 创建通知队列
-- 实现重试逻辑
-
-...
-
-## 风险评估
-- HIGH: 邮件送达率
-- MEDIUM: 大量用户性能
-
-**等待确认**: 是否按此计划执行？
-```
-
-### 2. 测试驱动开发 (TDD)
-
-```
-用户: /tdd 实现一个验证邮箱格式的函数
-
-Claude 会:
-1. 定义接口 (SCAFFOLD)
-2. 写失败的测试 (RED)
-3. 实现最小代码 (GREEN)
-4. 重构优化 (REFACTOR)
-5. 验证覆盖率 (80%+)
-```
-
-**TDD 循环:**
-```
-RED → GREEN → REFACTOR → REPEAT
-
-RED:      写一个会失败的测试
-GREEN:    写最少代码让测试通过
-REFACTOR: 优化代码，保持测试通过
-REPEAT:   下一个场景
-```
-
-### 3. 代码审查
-
-```
-用户: /code-review
-
-Claude 会检查:
-
-安全问题 (CRITICAL):
-- 硬编码凭证、API 密钥
-- SQL 注入
-- XSS 漏洞
-- 输入验证缺失
-
-代码质量 (HIGH):
-- 函数超过 50 行
-- 文件超过 800 行
-- 嵌套深度超过 4 层
-- 缺少错误处理
-
-最佳实践 (MEDIUM):
-- 可变模式
-- 缺少测试
-- 无障碍问题
-```
-
-### 4. 完整验证
-
-```
-用户: /verify
-
-输出:
-VERIFICATION: PASS
-
-Build:    OK
-Types:    OK
-Lint:     OK
-Tests:    45/45 passed, 87% coverage
-Secrets:  OK
-Logs:     OK (无 console.log)
-
-Ready for PR: YES
-```
-
-### 5. 查询文档
-
-```
-用户: /docs React 如何使用 useEffect?
-
-Claude 会:
-1. 通过 Context7 获取最新文档
-2. 返回简洁答案和代码示例
-```
-
----
-
 ## 规则系统
 
 ### 已安装的规则
@@ -301,86 +267,32 @@ Claude 会:
 
 ---
 
-## 高级功能
+## 组件管理器集成
 
-### 多模型协作
+ECC 现已集成到 AI Component Manager：
 
-```
-/multi-plan      # 多模型协作规划
-/multi-execute   # 多模型协作执行
-/multi-backend   # 后端开发工作流
-/multi-frontend  # 前端开发工作流
-```
+### 组件信息
 
-### 会话持久化
+| 属性 | 值 |
+|------|---|
+| **名称** | ecc |
+| **类别** | framework |
+| **图标** | 🔧 |
+| **依赖** | git, npm, node |
+| **支持工具** | claude, opencode |
 
-```bash
-# 保存会话
-/save-session
+### 组件命令
 
-# 列出会话
-/sessions list
+| 命令 | 功能 |
+|------|------|
+| `:AIComponents` | 打开组件选择器 |
+| `:AIComponentInstall ecc` | 安装 ECC |
+| `:AIComponentUpdate ecc` | 更新 ECC |
+| `:AIComponentSwitch opencode ecc` | 设置 OpenCode 使用 ECC |
 
-# 创建别名方便记忆
-/sessions alias 2026-03-23 my-feature
+### 快捷键
 
-# 加载会话
-/sessions load my-feature
-
-# 恢复最近的会话
-/resume-session
-```
-
-### 学习与进化
-
-```bash
-# 从当前会话提取模式
-/learn
-
-# 查看已学习的本能
-/instinct-status
-
-# 将项目范围的本能提升到全局
-/promote
-
-# 清理过期未提升的本能
-/prune
-```
-
----
-
-## 开发工作流最佳实践
-
-### 新功能开发
-
-```
-1. /plan <功能描述>
-2. 确认计划
-3. /tdd <具体实现>
-4. /code-review
-5. /verify
-6. 提交代码
-```
-
-### Bug 修复
-
-```
-1. /tdd <先写能复现 bug 的测试>
-2. 实现修复
-3. /verify
-4. 提交代码
-```
-
-### 代码重构
-
-```
-1. /plan <重构范围>
-2. 确认计划
-3. 确保测试覆盖
-4. 执行重构
-5. /verify
-6. /code-review
-```
+- `<leader>kc` — 打开组件选择器
 
 ---
 
@@ -390,7 +302,7 @@ Claude 会:
 A: 是的，规则会自动加载到每个会话中。
 
 ### Q: 如何更新 ECC？
-A: 运行 `/configure-ecc` 重新安装或更新。
+A: 运行 `:AIComponents` 然后选择 ECC 按 `u`，或使用 `:AIComponentUpdate ecc`。
 
 ### Q: 如何添加新的语言规则？
 A: 在 `~/.claude/rules/<语言>/` 目录下创建规则文件。
@@ -406,5 +318,6 @@ A: 最低 80%，关键代码 (财务、认证、安全) 要求 100%。
 - 命令目录: `~/.claude/commands/`
 - 代理目录: `~/.claude/agents/`
 - 会话目录: `~/.claude/sessions/`
+- 组件管理器文档: [docs/COMPONENT_MANAGER_GUIDE.md](docs/COMPONENT_MANAGER_GUIDE.md)
 
 ---

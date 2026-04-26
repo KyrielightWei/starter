@@ -435,6 +435,56 @@ end
 function M.write_settings(opts)
   opts = opts or {}
 
+  -- 读取 switcher 分配的组件
+  local Switcher = require("ai.components.switcher")
+  local Registry = require("ai.components.registry")
+  local comp_name = Switcher.get_active("claude")
+
+  -- Guard: component not assigned
+  if not comp_name or not Registry.is_registered(comp_name) then
+    local assignments = Switcher.get_all()
+    local lines = {
+      "❌ Claude Code: 未分配组件",
+      "",
+      "  当前分配:",
+    }
+    for tool, comp in pairs(assignments) do
+      table.insert(lines, string.format("    %s → %s", tool, comp))
+    end
+    table.insert(lines, "")
+    table.insert(lines, "  修复选项:")
+    table.insert(lines, "    1. 运行组件选择器为 Claude Code 分配一个组件")
+    table.insert(lines, string.format("    2. 运行 :ClaudeCodeGenerateConfig 在分配组件后重试"))
+    table.insert(lines, "")
+    if comp_name then
+      table.insert(lines, string.format("  已分配: %s (但未在注册表中找到)", comp_name))
+      table.insert(lines, "  提示: 该组件可能未部署或未注册")
+    else
+      table.insert(lines, "  提示: Claude Code 还没有被分配到任何组件")
+    end
+
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
+    return false
+  end
+
+  -- 动态加载组件
+  local Component = require("ai.components." .. comp_name)
+
+  -- 检查组件是否已安装
+  if not Component.is_installed() then
+    local lines = {
+      string.format("❌ 组件 '%s' 未安装 (Claude Code 分配)", comp_name),
+      "",
+      "  快速修复:",
+      string.format("    运行 :%sDeployTools (部署到工具)", comp_name:upper()),
+      string.format("    或切换为其他已安装的组件"),
+      "",
+      string.format("  当前分配: claude → %s", comp_name),
+    }
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
+    return false
+  end
+
   ensure_config_dir()
 
   local final = build_final_settings(opts)
@@ -447,21 +497,22 @@ function M.write_settings(opts)
   -- 同步 ccstatusline 配置
   local ccstatusline_ok, ccstatusline_err = write_ccstatusline_settings()
 
-  -- 检测 ECC 框架状态并通知
-  local Ecc = require("ai.ecc")
-  local ecc = Ecc.get_status()
-  local notify_lines = { "✅ Claude Code settings written to: " .. path }
+  -- 检测组件状态并通知
+  local comp_status = Component.get_status()
+  local notify_lines2 = { "✅ Claude Code settings written to: " .. path }
 
   if ccstatusline_ok then
-    table.insert(notify_lines, "✅ ccstatusline config synced to: " .. get_ccstatusline_settings_path())
+    table.insert(notify_lines2, "✅ ccstatusline config synced to: " .. get_ccstatusline_settings_path())
   elseif ccstatusline_err then
-    table.insert(notify_lines, "⚠️  ccstatusline: " .. ccstatusline_err)
+    table.insert(notify_lines2, "⚠️  ccstatusline: " .. ccstatusline_err)
   end
 
-  vim.list_extend(notify_lines, { "" })
-  vim.list_extend(notify_lines, Ecc.format_notification(ecc))
+  vim.list_extend(notify_lines2, { "" })
+  if Component.format_notification then
+    vim.list_extend(notify_lines2, Component.format_notification(comp_status))
+  end
 
-  vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
+  vim.notify(table.concat(notify_lines2, "\n"), vim.log.levels.INFO)
 
   return true
 end
@@ -648,29 +699,44 @@ function M.check_dependencies()
     install_hint = "需要 npm/npx (通过 npx -y ccstatusline@latest 按需运行)",
   })
 
-  -- ECC 框架
-  local Ecc = require("ai.ecc")
-  table.insert(deps, {
-    name = "ECC Framework",
-    installed = Ecc.is_installed(),
-    install_hint = Ecc.install_hint(),
-  })
+  -- 动态检查 switcher 分配的组件依赖
+  local Switcher = require("ai.components.switcher")
+  local Registry = require("ai.components.registry")
+  local active_comp = Switcher.get_active("claude")
+  if active_comp and Registry.is_registered(active_comp) then
+    local ok, Component = pcall(require, "ai.components." .. active_comp)
+    if ok then
+      table.insert(deps, {
+        name = string.format("%s 组件", active_comp:upper()),
+        installed = Component.is_installed(),
+        install_hint = Component.install_hint and Component.install_hint() or ("运行 :" .. active_comp:upper() .. "DeployTools"),
+      })
+    end
+  end
 
   return deps
 end
 
 ----------------------------------------------------------------------
--- get_ecc_status(): 获取 ECC 框架安装状态
+-- get_active_component_status(): 动态获取 switcher 分配组件的安装状态
 ----------------------------------------------------------------------
-function M.get_ecc_status()
-  local Ecc = require("ai.ecc")
-  return Ecc.get_status()
+function M.get_active_component_status()
+  local Switcher = require("ai.components.switcher")
+  local comp_name = Switcher.get_active("claude")
+  if not comp_name then
+    return nil
+  end
+  local ok, Component = pcall(require, "ai.components." .. comp_name)
+  if not ok then
+    return nil
+  end
+  return Component.get_status()
 end
 
 function M.get_status()
   local installed, message = M.check_installation()
   local config_exists = vim.fn.filereadable(get_settings_path()) == 1
-  local ecc = M.get_ecc_status()
+  local comp = M.get_active_component_status()
   local deps = M.check_dependencies()
   local missing_deps = vim.tbl_filter(function(d)
     return not d.installed
@@ -681,7 +747,7 @@ function M.get_status()
     message = message,
     config_exists = config_exists,
     config_path = get_settings_path(),
-    ecc = ecc,
+    component = comp,
     missing_deps = missing_deps,
   }
 end

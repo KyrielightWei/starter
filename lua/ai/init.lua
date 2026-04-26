@@ -192,9 +192,20 @@ function M.setup(opts)
     end
   end
 
+  -- 初始化 Skill Studio
   local ok, SkillStudio = pcall(require, "ai.skill_studio")
   if ok then
     SkillStudio.setup()
+  end
+
+  -- 初始化组件管理器
+  local ok2, Components = pcall(require, "ai.components")
+  if ok2 then
+    Components.setup({
+      auto_discover = true,
+      keymap = true,
+      keymap_opts = { keymap = "<leader>kc" },
+    })
   end
 
   return M

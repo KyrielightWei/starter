@@ -25,7 +25,10 @@ local function run_git(args, opts)
   if result.code ~= 0 then
     local err = result.stderr or result.stdout or "unknown error"
     -- Redact any sensitive data that might leak in error output
-    err = err:gsub("(sk-)[%w]+", "%1***")
+    err = err:gsub("([\"']?)(sk[%-_][a-zA-Z0-9]{8})[a-zA-Z0-9]+(%1)", "%1%2***%3")
+    err = err:gsub("([\"']?)(ak[%-_][a-zA-Z0-9]{8})[a-zA-Z0-9]+(%1)", "%1%2***%3")
+    err = err:gsub("([\"']?)(dsk[%-_][a-zA-Z0-9]{8})[a-zA-Z0-9]+(%1)", "%1%2***%3")
+    err = err:gsub("([\"']?)(dp[%-_][a-zA-Z0-9]{8})[a-zA-Z0-9]+(%1)", "%1%2***%3")
     return { ok = false, error = err }
   end
 

@@ -127,7 +127,7 @@ function M.cycle_next()
   local sha = commit_list[current_index].sha
 
   -- Validate SHA before opening (T-06-01)
-  if not Diff.is_valid_sha(sha) then
+  if not Diff or not Diff.is_valid_sha or not Diff.is_valid_sha(sha) then
     vim.notify("无效的 SHA 格式: " .. sha, vim.log.levels.ERROR)
     return nil
   end
@@ -164,7 +164,7 @@ function M.cycle_prev()
   local sha = commit_list[current_index].sha
 
   -- Validate SHA before opening (T-06-01)
-  if not Diff.is_valid_sha(sha) then
+  if not Diff or not Diff.is_valid_sha or not Diff.is_valid_sha(sha) then
     vim.notify("无效的 SHA 格式: " .. sha, vim.log.levels.ERROR)
     return nil
   end

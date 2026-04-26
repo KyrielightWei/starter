@@ -13,32 +13,23 @@ local STATUS_SYMBOLS = {
   warning     = "⚠",
 }
 
+local function status_symbol(status)
+  return STATUS_SYMBOLS[status] or "?"
+end
+
 local MAX_COL_WIDTH = 16
 
 ----------------------------------------------------------------------
 -- Private: Truncate string to max width (UTF-8 safe)
 -- Fix WR-08: Use vim.fn.strcharpart to properly cut at character
--- boundaries instead of byte boundaries, preventing garbled output
--- for multi-byte characters (Chinese provider names, unicode symbols)
----------------------------------------------------------------------
+-- boundaries instead of byte boundaries.
+-- Fix WR-09: Use vim.fn.strcharlen instead of #str.
+----------------------------------------------------------------------
 local function truncate(str, max_len)
   max_len = max_len or MAX_COL_WIDTH
-  local chars = vim.fn.strchars(str)
+  local chars = vim.fn.strcharlen(str)
   if chars > max_len then
     return vim.fn.strcharpart(str, 0, max_len - 1) .. "…"
-  end
-  return str
-end
-
-----------------------------------------------------------------------
--- Private: Truncate string to max width
--- Fix WR-09: Use UTF-8 aware string.len() (str:ln()) instead of #str
--- which counts bytes. This prevents garbled Unicode characters.
-----------------------------------------------------------------------
-local function truncate(str)
-  -- str:ln() is Neovim's UTF-8 aware string length in characters
-  if str:ln() > MAX_COL_WIDTH then
-    return vim.fn.strcharpart(str, 0, MAX_COL_WIDTH - 1) .. "…"
   end
   return str
 end
@@ -97,7 +88,7 @@ function M.show_results(results, title)
     "Time(ms)", "Error"
   )
   table.insert(lines, header)
-  table.insert(lines, string.rep("─", #header))
+  table.insert(lines, string.rep("─", vim.api.nvim_strwidth(header)))
 
   -- Data rows
   for _, r in ipairs(results) do
@@ -118,8 +109,9 @@ function M.show_results(results, title)
   local num_rows = #lines
   local max_line_len = 0
   for _, line in ipairs(lines) do
-    if #line > max_line_len then
-      max_line_len = #line
+    local w = vim.api.nvim_strwidth(line)
+    if w > max_line_len then
+      max_line_len = w
     end
   end
 
@@ -173,8 +165,9 @@ function M.show_single_result(result, title)
   local num_rows = #lines + 4
   local max_line_len = 0
   for _, line in ipairs(lines) do
-    if #line > max_line_len then
-      max_line_len = #line
+    local w = vim.api.nvim_strwidth(line)
+    if w > max_line_len then
+      max_line_len = w
     end
   end
 

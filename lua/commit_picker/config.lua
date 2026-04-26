@@ -208,12 +208,20 @@ function M.get_config()
     return deep_copy(DEFAULT_CONFIG)
   end
 
-  -- Parse config file using pcall(dofile) — safe for user-owned files
-  local ok, raw = pcall(dofile, path)
+  -- Parse config file using sandboxed load — prevents arbitrary code execution
+  local content = table.concat(vim.fn.readfile(path), "\n")
+  local ok, raw = pcall(load, "return " .. content, path)
+  if ok and raw then
+    ok, raw = pcall(raw)
+  end
 
   if not ok or type(raw) ~= "table" then
-    vim.notify("commit_picker 配置文件格式错误，使用默认设置", vim.log.levels.WARN)
-    return deep_copy(DEFAULT_CONFIG)
+    -- Fallback: try dofile for backward compatibility with existing configs
+    ok, raw = pcall(dofile, path)
+    if not ok or type(raw) ~= "table" then
+      vim.notify("commit_picker 配置文件格式错误，使用默认设置", vim.log.levels.WARN)
+      return deep_copy(DEFAULT_CONFIG)
+    end
   end
 
   -- Merge with defaults and validate fields

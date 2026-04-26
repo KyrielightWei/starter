@@ -90,7 +90,7 @@ function M.format_notification(ecc)
     if ecc.installed_at then
       table.insert(lines, "  安装时间: " .. ecc.installed_at)
     end
-    if #ecc.modules > 0 then
+    if ecc.modules and type(ecc.modules) == "table" and #ecc.modules > 0 then
       table.insert(lines, "  模块: " .. table.concat(ecc.modules, ", "))
     end
   else

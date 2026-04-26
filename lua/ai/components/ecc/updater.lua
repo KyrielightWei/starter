@@ -17,7 +17,7 @@ local function validate_cache_path(path)
   local expected_base = vim.fn.expand("~/.local/share/nvim/ai_components/cache")
   local normalized = vim.fs.normalize(path)
   -- 检查路径遍历
-  if normalized:match("..") then
+  if normalized:match("%.%.") then
     return false, "Path traversal detected"
   end
   -- 检查是否在缓存目录范围内

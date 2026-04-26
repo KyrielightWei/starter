@@ -51,7 +51,7 @@ function M.list_providers()
   for _, name in ipairs(names) do
     local def = Providers.get(name)
     if def then
-      local display = string.format("%s  —  %s  —  %s", name, def.endpoint, def.model or "unknown")
+      local display = string.format("%s  —  %s  —  %s", name, def.endpoint or "unknown", def.model or "unknown")
       table.insert(result, { name = name, display = display, endpoint = def.endpoint, model = def.model })
     end
   end
@@ -163,7 +163,8 @@ function M.delete_provider(name)
     local new_lines = {}
     local skip = false
     for _, line in ipairs(lines) do
-      if line:match('M%.register%([\'"]' .. name .. '[\'"]%s*,') then
+      local escaped_name = escape_pattern(name)
+      if line:match('M%.register%([\'"]' .. escaped_name .. '[\'"]%s*,') then
         skip = true
       elseif skip then
         if line:match("^%s*%}%s*%)%s*$") then

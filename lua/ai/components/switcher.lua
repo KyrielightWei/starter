@@ -24,6 +24,19 @@ M._state_cache = nil
 ---@type number|nil
 local last_mtime = nil
 
+--- Deep copy helper to avoid mutating DEFAULT_STATE
+local function deep_copy(t)
+  local copy = {}
+  for k, v in pairs(t) do
+    if type(v) == "table" then
+      copy[k] = deep_copy(v)
+    else
+      copy[k] = v
+    end
+  end
+  return copy
+end
+
 --- 获取状态文件路径
 ---@return string
 function M.state_path()
@@ -95,7 +108,13 @@ function M.save_state(state)
   }
 
   for tool, comp_name in pairs(state.active) do
-    table.insert(lines, string.format('    %s = "%s",', tool, comp_name))
+    table.insert(lines, string.format('    ["%s"] = "%s",', tostring(tool):gsub('[%c"\\]', function(c)
+      local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
+      return escapes[c] or string.format('\\u%04x', c:byte())
+    end), comp_name:gsub('[%c"\\]', function(c)
+      local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
+      return escapes[c] or string.format('\\u%04x', c:byte())
+    end)))
   end
 
   table.insert(lines, "  },")
@@ -107,7 +126,8 @@ function M.save_state(state)
   if state.versions then
     table.insert(lines, "  versions = {")
     for comp_name, v_info in pairs(state.versions) do
-      table.insert(lines, string.format("    %s = {", comp_name))
+      local escaped_comp = comp_name:gsub('["\\]', '\\%0')
+      table.insert(lines, string.format("    %s = {", escaped_comp))
       if v_info.current then
         table.insert(lines, string.format('      current = "%s",', v_info.current))
       end
@@ -220,7 +240,7 @@ function M.reset()
     vim.fn.delete(STATE_PATH)
   end
 
-  M.save_state(DEFAULT_STATE)
+  M.save_state(deep_copy(DEFAULT_STATE))
 end
 
 --- 异步刷新所有已注册组件的远程版本信息

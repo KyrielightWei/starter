@@ -19,8 +19,8 @@ function M.register(name, component)
     return false, "Component name cannot be empty"
   end
 
-  -- WR-03: Validate component name characters (shell-dangerous prevention)
-  if name:match("[;'`$()%s]") then
+  -- GLM5-CR-03: Validate component name against all shell-dangerous characters
+  if name:match("[;|&<>'`$()%s]") then
     return false, "Component name contains invalid characters (shell-dangerous or whitespace)"
   end
 

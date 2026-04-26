@@ -28,7 +28,7 @@ function M.safe_write_file(path, content)
   local rename_success = false
   local rename_error = nil
 
-  local uv = vim.loop or vim.uv
+  local uv = vim.uv or vim.loop
   if uv and uv.fs_rename then
     -- FIX: uv.fs_rename returns nil on success, error on failure (NOT throws exception)
     local result, rename_err = uv.fs_rename(tmp_path, path)
@@ -86,13 +86,22 @@ function M.read_lua_table(path)
   local abs_path = vim.fn.fnamemodify(path, ":p")
   local abs_project_dir = vim.fn.fnamemodify(project_ai_dir, ":p")
   local abs_config_dir = vim.fn.fnamemodify(config_dir, ":p")
-  
-  -- Allow both project directory and user config directory
-  if abs_path:sub(1, #abs_project_dir) ~= abs_project_dir and 
-     abs_path:sub(1, #abs_config_dir) ~= abs_config_dir then
-    return nil, "Refusing to load file outside ai/ directory"
+
+  -- Use exact directory containment check (not prefix match)
+  -- Prevents bypass via sibling directories like ai_evil/
+  local uv = vim.uv or vim.loop
+  local stat = (uv.fs_stat or stat) and (uv.fs_stat or vim.uv.fs_stat)(abs_path)
+  if not stat or stat.type ~= "file" then
+    return nil, "Path is not a regular file: " .. path
   end
-  
+  local path_dir = vim.fn.fnamemodify(abs_path, ":h") .. "/"
+  if path_dir ~= abs_project_dir and path_dir ~= abs_config_dir then
+    -- Check subdirectory containment
+    if not path_dir:find("^" .. vim.pesc(abs_project_dir)) and not path_dir:find("^" .. vim.pesc(abs_config_dir)) then
+      return nil, "Refusing to load file outside ai/ directory"
+    end
+  end
+
   local ok, result = pcall(dofile, path)
   if not ok then
     return nil, "Failed to parse Lua file: " .. tostring(result)

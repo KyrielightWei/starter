@@ -26,9 +26,10 @@ local Registry = require("ai.components.registry")
 ---@param component_name string Component name
 ---@return string Full path to cache directory
 function M.get_cache_path(component_name)
-  -- EXT-WR-03: Use strict alphanumeric validation instead of simple regex
-  -- The previous regex [../] was too simple and missed encoded sequences like ..%2f
-  assert(component_name:match("^[a-zA-Z0-9_-]+$"), "Invalid component name: must be alphanumeric with underscores/hyphens only")
+  -- GLM5-WR-03: Return error instead of assert to avoid crashing Neovim session
+  if not component_name:match("^[a-zA-Z0-9_-]+$") then
+    return nil, string.format("Invalid component name: '%s' must be alphanumeric with underscores/hyphens only", component_name)
+  end
   return CACHE_BASE .. "/" .. component_name
 end
 
@@ -458,16 +459,35 @@ function M.update_cache(component_name, opts)
     cache_path = cache_path,
   })
 
-  local ok, msg
+  local call_ok, call_result
   if comp.update and type(comp.update) == "function" then
-    ok, msg = comp.update(update_opts)
+    call_ok, call_result = pcall(function()
+      return comp.update(update_opts)
+    end)
   else
     return false, string.format("Component '%s' does not implement update()", component_name)
   end
 
+  if not call_ok then
+    vim.notify(string.format("Failed to update cache for %s: %s", component_name, call_result), vim.log.levels.ERROR)
+    return false, call_result
+  end
+
+  -- comp.update() may return (boolean, string) or just boolean
+  local ok, msg
+  if type(call_result) == "boolean" then
+    ok = call_result
+    msg = nil
+  elseif type(call_result) == "table" and #call_result >= 1 then
+    ok = call_result[1]
+    msg = call_result[2]
+  else
+    ok = true
+  end
+
   if not ok then
-    vim.notify(string.format("Failed to update cache for %s: %s", component_name, msg), vim.log.levels.ERROR)
-    return false, msg
+    vim.notify(string.format("Failed to update cache for %s: %s", component_name, msg or "unknown error"), vim.log.levels.ERROR)
+    return false, msg or "update failed"
   end
 
   -- Per D-15: Get new version from git hash

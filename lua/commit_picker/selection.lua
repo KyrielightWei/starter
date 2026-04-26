@@ -28,11 +28,14 @@ function M.set_selected(shas)
     return
   end
 
-  -- Truncate to max 2 if more selected
+  local Diff = require("commit_picker.diff")
   local max_count = 2
   current_selection = {}
   for i = 1, math.min(#shas, max_count) do
-    table.insert(current_selection, shas[i])
+    local sha = tostring(shas[i])
+    if Diff.is_valid_sha(sha) then
+      table.insert(current_selection, sha)
+    end
   end
 end
 

@@ -195,7 +195,7 @@ local function check_provider_model_async(provider_name, model_id, callback)
   end
 
   -- Step 6: Make request
-  local timeout = def.timeout or 30000
+  local timeout = def.timeout or 10000
   local start_time = uv.now()
 
   do_request(base_url, api_key, model_id, timeout, function(obj)

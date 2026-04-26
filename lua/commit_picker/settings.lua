@@ -27,9 +27,6 @@ end
 ----------------------------------------------------------------------
 -- M.open() — fzf-lua picker showing current settings
 ----------------------------------------------------------------------
-----------------------------------------------------------------------
--- M.open() — fzf-lua picker showing current settings
-----------------------------------------------------------------------
 function M.open()
   -- Check fzf-lua availability (WR-02 fix: discard unused variable)
   local ok = pcall(require, "fzf-lua")

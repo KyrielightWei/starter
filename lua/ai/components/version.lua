@@ -150,7 +150,7 @@ function M.get_latest_npm_version(package_name, timeout)
     return nil
   end
 
-  local cmd = string.format("npm view %s version --json", package_name)
+  local cmd = string.format("npm view %s version --json", vim.fn.shellescape(package_name))
   local result = vim.fn.system(cmd)
 
   if vim.v.shell_error ~= 0 then
@@ -176,10 +176,10 @@ function M.get_latest_npm_version_async(package_name, callback)
     return
   end
 
-  local cmd = string.format("npm view %s version --json", package_name)
+  local cmd = string.format("npm view %s version --json", vim.fn.shellescape(package_name))
   local stdout = {}
-
-  vim.fn.jobstart(cmd, {
+  local timed_out = false
+  local job_id = vim.fn.jobstart(cmd, {
     on_stdout = function(_, data)
       if data then
         for _, line in ipairs(data) do
@@ -190,6 +190,7 @@ function M.get_latest_npm_version_async(package_name, callback)
       end
     end,
     on_exit = function(_, exit_code)
+      if timed_out then return end
       if exit_code ~= 0 or #stdout == 0 then
         callback(nil)
         return
@@ -198,6 +199,15 @@ function M.get_latest_npm_version_async(package_name, callback)
       callback(version ~= "" and version or nil)
     end,
   })
+  -- Timeout cleanup after 15 seconds
+  vim.defer_fn(function()
+    if timed_out then return end
+    timed_out = true
+    if job_id and job_id > 0 then
+      pcall(vim.fn.jobstop, job_id)
+    end
+    callback(nil)
+  end, 15000)
 end
 
 --- 同步获取 git 仓库最新版本（阻塞）
@@ -238,10 +248,10 @@ function M.get_latest_git_version_async(repo_url, callback)
     return
   end
 
-  local cmd = string.format("git ls-remote %s HEAD", repo_url)
+  local cmd = string.format("git ls-remote %s HEAD", vim.fn.shellescape(repo_url))
   local stdout = {}
-
-  vim.fn.jobstart(cmd, {
+  local timed_out = false
+  local job_id = vim.fn.jobstart(cmd, {
     on_stdout = function(_, data)
       if data then
         for _, line in ipairs(data) do
@@ -252,6 +262,7 @@ function M.get_latest_git_version_async(repo_url, callback)
       end
     end,
     on_exit = function(_, exit_code)
+      if timed_out then return end
       if exit_code ~= 0 or #stdout == 0 then
         callback(nil)
         return
@@ -260,6 +271,15 @@ function M.get_latest_git_version_async(repo_url, callback)
       callback(hash)
     end,
   })
+  -- Timeout cleanup after 15 seconds
+  vim.defer_fn(function()
+    if timed_out then return end
+    timed_out = true
+    if job_id and job_id > 0 then
+      pcall(vim.fn.jobstop, job_id)
+    end
+    callback(nil)
+  end, 15000)
 end
 
 --- 同步获取本地已克隆仓库的版本
@@ -270,7 +290,7 @@ function M.get_local_git_version(repo_path)
     return nil, nil
   end
 
-  local current_hash = vim.fn.system(string.format("git -C %s rev-parse HEAD", repo_path))
+  local current_hash = vim.fn.system(string.format("git -C %s rev-parse HEAD", vim.fn.shellescape(repo_path)))
 
   if vim.v.shell_error ~= 0 then
     return nil, nil
@@ -278,7 +298,7 @@ function M.get_local_git_version(repo_path)
 
   current_hash = current_hash:gsub("\n", "")
 
-  local fetch_result = vim.fn.system(string.format("git -C %s fetch --dry-run 2>&1", repo_path))
+  local fetch_result = vim.fn.system(string.format("git -C %s fetch --dry-run 2>&1", vim.fn.shellescape(repo_path)))
   local needs_fetch = fetch_result:match("would fetch") or fetch_result:match("new commits")
 
   return current_hash, needs_fetch and -1 or 0

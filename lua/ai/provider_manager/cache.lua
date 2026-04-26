@@ -18,6 +18,7 @@ local DEFAULT_TTL = 60
 
 -- In-memory cache layer to avoid repeated disk I/O during batch checks
 local _memory_cache = nil
+local _memory_cache_time = nil
 
 ----------------------------------------------------------------------
 -- Path helpers
@@ -65,17 +66,25 @@ local function save_cache(data)
   vim.fn.mkdir(dir, "p")
 
   local content = vim.json.encode(data)
-  vim.fn.writefile(vim.split(content, "\n"), path)
+  vim.fn.writefile({ content }, path)
 end
 
 ----------------------------------------------------------------------
 -- Private: Get cache data (from memory or disk)
 ----------------------------------------------------------------------
 local function get_cache_data()
-  if _memory_cache then
-    return _memory_cache
+  if _memory_cache and _memory_cache_time then
+    -- Check if all entries are still valid; if not, reload from disk
+    local now = vim.loop.now() / 1000
+    if now - _memory_cache_time > DEFAULT_TTL then
+      _memory_cache = nil
+      _memory_cache_time = nil
+    else
+      return _memory_cache
+    end
   end
   _memory_cache = load_cache()
+  _memory_cache_time = vim.loop.now() / 1000
   return _memory_cache
 end
 

@@ -116,29 +116,35 @@ function M.show_picker(commits, opts)
     },
     -- Preview: show commit stat with caching for performance (WR-04 fix)
     preview = (function()
-      local preview_cache = {}
-      return function(selected)
-        if not selected or #selected == 0 then return "" end
-        local line = type(selected) == "table" and selected[1] or selected
-        -- Extract SHA: strip ANSI codes if present
-        local clean_line = line:gsub("\27%[[^m]*m", "")
-        local sha = clean_line:match("^%[([%x]+)%]") or line:match("^%[([%x]+)%]")
-        if sha then
-          sha = sha_map[line] or sha_map[clean_line] or sha
-        end
-        if not sha then return "" end
+        local preview_cache = {}
+        local PREVIEW_CACHE_MAX = 100
+        return function(selected)
+          if not selected or #selected == 0 then return "" end
+          local line = type(selected) == "table" and selected[1] or selected
+          local clean_line = line:gsub("\27%[[^m]*m", "")
+          local sha = clean_line:match("^%[([%x]+)%]") or line:match("^%[([%x]+)%]")
+          if sha then
+            sha = sha_map[line] or sha_map[clean_line] or sha
+          end
+          if not sha then return "" end
 
-        -- Check cache first
-        if preview_cache[sha] then
-          return preview_cache[sha]
-        end
+          if preview_cache[sha] then
+            return preview_cache[sha]
+          end
 
-        -- Synchronous for now (WR-04 — async requires fzf-lua async preview API)
-        local result = vim.system({ "git", "show", sha, "--stat" }):wait()
-        local output = result.stdout or ""
-        preview_cache[sha] = output
-        return output
-      end
+          -- Evict overflow
+          local count = 0
+          for _ in pairs(preview_cache) do count = count + 1 end
+          if count >= PREVIEW_CACHE_MAX then
+            local key = next(preview_cache)
+            preview_cache[key] = nil
+          end
+
+          local result = vim.system({ "git", "show", sha, "--stat" }):wait()
+          local output = result.stdout or ""
+          preview_cache[sha] = output
+          return output
+        end
     end)(),
   })
 end

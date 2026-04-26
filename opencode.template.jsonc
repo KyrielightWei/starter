@@ -1,11 +1,16 @@
 {
   "$schema": "https://opencode.ai/config.json",
 
-  // OpenCode 配置模板
+  // ═══════════════════════════════════════════════════════════
+  // OpenCode 配置模板 - 已美化 🎨
   // 修改后运行 :OpenCodeGenerateConfig 生成最终配置
+  // ═══════════════════════════════════════════════════════════
 
   // 默认模型 (格式: provider/model)
   "model": "bailian_coding/qwen3.6-plus",
+
+  // 辅助模型（快速响应）
+  "small_model": "bailian_coding/qwen3.6-plus",
 
   // 自动更新
   "autoupdate": false,
@@ -13,8 +18,176 @@
   // 会话共享
   "share": "manual",
 
-  // 权限配置
-  "permission": {},
+  // ═══════════════════════════════════════════════════════════
+  // 权限配置 - 安全优先 🛡️
+  // 常见操作自动允许，仅对危险操作进行询问
+  // ═══════════════════════════════════════════════════════════
+  "permission": {
+    // 文件读取：默认允许，但保护敏感文件
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      ".env*": "ask",
+      "*credentials*": "ask",
+      "*secret*": "ask",
+      "*password*": "ask",
+      "*token*": "ask",
+      "*key*.pem": "ask",
+      "*key*.key": "ask"
+    },
+
+    // 文件编辑：允许常规编辑，阻止删除和 git 操作
+    "edit": {
+      "*": "allow",
+      "*.lock": "ask"
+    },
+
+    // Bash 命令：精细控制
+    "bash": {
+      // 默认允许大多数命令
+      "*": "allow",
+
+      // === 允许：只读操作 ===
+      "ls *": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "find *": "allow",
+      "stat *": "allow",
+      "du *": "allow",
+      "df *": "allow",
+      "wc *": "allow",
+      "which *": "allow",
+      "whereis *": "allow",
+      "uname *": "allow",
+      "date *": "allow",
+      "echo *": "allow",
+
+      // === 允许：代码搜索 ===
+      "grep *": "allow",
+      "rg *": "allow",
+      "ag *": "allow",
+      "ack *": "allow",
+
+      // === 允许：Git 只读操作 ===
+      "git status*": "allow",
+      "git log*": "allow",
+      "git diff*": "allow",
+      "git show*": "allow",
+      "git branch*": "allow",
+      "git tag*": "allow",
+      "git remote*": "allow",
+      "git fetch*": "allow",
+      "git rev-parse*": "allow",
+      "git ls-files*": "allow",
+      "git describe*": "allow",
+      "git reflog*": "allow",
+
+      // === 允许：构建和测试 ===
+      "npm run build*": "allow",
+      "npm run test*": "allow",
+      "npm run lint*": "allow",
+      "yarn run*": "allow",
+      "pnpm run*": "allow",
+      "make*": "allow",
+      "cargo build*": "allow",
+      "cargo test*": "allow",
+      "cargo check*": "allow",
+      "go build*": "allow",
+      "go test*": "allow",
+      "go vet*": "allow",
+      "python -m pytest*": "allow",
+      "pytest*": "allow",
+
+      // === 允许：安装依赖 ===
+      "npm install*": "allow",
+      "npm ci*": "allow",
+      "yarn install*": "allow",
+      "pnpm install*": "allow",
+      "cargo install*": "allow",
+      "go get*": "allow",
+      "pip install*": "allow",
+      "pip3 install*": "allow",
+
+      // === 允许：格式化和 LSP ===
+      "stylua*": "allow",
+      "prettier*": "allow",
+      "eslint*": "allow",
+      "rustfmt*": "allow",
+      "gofmt*": "allow",
+      "goimports*": "allow",
+
+      // === 需要确认：Git 写入操作 ===
+      "git pull*": "ask",
+      "git merge*": "ask",
+
+      // === 需要确认：文件删除 ===
+      "rm *": "ask",
+      "rm -rf *": "ask",
+      "rm -r *": "ask",
+      "unlink *": "ask",
+      "delete *": "ask",
+      "mv * /dev/null": "ask",
+      "trash *": "ask",
+
+      // === 需要确认：Git 推送和强制操作 ===
+      "git push*": "ask",
+      "git push -f*": "ask",
+      "git push --force*": "ask",
+      "git push --force-with-lease*": "ask",
+      "git reset --hard*": "ask",
+      "git reset --hard": "ask",
+      "git checkout -f*": "ask",
+      "git clean*": "ask",
+      "git clean -f*": "ask",
+      "git clean -fd*": "ask",
+
+      // === 需要确认：权限修改 ===
+      "chmod *": "ask",
+      "chown *": "ask",
+      "chgrp *": "ask",
+
+      // === 需要确认：系统管理 ===
+      "sudo *": "ask",
+      "apt-get *": "ask",
+      "yum *": "ask",
+      "brew *": "ask",
+      "systemctl *": "ask",
+      "service *": "ask"
+    },
+
+    // 外部目录：默认询问
+    "external_directory": "ask",
+
+    // 防死循环：自动询问
+    "doom_loop": "ask",
+
+    // 子代理权限：更严格
+    "task": "ask",
+    "skill": "allow"
+  },
+
+  // Agent 权限覆盖
+  "agent": {
+    "plan": {
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "ask",
+          // Plan 模式允许只读操作
+          "git status*": "allow",
+          "git log*": "allow",
+          "git diff*": "allow",
+          "grep *": "allow",
+          "cat *": "allow",
+          "ls *": "allow",
+          "find *": "allow",
+          "rg *": "allow"
+        }
+      }
+    }
+  },
 
   // 文件监视器配置
   "watcher": {
@@ -22,7 +195,10 @@
       "node_modules/**",
       "dist/**",
       ".git/**",
-      "*.log"
+      "*.log",
+      ".DS_Store",
+      "coverage/**",
+      ".nyc_output/**"
     ]
   },
 
@@ -31,5 +207,19 @@
     "auto": true,
     "prune": true,
     "reserved": 10000
+  },
+
+  // 主题配置（在 tui.json 中设置）
+  // 运行 :OpenCodeGenerateTUI 生成自定义主题
+  // 可用主题: system, tokyonight, everforest, ayu, catppuccin, gruvbox, kanagawa, nord, matrix, one-dark, lytmode（自定义）
+
+  // 工具配置
+  "tools": {
+    // 启用内置工具
+  },
+
+  // 格式化配置
+  "formatter": {
+    // 使用项目的 conform.nvim 格式化器
   }
 }

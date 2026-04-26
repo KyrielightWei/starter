@@ -5,6 +5,7 @@
 local Providers = require("ai.providers")
 local Fetch = require("ai.fetch_models")
 local Util = require("ai.util")
+local Status = require("ai.provider_manager.status")
 
 local M = {}
 
@@ -35,7 +36,7 @@ function M.select(callback)
         ----------------------------------------------------------------
         -- Step 2: 动态拉取模型
         ----------------------------------------------------------------
-        local models_raw, tried, succ, fail = Fetch.fetch(provider)
+        local models_raw, _, _, _ = Fetch.fetch(provider)
 
         local models_for_display = {}
         local id_map = {}
@@ -80,6 +81,24 @@ function M.select(callback)
               ----------------------------------------------------------------
               -- 返回最终选择结果
               ----------------------------------------------------------------
+              -- PMGR-07: Auto-detect availability in background before callback
+              Status.trigger_async_check(provider, model, function(result)
+                if result and result.status ~= "available" then
+                  local msg = string.format("[AI] %s / %s 状态: %s", provider, model, result.status or "unknown")
+                  if result.error_msg and result.status == "error" then
+                    msg = msg .. " — " .. result.error_msg
+                  elseif result.status == "unavailable" then
+                    msg = msg .. " — 模型可能不可用"
+                  elseif result.status == "timeout" then
+                    msg = msg .. " — 检测超时"
+                  end
+                  -- C-01/C-10: vim.notify wrapped in vim.schedule for async callback safety
+                  vim.schedule(function()
+                    vim.notify(msg, vim.log.levels.WARN, { title = "AI Provider", replace = true })
+                  end)
+                end
+              end)
+
               if callback then
                 callback({
                   provider = provider,

@@ -267,28 +267,25 @@ function M.toggle()
 end
 
 ----------------------------------------------------------------------
--- diff(): 查看差异
+-- diff(): 查看差异 — 使用 DiffviewOpenEnhanced 打开当前工作区变更
 ----------------------------------------------------------------------
 function M.diff()
-  -- 先尝试 codediff
-  local ok = pcall(require, "codediff")
-  if ok then
-    vim.cmd("CodeDiff")
-    return
-  end
-
-  -- 尝试 avante 的 diff
-  local ok2, avante = pcall(require, "avante")
-  if ok2 and avante.show_diff then
-    local ok3, err = pcall(avante.show_diff)
-    if not ok3 and tostring(err):find("avante_templates") then
-      error("NEED_BUILD")
+  -- 检查 diffview.nvim 是否可用
+  local ok_dv = pcall(require, "diffview")
+  if ok_dv then
+    -- 使用 DiffviewOpenEnhanced（支持 worktree 和自定义 git 路径）
+    local ok_cmd, err = pcall(vim.cmd, "DiffviewOpenEnhanced")
+    if not ok_cmd then
+      vim.notify("Diffview 打开失败: " .. tostring(err), vim.log.levels.ERROR)
     end
     return
   end
 
-  -- 使用 git diff
-  vim.cmd("Git diff")
+  -- fallback: 使用 vim-fugitive
+  local ok_fug = pcall(vim.cmd, "Git diff")
+  if not ok_fug then
+    vim.notify("Git diff 不可用，请安装 diffview.nvim 或 vim-fugitive", vim.log.levels.WARN)
+  end
 end
 
 ----------------------------------------------------------------------

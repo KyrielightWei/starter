@@ -524,7 +524,7 @@ function M.edit_settings()
     M.write_settings()
   end
 
-  vim.cmd("edit " .. path)
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
 end
 
 function M.edit_template()
@@ -581,7 +581,7 @@ function M.edit_template()
     vim.fn.writefile(vim.split(default_template, "\n"), template_path)
   end
 
-  vim.cmd("edit " .. template_path)
+  vim.cmd("edit " .. vim.fn.fnameescape(template_path))
 end
 
 function M.edit_ccstatusline_template()
@@ -619,7 +619,7 @@ function M.edit_ccstatusline_template()
     end
   end
 
-  vim.cmd("edit " .. template_path)
+  vim.cmd("edit " .. vim.fn.fnameescape(template_path))
 end
 
 function M.preview_settings()

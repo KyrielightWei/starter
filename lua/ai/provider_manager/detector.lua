@@ -83,6 +83,11 @@ end
 -- Private: Make async HTTP request via vim.system
 ----------------------------------------------------------------------
 local function do_request(base_url, api_key, model, timeout_ms, callback)
+  if vim.fn.executable("curl") ~= 1 then
+    callback({ code = -1, stdout = "", stderr = "curl not found on PATH" })
+    return
+  end
+
   local url = build_url(base_url)
   local timeout_sec = math.max(1, math.floor(timeout_ms / 1000))
 

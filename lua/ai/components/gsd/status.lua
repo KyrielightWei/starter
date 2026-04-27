@@ -51,7 +51,7 @@ function M.is_npm_installed()
     return false
   end
 
-  local result = vim.fn.system("npm list -g " .. GSD_PACKAGE .. " --depth=0 2>&1")
+  local result = vim.fn.system("npm list -g " .. vim.fn.shellescape(GSD_PACKAGE) .. " --depth=0 2>&1")
 
   -- 检查输出是否包含包名
   return result:match(GSD_PACKAGE) ~= nil and not result:match("empty")

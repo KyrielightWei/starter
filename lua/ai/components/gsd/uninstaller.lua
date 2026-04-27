@@ -27,7 +27,7 @@ function M.uninstall(opts)
 
   -- 卸载 npm 包（如果全局安装）
   if Status.is_npm_installed() then
-    local cmd = "npm uninstall -g " .. GSD_PACKAGE
+    local cmd = "npm uninstall -g " .. vim.fn.shellescape(GSD_PACKAGE)
     local result = vim.fn.system(cmd)
 
     if vim.v.shell_error == 0 then

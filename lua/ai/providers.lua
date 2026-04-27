@@ -94,7 +94,7 @@ M.register("bailian_coding", {
   api_key_name = "BAILIAN_CODING_API_KEY",
   endpoint = "https://coding.dashscope.aliyuncs.com/v1",
   model = "qwen3.6-plus",
-static_models = { "glm-5", "qwen3.5-plus", "qwen3.6-plus", "kimi-k2.5", "MiniMax-M2.5", "test", "test2", "test3" },
+  static_models = { "glm-5", "qwen3.5-plus", "qwen3.6-plus", "kimi-k2.5", "MiniMax-M2.5" },
 })
 
 M.register("dashscope", {

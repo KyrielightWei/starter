@@ -720,7 +720,7 @@ if vim.fn.filereadable(template_path) == 0 then
     vim.notify("已创建默认模板文件", vim.log.levels.INFO)
   end
 
-  vim.cmd("edit " .. template_path)
+  vim.cmd("edit " .. vim.fn.fnameescape(template_path))
 
   vim.api.nvim_buf_set_option(0, "filetype", "jsonc")
   vim.api.nvim_buf_set_option(0, "commentstring", "// %s")

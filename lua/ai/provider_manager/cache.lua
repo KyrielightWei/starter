@@ -74,8 +74,8 @@ end
 ----------------------------------------------------------------------
 local function get_cache_data()
   if _memory_cache and _memory_cache_time then
-    -- Check if all entries are still valid; if not, reload from disk
-    local now = vim.loop.now() / 1000
+    local uv = vim.uv or vim.loop
+    local now = uv.now() / 1000
     if now - _memory_cache_time > DEFAULT_TTL then
       _memory_cache = nil
       _memory_cache_time = nil
@@ -84,7 +84,8 @@ local function get_cache_data()
     end
   end
   _memory_cache = load_cache()
-  _memory_cache_time = vim.loop.now() / 1000
+  local uv = vim.uv or vim.loop
+  _memory_cache_time = uv.now() / 1000
   return _memory_cache
 end
 

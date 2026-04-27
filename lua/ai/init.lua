@@ -92,35 +92,40 @@ end
 ----------------------------------------------------------------------
 -- 快捷键配置
 -- 前缀：<leader>k（AI 相关功能）
+-- 
+-- 分类：
+--   c/n/e/q/s  - AI 核心交互
+--   p/P/A      - Provider Manager
+--   C/f/b/d    - Commit Picker & Diff
+--   k/S/K/T    - 配置与同步
+--   t          - 面板控制
 ----------------------------------------------------------------------
 local keys = {
   -- AI 核心功能（<leader>k 前缀）
   { "<leader>k", group = "AI Interactive", icon = "🤖" },
 
-  -- 核心交互
+  -- === AI 核心交互 ===
   { "<leader>kc", mode = "n", fn = call("chat"), desc = "AI Chat", icon = "💬" },
   { "<leader>kn", mode = "n", fn = call("chat_new"), desc = "AI New Chat", icon = "✨" },
   { "<leader>ke", mode = "v", fn = call("edit"), desc = "AI Edit Selection", icon = "✏️" },
   { "<leader>kq", mode = "n", fn = call("ask"), desc = "AI Quick Ask", icon = "❓" },
+  { "<leader>ks", mode = "n", fn = call("model_switch"), desc = "Model Switch", icon = "🔄" },
+  { "<leader>kK", mode = "n", fn = call("key_manager"), desc = "Key Manager", icon = "🔑" },
+  { "<leader>kS", mode = "n", fn = call("sessions"), desc = "Chat Sessions", icon = "📁" },
+  { "<leader>kt", mode = "n", fn = call("toggle"), desc = "Toggle Panel", icon = "📋" },
 
-  -- 模型与配置
-  { "<leader>ks", mode = "n", fn = call("model_switch"), desc = "AI Model Switch", icon = "🔄" },
-  { "<leader>kk", mode = "n", fn = call("key_manager"), desc = "AI Key Manager", icon = "🔑" },
-  { "<leader>kS", mode = "n", fn = call("sessions"), desc = "AI Chat Sessions", icon = "📁" },
-
-  -- Provider Manager (Phase 1, Plan 03)
+  -- === Provider Manager ===
   { "<leader>kp", mode = "n", fn = function()
       local ok, PM = pcall(require, "ai.provider_manager")
       if ok then PM.open() end
-    end, desc = "AI Provider Manager" },
+    end, desc = "Provider Manager" },
 
-  -- Commit Picker (Phase 4)
+  -- === Commit Picker & Diff ===
   { "<leader>kC", mode = "n", fn = function()
       local ok, CP = pcall(require, "commit_picker.init")
       if ok then CP.open() end
-    end, desc = "AI Commit Picker" },
+    end, desc = "Commit Picker" },
 
-  -- Commit Diff Navigation (Phase 6) — D-22/D-23: kf=forward, kb=backward
   { "<leader>kf", mode = "n", fn = function()
       local ok_nav, Nav = pcall(require, "commit_picker.navigation")
       if not ok_nav or not Nav.is_loaded() then
@@ -146,7 +151,7 @@ local keys = {
       else
         Nav.cycle_next()
       end
-    end, desc = "AI Next Commit" },
+    end, desc = "Next Commit" },
 
   { "<leader>kb", mode = "n", fn = function()
       local ok, Nav = pcall(require, "commit_picker.navigation")
@@ -155,15 +160,11 @@ local keys = {
         return
       end
       Nav.cycle_prev()
-    end, desc = "AI Previous Commit" },
+    end, desc = "Prev Commit" },
 
-  -- 面板控制
-  { "<leader>kt", mode = "n", fn = call("toggle"), desc = "AI Toggle Panel", icon = "📋" },
+  { "<leader>kd", mode = "n", fn = call("diff"), desc = "Diff Viewer", icon = "📊" },
 
-  -- Diff 查看
-  { "<leader>kd", mode = "n", fn = call("diff"), desc = "AI Diff Viewer", icon = "📊" },
-
-  -- Suggestion 相关（插入模式）
+  -- === Suggestion（插入模式）===
   { "<M-]>", mode = "i", fn = call("suggestion_next"), desc = "Next AI Suggestion", icon = "⬇️" },
   { "<M-[>", mode = "i", fn = call("suggestion_prev"), desc = "Prev AI Suggestion", icon = "⬆️" },
   { "<M-\\>", mode = "i", fn = call("suggestion_accept"), desc = "Accept AI Suggestion", icon = "✅" },

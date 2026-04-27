@@ -115,10 +115,8 @@ end
 function M.setup(opts)
   opts = opts or {}
 
-  -- Phase 1: Provider Manager picker
-  vim.keymap.set("n", "<leader>kp", function()
-    Picker.open()
-  end, { desc = "AI Provider Manager" })
+  -- Note: <leader>kp is defined in ai/init.lua to avoid duplication
+  -- Provider Manager picker is accessible via :AIProviderManager
 
   vim.api.nvim_create_user_command("AIProviderManager", function()
     Picker.open()

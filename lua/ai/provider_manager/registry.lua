@@ -255,6 +255,16 @@ function M.set_default_model(provider_name, model_id)
     def.model = model_id
   end
 
+  -- Trigger config sync to Claude Code / OpenCode
+  -- Keys.write() directly writes file (no BufWritePost event)
+  -- so we must manually trigger sync
+  vim.schedule(function()
+    local ok, Sync = pcall(require, "ai.sync")
+    if ok then
+      Sync.sync_all({ silent = true })
+    end
+  end)
+
   vim.notify(string.format("Set %s default model to: %s", provider_name, model_id), vim.log.levels.INFO)
   return true
 end

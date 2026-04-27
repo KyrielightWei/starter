@@ -207,11 +207,12 @@ end, { desc = "Force sync AI configs" })
 return {
   "akinsho/toggleterm.nvim",
   optional = true,
+  -- 配置同步与工具（避免与 AI 核心快捷键冲突）
   keys = {
-    { "<leader>kC", "<cmd>AICopyContext<CR>", desc = "Copy AI Context" },
-    { "<leader>kY", "<cmd>AISyncAll<CR>", desc = "Sync All AI Configs" },
+    { "<leader>kY", "<cmd>AICopyContext<CR>", desc = "Copy AI Context" },
+    { "<leader>k=", "<cmd>AISyncAll<CR>", desc = "Sync All AI Configs" },
     { "<leader>kT", "<cmd>OpenCodeGenerateTUI<CR>", desc = "Generate OpenCode TUI Theme" },
-    { "<leader>kP", "<cmd>OpenCodePreviewTheme<CR>", desc = "Preview OpenCode Theme" },
+    { "<leader>k$", "<cmd>OpenCodePreviewTheme<CR>", desc = "Preview OpenCode Theme" },
   },
   config = function()
     vim.schedule(function()

@@ -6,9 +6,12 @@
 
 | 文档 | 说明 |
 |------|------|
-| [ai-module.md](ai-module.md) | AI 模块配置指南 |
+| [AI_KEYMAPS.md](AI_KEYMAPS.md) | AI 快捷键完整参考 |
+| [PROVIDER_MANAGER_GUIDE.md](PROVIDER_MANAGER_GUIDE.md) | Provider Manager 使用指南 |
+| [COMMIT_PICKER_GUIDE.md](COMMIT_PICKER_GUIDE.md) | Commit Picker & Diff 使用指南 |
 | [COMPONENT_MANAGER_GUIDE.md](COMPONENT_MANAGER_GUIDE.md) | Component Manager 使用指南 |
 | [COMPONENT_MANAGER_API.md](COMPONENT_MANAGER_API.md) | Component Manager API 参考 |
+| [ai-module.md](ai-module.md) | AI 模块配置指南 |
 | [OPENCODE_CLAUDE_COMPARISON.md](OPENCODE_CLAUDE_COMPARISON.md) | OpenCode vs Claude Code 对比 |
 | [MULTI_MODEL_AI_CODING_TOOLS_COMPARISON.md](MULTI_MODEL_AI_CODING_TOOLS_COMPARISON.md) | 多模型 AI 编码工具对比 |
 | [diffview.md](diffview.md) | Diffview 配置指南 |
@@ -24,13 +27,14 @@
 
 ## 快速参考
 
-### AI 交互 (`<leader>k`)
+### AI 快捷键 (`<leader>k`)
 
 | 快捷键 | 功能 |
 |--------|------|
-| `<leader>kc` | Component Manager |
-| `<leader>kC` | AI Chat |
-| `<leader>ke` | AI Edit |
+| `<leader>kc` | AI Chat |
+| `<leader>kp` | Provider Manager |
+| `<leader>kC` | Commit Picker |
+| `<leader>kd` | Diff Viewer |
 | `<leader>ks` | Model Switch |
 
 ### 配置文件位置
@@ -38,5 +42,8 @@
 | 配置 | 路径 |
 |------|------|
 | AI 模块 | `lua/ai/` |
+| Provider Manager | `lua/ai/provider_manager/` |
+| Commit Picker | `lua/commit_picker/` |
 | Component Manager | `lua/ai/components/` |
 | API Keys | `~/.local/state/nvim/ai_keys.lua` |
+| Providers 注册 | `lua/ai/providers.lua` |

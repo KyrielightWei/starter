@@ -18,22 +18,21 @@
 
 ## 界面说明
 
+Commit Picker 使用 fzf-lua 模糊搜索界面，顶部有三行可见的操作项（可通过 ↑ ↓ 导航并回车触发）：
+
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  Commit Picker                                  [?] Help      ║
-╠══════════════════════════════════════════════════════════════╣
-║  SHA       Author     Date        Subject                     ║
-║  ─────────────────────────────────────────────────────────── ║
-║  > 5b947a6  you        2026-04-27  fix: resolve review issues ║
-║    8523ba8  you        2026-04-26  Merge remote branch        ║
-║    4b0ef63  you        2026-04-26  fix: apply review findings ║
-║    528533c  you        2026-04-25  feat: commit picker        ║
-║    ─────────────────────────────────────────────────────────── ║
-║    ● Base: 7f25b0d (GSD v1.0)                                ║
-╠══════════════════════════════════════════════════════════════╣
-║  [Enter] Diff │ [s] Select │ [b] Set Base │ [c] Config │ [?]  ║
-╚══════════════════════════════════════════════════════════════╝
+⚡  [b] 设为基础提交 (Set Base)
+⚙  [c] 打开配置面板 (Config)
+❓  [?] 帮助 (Help)
+───────────────────────────────────────────────
+[5b947a6]  fix: resolve review issues  (2026-04-27)
+[8523ba8]  Merge remote branch         (2026-04-26)
+[7f25b0d]  base | [528533c]  feat: ...  (2026-04-25)
+...
 ```
+
+顶部 Header 显示快捷键提示：
+`<Enter> Diff  <Ctrl+space> Select  <Ctrl+b> Set Base  <Ctrl+c> Config  <Ctrl+?> Help`
 
 ### 标记说明
 
@@ -52,11 +51,12 @@
 | 快捷键 | 功能 | 说明 |
 |--------|------|------|
 | `Enter` | Open Diff | 打开选中 commit 的 diff |
-| `s` | Select | 选中/取消选中（用于多选比较） |
-| `b` | Set Base | 设为比较基准 |
-| `c` | Config | 打开配置面板 |
-| `r` | Refresh | 刷新 commit 列表 |
-| `?` | Help | 显示帮助 |
+| `Ctrl+Space` | Select | 选中/取消选中（用于多选比较） |
+| `Ctrl+A` | Toggle All | 全选/取消全选 |
+| `Ctrl+B` | Set Base | 弹出子 picker 选择基础提交，选中后自动刷新主 picker |
+| `Ctrl+C` | Config | 打开配置面板 (`:AICommitConfig`) |
+| `Ctrl+?` | Help | 显示帮助窗口 |
+| **可见 Action 行** | 同上 | 在列表顶部有 `⚡ Set Base` / `⚙ Config` / `❓ Help` 可见操作项，可用 ↑ ↓ 导航并回车触发 |
 | `q` / `Esc` | Quit | 关闭面板 |
 
 ### Diff 导航（在 Diffview 中）
@@ -95,8 +95,8 @@
 ### 多 Commit 比较
 
 1. `<leader>kC` 打开 Commit Picker
-2. 按 `s` 选中第一个 commit
-3. 按 `s` 选中第二个 commit
+2. 按 `Ctrl+Space` 选中第一个 commit
+3. 按 `Ctrl+Space` 选中第二个 commit
 4. 按 `Enter` 打开 diff
 5. 显示两个 commit 之间的差异
 
@@ -105,8 +105,8 @@
 用于 GSD 多 commit 工作流审查：
 
 1. `<leader>kC` 打开 Commit Picker
-2. 找到起始 commit，按 `b` 设为 Base
-3. Picker 自动显示 Base 之后的所有 commit
+2. 按 `Ctrl+B` 或选择顶部的 `⚡ [b] 设为基础提交` 行，进入 Base 选择子 picker
+3. 选择基础提交并确认，主 Picker 自动刷新显示 Base 之后的所有 commit
 4. 导航审查所有变更
 
 ---
@@ -167,7 +167,7 @@ Diffview 需要 Git >= 2.31。
 <leader>kC
 
 " 2. 设置 Base commit（起始点）
-b
+<Ctrl+b>
 
 " 3. 查看第一个 commit
 Enter
@@ -191,8 +191,8 @@ q
 <leader>kC
 
 " 2. 选中起始和结束 commit
-s（选中起始）
-s（选中结束）
+<Ctrl+Space>（选中起始）
+<Ctrl+Space>（选中结束）
 
 " 3. 打开 diff
 Enter

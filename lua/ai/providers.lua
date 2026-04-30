@@ -93,8 +93,32 @@ M.register("bailian", {
 M.register("bailian_coding", {
   api_key_name = "BAILIAN_CODING_API_KEY",
   endpoint = "https://coding.dashscope.aliyuncs.com/v1",
-  model = "qwen3.6-plus",
+  model = "glm-5",
   static_models = { "glm-5", "qwen3.5-plus", "qwen3.6-plus", "kimi-k2.5", "MiniMax-M2.5" },
+  -- 模型详细信息（用于 OpenCode 配置生成）
+  -- 数据来源: https://help.aliyun.com/zh/model-studio/getting-started/models
+  model_info = {
+    ["glm-5"] = {
+      limit = { context = 202752, output = 16384 }, -- 200k context
+      description = "默认模型 - 智谱GLM-5，复杂推理和代码审查",
+    },
+    ["qwen3.5-plus"] = {
+      limit = { context = 1000000, output = 65536 }, -- 1M context
+      description = "快速模型 - 阿里Qwen3.5-Plus，适合简单任务和文档生成",
+    },
+    ["qwen3.6-plus"] = {
+      limit = { context = 1000000, output = 65536 }, -- 1M context
+      description = "备选模型 - 阿里Qwen3.6-Plus，效果均衡",
+    },
+    ["kimi-k2.5"] = {
+      limit = { context = 262144, output = 98304 }, -- 256k context
+      description = "长文本专家 - Moonshot Kimi，超长上下文处理",
+    },
+    ["MiniMax-M2.5"] = {
+      limit = { context = 196608, output = 32768 }, -- 192k context
+      description = "备选方案 - MiniMax模型，多场景支持",
+    },
+  },
 })
 
 M.register("dashscope", {

@@ -19,12 +19,26 @@ function M.fetch(provider_name)
   local endpoint = def.endpoint
   local api_key = Keys.get_key(provider_name)
 
-  local candidates = {
-    endpoint .. "/v1/models",
-    endpoint .. "/models",
-    endpoint .. "/api/models",
-    endpoint .. "/chat/models",
-  }
+  -- 检查 endpoint 是否已包含 /v1，避免重复拼接
+  local has_v1 = endpoint:match("/v1/?$")
+
+  local candidates
+  if has_v1 then
+    -- endpoint 已有 /v1，直接拼接 /models
+    candidates = {
+      endpoint .. "/models",
+      endpoint .. "/api/models",
+      endpoint .. "/chat/models",
+    }
+  else
+    -- endpoint 没有 /v1，优先尝试 /v1/models
+    candidates = {
+      endpoint .. "/v1/models",
+      endpoint .. "/models",
+      endpoint .. "/api/models",
+      endpoint .. "/chat/models",
+    }
+  end
 
   local headers = {}
   if api_key and api_key ~= "" then

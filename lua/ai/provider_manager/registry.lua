@@ -116,7 +116,7 @@ function M.add_provider(name)
 
   -- Open providers.lua for the user to add config
   local config_path = _get_providers_path()
-  vim.cmd.edit({ file = config_path })
+  vim.cmd("edit " .. vim.fn.fnameescape(config_path))
 
   -- Jump to end of file (before `return M`)
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)

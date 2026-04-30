@@ -103,6 +103,7 @@ local function read_ai_providers()
         endpoint = def.endpoint,
         model = def.model,
         static_models = def.static_models or {},
+        model_info = def.model_info or {},
       }
     end
   end
@@ -302,9 +303,15 @@ local function build_provider_config(keys, profile)
 
       local models = get_models_for_provider(provider_name, provider_def)
       local models_config = {}
+      local model_info = provider_def.model_info or {}
 
       for _, model_id in ipairs(models) do
-        models_config[model_id] = { name = model_id }
+        local info = model_info[model_id] or {}
+        models_config[model_id] = {
+          name = model_id,
+          limit = info.limit or { context = 0, output = 0 },
+          description = info.description,
+        }
       end
 
       if vim.tbl_isempty(models_config) and provider_def.model then

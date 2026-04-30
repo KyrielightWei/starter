@@ -253,8 +253,10 @@ function M.edit_provider(name)
   else
     path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
   end
-  vim.cmd.edit({ file = path })
-  vim.api.nvim_win_set_cursor(0, { line, 0 })
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
+  if line and line > 0 then
+    vim.api.nvim_win_set_cursor(0, { line, 0 })
+  end
   vim.notify("Editing provider: " .. name .. " at line " .. line, vim.log.levels.INFO)
 end
 

@@ -25,7 +25,6 @@ local function get_modules()
     return nil, "diff"
   end
   -- Navigation module (Phase 6) — optional, non-blocking
-  local ok_nav = nil
   local ok_nav, Navigation = pcall(require, "commit_picker.navigation")
   if ok_nav and type(Navigation.load_commits) ~= "function" then
     ok_nav = false
@@ -121,6 +120,61 @@ function M.open()
       end
     end,
     base_commit = base_commit,
+
+    -- Phase 6+: action handling for Set Base / Config / Help
+    refresh_picker = function()
+      -- Reopen picker with updated config (base commit mode, etc.)
+      M.open()
+    end,
+    on_action = function(action_name)
+      if action_name == "config" then
+        -- Open settings panel using :AICommitConfig command
+        vim.schedule(function()
+          local ok, Settings = pcall(require, "commit_picker.settings")
+          if ok then Settings.open() end
+        end)
+      elseif action_name == "help" then
+        local help_text = [[
+ Commit Picker 快捷键帮助
+
+ <Enter>       打开选中提交的 Diff
+ <Ctrl+Space>  切换多选
+ <Ctrl+A>      全选
+ <Ctrl+B>      设为基础提交 (Set Base)
+ <Ctrl+C>      打开配置面板
+ <Ctrl+?>      显示此帮助
+ <Esc>         关闭
+
+ 选择多个提交可查看范围 Diff；
+ 设置基础提交后，picker 将自动刷新显示从基础提交到 HEAD 的变更。
+]]
+        local buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
+        vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+        local lines = vim.split(help_text, "\n")
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+        -- Responsive sizing
+        local max_width = math.min(80, vim.o.columns - 4)
+        local width = max_width
+        local height = math.min(#lines, math.floor(vim.o.lines * 0.5))
+        local win_opts = {
+          relative = "editor",
+          width  = width,
+          height = height,
+          col    = math.floor((vim.o.columns - width) / 2),
+          row    = math.floor((vim.o.lines - height) / 2),
+          style  = "minimal",
+          border = "rounded",
+          title  = " Commit Picker Help ",
+          title_pos = "center",
+        }
+
+        local win = vim.api.nvim_open_win(buf, true, win_opts)
+        vim.keymap.set("n", "q", function() vim.api.nvim_win_close(win, true) end, { buffer = buf })
+        vim.keymap.set("n", "<Esc>", function() vim.api.nvim_win_close(win, true) end, { buffer = buf })
+      end
+    end,
   })
 end
 

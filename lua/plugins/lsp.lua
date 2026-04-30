@@ -55,7 +55,7 @@ return {
         },
 
         ccls = {
-          autostart = false,
+          autostart = true,
           cmd = { "ccls" },
           filetypes = { "c", "cpp", "ipp", "cuda", "ic", "objc", "objcpp" },
           root_markers = { "compile_commands.json", ".ccls", ".git", ".svn" },
@@ -187,7 +187,7 @@ return {
       },
       setup = {
         ccls = function(_, opts)
-          return false
+          return true
         end,
         clangd = function(_, opts)
           return true

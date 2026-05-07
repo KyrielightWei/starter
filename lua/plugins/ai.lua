@@ -1,10 +1,15 @@
 -- lua/plugins/ai.lua
+-- AI Integration Plugin Configuration
+-- 
+-- This file provides lazy-loading trigger for AI module.
+-- Main AI tools: OpenCode, Claude Code (via Components system)
+
 return {
   {
-    "yetone/avante.nvim",
-    event = "VeryLazy",
-    build = "make",  -- 必须添加！用于编译 Rust 二进制文件
+    "nvim-lua/plenary.nvim",  -- Common utility library (used by many AI submodules)
+    lazy = true,
     config = function()
+      -- Initialize AI module when plenary loads
       require("ai").setup()
     end,
   },

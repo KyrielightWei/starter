@@ -91,10 +91,20 @@ function M.load_state()
   return DEFAULT_STATE
 end
 
+--- 转义字符串用于 Lua 序列化（防止注入）
+---@param s string
+---@return string
+local function escape_lua_string(s)
+  return tostring(s):gsub('[%c"\\]', function(c)
+    local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
+    return escapes[c] or string.format('\\u%04x', c:byte())
+  end)
+end
+
 --- 保存状态
 ---@param state table|nil 状态（nil 时保存缓存）
 function M.save_state(state)
-  state = state or M._state_cache or DEFAULT_STATE
+  state = state or M._state_cache or deep_copy(DEFAULT_STATE)
 
   ensure_state_dir()
 
@@ -108,34 +118,27 @@ function M.save_state(state)
   }
 
   for tool, comp_name in pairs(state.active) do
-    table.insert(lines, string.format('    ["%s"] = "%s",', tostring(tool):gsub('[%c"\\]', function(c)
-      local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
-      return escapes[c] or string.format('\\u%04x', c:byte())
-    end), comp_name:gsub('[%c"\\]', function(c)
-      local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
-      return escapes[c] or string.format('\\u%04x', c:byte())
-    end)))
+    table.insert(lines, string.format('    ["%s"] = "%s",', escape_lua_string(tool), escape_lua_string(comp_name)))
   end
 
   table.insert(lines, "  },")
 
   if state.last_check then
-    table.insert(lines, string.format('  last_check = "%s",', state.last_check))
+    table.insert(lines, string.format('  last_check = "%s",', escape_lua_string(state.last_check)))
   end
 
   if state.versions then
     table.insert(lines, "  versions = {")
     for comp_name, v_info in pairs(state.versions) do
-      local escaped_comp = comp_name:gsub('["\\]', '\\%0')
-      table.insert(lines, string.format("    %s = {", escaped_comp))
+      table.insert(lines, string.format('    ["%s"] = {', escape_lua_string(comp_name)))
       if v_info.current then
-        table.insert(lines, string.format('      current = "%s",', v_info.current))
+        table.insert(lines, string.format('      current = "%s",', escape_lua_string(v_info.current)))
       end
       if v_info.latest then
-        table.insert(lines, string.format('      latest = "%s",', v_info.latest))
+        table.insert(lines, string.format('      latest = "%s",', escape_lua_string(v_info.latest)))
       end
       if v_info.status then
-        table.insert(lines, string.format('      status = "%s",', v_info.status))
+        table.insert(lines, string.format('      status = "%s",', escape_lua_string(v_info.status)))
       end
       table.insert(lines, "    },")
     end

@@ -163,8 +163,12 @@ local function get_project_config_path()
 end
 
 function M.get_defaults()
-  -- OpenCode 需要完整的模型格式: provider/model
-  local default_model = Providers.default_provider .. "/" .. Providers.default_model
+  -- OpenCode needs full model format: provider/model
+  -- Use user preference from Registry if available
+  local Registry = require("ai.provider_manager.registry")
+  local user_model = Registry.get_default_model(Providers.default_provider)
+  local default_model = Providers.default_provider .. "/" .. (user_model or Providers.default_model)
+  
   return {
     ["$schema"] = "https://opencode.ai/config.json",
     model = default_model,
@@ -261,15 +265,38 @@ function M.build_provider_config()
         local models_config = {}
         for _, model_id in ipairs(models) do
           models_config[model_id] = { name = model_id }
+          
+          -- Add model info if available (per D-09)
+          if provider_def.model_info and provider_def.model_info[model_id] then
+            local info = provider_def.model_info[model_id]
+            if info.description then
+              models_config[model_id].description = info.description
+            end
+            if info.limit then
+              models_config[model_id].limit = info.limit
+            end
+          end
         end
 
         -- 使用 key 文件中的 base_url (OpenAI 风格)
         local endpoint = Keys.get_base_url(provider_name)
 
-        -- API key 存储路径: ~/.config/opencode/api_key_<provider>.txt
-        -- 遵循 XDG Base Directory 规范
-        local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
-        local api_key_path = xdg_config .. "/opencode/api_key_" .. provider_name .. ".txt"
+-- Determine API key format based on ai_keys.lua content:
+        -- Format 1: {env:VAR_NAME} if api_key starts with "${env:"
+        -- Format 2: {file:...} if api_key is actual value (default)
+        
+        local api_key_value
+        if api_key:sub(1, 6) == "${env:" and api_key:sub(-1) == "}" then
+          -- Environment variable reference: ${env:VAR_NAME} → {env:VAR_NAME}
+          -- Extract VAR_NAME from "${env:VAR_NAME}"
+          local env_var = api_key:sub(7, -2)  -- Remove "${env:" prefix and "}" suffix
+          api_key_value = "{env:" .. env_var .. "}"
+        else
+          -- Actual API key: write to file and use {file:...}
+          local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+          local api_key_path = xdg_config .. "/opencode/api_key_" .. provider_name .. ".txt"
+          api_key_value = "{file:" .. api_key_path .. "}"
+        end
 
         provider_config[provider_name] = {
           npm = "@ai-sdk/openai-compatible",
@@ -278,7 +305,7 @@ function M.build_provider_config()
           end),
           options = {
             baseURL = endpoint,
-            apiKey = "{file:" .. api_key_path .. "}",
+            apiKey = api_key_value,
           },
           models = models_config,
         }

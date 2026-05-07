@@ -197,6 +197,7 @@ local function validate_template(config)
     default_agent = true,
     share = true,
     permission = true,
+    agent = true, -- 新增：支持 agent 配置
     tools = true,
     command = true,
     formatter = true,
@@ -237,14 +238,83 @@ local function validate_template(config)
     table.insert(errors, "autoupdate 必须是 boolean 或 'notify'")
   end
 
+  -- Permission validation - 支持嵌套 permission 对象
   if config.permission then
-    local valid_perms = { edit = true, bash = true, write = true }
+    -- 支持的权限类型（扩展列表）
+    local valid_perms = {
+      read = true,
+      edit = true,
+      write = true,
+      bash = true,
+      external_directory = true,
+      task = true,
+      skill = true,
+      doom_loop = true,
+    }
+    
     for perm, value in pairs(config.permission) do
+      -- 检查权限类型
       if not valid_perms[perm] then
         table.insert(warnings, string.format("permission 中未知权限: %s", perm))
       end
-      if value ~= "ask" and value ~= "allow" then
-        table.insert(errors, string.format("permission.%s 必须是 'ask' 或 'allow'", perm))
+      
+      -- 检查权限值格式
+      if type(value) == "string" then
+        -- 简单格式: "read": "ask" 或 "edit": "allow"
+        if value ~= "ask" and value ~= "allow" and value ~= "deny" then
+          table.insert(errors, string.format("permission.%s 必须是 'ask', 'allow' 或 'deny'", perm))
+        end
+      elseif type(value) == "table" then
+        -- 嵌套格式: "bash": { "git status*": "allow", "rm *": "ask" }
+        for pattern, action in pairs(value) do
+          if action ~= "ask" and action ~= "allow" and action ~= "deny" then
+            table.insert(
+              errors,
+              string.format("permission.%s['%s'] 必须是 'ask', 'allow' 或 'deny'", perm, pattern)
+            )
+          end
+        end
+      else
+        table.insert(errors, string.format("permission.%s 必须是字符串或对象", perm))
+      end
+    end
+  end
+  
+  -- Agent validation - 支持 agent 权限覆盖
+  if config.agent then
+    if type(config.agent) ~= "table" then
+      table.insert(errors, "agent 必须是对象")
+    else
+      for agent_name, agent_config in pairs(config.agent) do
+        if type(agent_config) ~= "table" then
+          table.insert(errors, string.format("agent.%s 必须是对象", agent_name))
+        elseif agent_config.permission then
+          -- 递归检查 agent.permission（使用相同的逻辑）
+          for perm, value in pairs(agent_config.permission) do
+            if type(value) == "string" then
+              if value ~= "ask" and value ~= "allow" and value ~= "deny" then
+                table.insert(
+                  errors,
+                  string.format("agent.%s.permission.%s 必须是 'ask', 'allow' 或 'deny'", agent_name, perm)
+                )
+              end
+            elseif type(value) == "table" then
+              for pattern, action in pairs(value) do
+                if action ~= "ask" and action ~= "allow" and action ~= "deny" then
+                  table.insert(
+                    errors,
+                    string.format(
+                      "agent.%s.permission.%s['%s'] 必须是 'ask', 'allow' 或 'deny'",
+                      agent_name,
+                      perm,
+                      pattern
+                    )
+                  )
+                end
+              end
+            end
+          end
+        end
       end
     end
   end
@@ -531,11 +601,16 @@ function M.write_config()
   config.agent.build = config.agent.build or {}
   config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
 
-  -- 写入 API key 文件 (每个 provider 一个文件)
+  -- 写入 API key 文件 (仅当使用 {file:...} 格式时)
+  -- 如果使用 {env:...} 格式，则不写入文件
   for provider, key in pairs(auth_config) do
     if key and key ~= "" then
-      local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
-      vim.fn.writefile({ key }, key_file)
+      -- Check if key is environment variable reference: ${env:VAR_NAME}
+      if key:sub(1, 6) ~= "${env:" then
+        -- Actual API key: write to file
+        local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
+        vim.fn.writefile({ key }, key_file)
+      end
     end
   end
 

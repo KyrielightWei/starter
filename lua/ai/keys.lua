@@ -9,6 +9,40 @@
 --   profile = "default",
 --   bailian_coding = {
 --     default = {
+--       -- 格式1：直接写 API key（会导出到 api_key_*.txt 文件）
+--       api_key = "sk-xxx",
+--       
+--       -- 格式2：环境变量引用（推荐，更安全）
+--       -- api_key = "${env:BAILIAN_CODING_API_KEY}",
+--       
+--       -- 格式3：空字符串（需要手动配置）
+--       -- api_key = "",
+--       
+--       base_url = "https://coding.dashscope.aliyuncs.com/v1",
+--       base_url_claude = "",  -- Claude Code 专用 (可选)
+--     },
+--   },
+-- }
+--
+-- 说明：
+-- - api_key: API 密钥
+--   - 直接值：会导出到 ~/.config/opencode/api_key_<provider>.txt
+--   - ${env:VAR_NAME}：生成 {env:VAR_NAME}，从环境变量读取（推荐）
+--   - 空字符串：需要手动配置
+-- - base_url: API endpoint (可选，不填则使用 providers.lua 默认值)
+-- - base_url_claude: Claude Code 专用 endpoint (可选)
+--
+-- 推荐：使用环境变量格式以避免 API key 写入文件
+-- ============================================================================
+--
+-- ============================================================================
+-- Key 文件格式 (~/.local/state/nvim/ai_keys.lua)
+-- ============================================================================
+--
+-- return {
+--   profile = "default",
+--   bailian_coding = {
+--     default = {
 --       api_key = "sk-xxx",
 --       base_url = "https://coding.dashscope.aliyuncs.com/v1",
 --       base_url_claude = "",  -- Claude Code 专用 (可选)
@@ -31,6 +65,35 @@ local function keys_path()
   return vim.fn.stdpath("state") .. "/ai_keys.lua"
 end
 
+--- 安全加载 Lua 文件（sandboxed，禁止访问全局变量）
+---@param path string 文件路径
+---@return table|nil
+local function safe_load_lua(path)
+  if vim.fn.filereadable(path) == 0 then
+    return nil
+  end
+  local content = vim.fn.readfile(path)
+  if #content == 0 then
+    return nil
+  end
+  local code = table.concat(content, "\n")
+  local ok, result = pcall(function()
+    local func = load(code, "keys", "t", {})
+    return func and func() or nil
+  end)
+  if ok and type(result) == "table" then
+    return result
+  end
+  return nil
+end
+
+--- 验证 provider/profile 名称是否安全（仅允许字母数字、下划线、连字符）
+---@param name string
+---@return boolean
+local function is_safe_name(name)
+  return type(name) == "string" and name:match("^[%w_-]+$") ~= nil
+end
+
 ----------------------------------------------------------------------
 -- ensure(): 初始化 key 文件（自动包含所有 provider）
 ----------------------------------------------------------------------
@@ -43,13 +106,20 @@ function M.ensure()
       '  profile = "default",',
     }
 
-    for name, def in pairs(Providers) do
-      if type(def) == "table" and def.api_key_name then
+    local provider_names = {}
+    for _, name in ipairs(Providers.list()) do
+      table.insert(provider_names, name)
+    end
+    table.sort(provider_names)
+
+    for _, name in ipairs(provider_names) do
+      local def = Providers.get(name)
+      if def and def.api_key_name and is_safe_name(name) then
         local endpoint = def.endpoint or ""
         endpoint = endpoint:gsub("{(%w+_BASE_ENDPOINT)}", "")
-        
+
         table.insert(lines, string.format("  %s = {", name))
-        table.insert(lines, '    default = {')
+        table.insert(lines, "    default = {")
         table.insert(lines, '      api_key = "",')
         table.insert(lines, string.format('      base_url = %q,', endpoint))
         table.insert(lines, '      base_url_claude = "",  -- Claude Code 专用 (可选)')
@@ -62,7 +132,7 @@ function M.ensure()
     vim.fn.writefile(lines, path)
   end
 
-  return dofile(path)
+  return safe_load_lua(path)
 end
 
 ----------------------------------------------------------------------
@@ -70,8 +140,7 @@ end
 ----------------------------------------------------------------------
 function M.read()
   local path = keys_path()
-  if vim.fn.filereadable(path) == 0 then return nil end
-  return dofile(path)
+  return safe_load_lua(path)
 end
 
 ----------------------------------------------------------------------
@@ -81,9 +150,12 @@ function M.write(tbl)
   local out = { "return {" }
 
   for provider, profiles in pairs(tbl) do
-    if provider ~= "profile" then
+    if provider ~= "profile" and is_safe_name(provider) then
       table.insert(out, string.format("  %s = {", provider))
       for profile, config in pairs(profiles) do
+        if not is_safe_name(profile) then
+          goto continue_profile
+        end
         if type(config) == "table" then
           table.insert(out, string.format("    %s = {", profile))
           table.insert(out, string.format('      api_key = %q,', config.api_key or ""))
@@ -94,6 +166,7 @@ function M.write(tbl)
           -- 向后兼容旧格式
           table.insert(out, string.format('    %s = { api_key = %q, base_url = "", base_url_claude = "" },', profile, config))
         end
+        ::continue_profile::
       end
       table.insert(out, "  },")
     end
@@ -202,6 +275,10 @@ end
 -- set_key(provider, profile, key): 设置 api_key (向后兼容)
 ----------------------------------------------------------------------
 function M.set_key(provider, profile, key)
+  if not is_safe_name(provider) or not is_safe_name(profile) then
+    vim.notify("Invalid provider or profile name", vim.log.levels.ERROR)
+    return
+  end
   local tbl = M.read() or { profile = "default" }
   tbl[provider] = tbl[provider] or {}
   
@@ -222,6 +299,10 @@ end
 -- set_config(provider, profile, config): 设置完整配置
 ----------------------------------------------------------------------
 function M.set_config(provider, profile, config)
+  if not is_safe_name(provider) or not is_safe_name(profile) then
+    vim.notify("Invalid provider or profile name", vim.log.levels.ERROR)
+    return
+  end
   local tbl = M.read() or { profile = "default" }
   tbl[provider] = tbl[provider] or {}
   tbl[provider][profile] = {

@@ -357,7 +357,10 @@ local function build_provider_settings()
     using_fallback = true
   end
 
-  local model = Providers.default_model
+  -- Claude Code should use user's preferred default model from ai_keys.lua
+  -- Priority: Keys config > Providers.model > Providers.default_model
+  local Registry = require("ai.provider_manager.registry")
+  local model = Registry.get_default_model(provider_name) or Providers.default_model
 
   local env = {}
 

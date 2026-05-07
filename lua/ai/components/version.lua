@@ -94,7 +94,7 @@ function M.get_installed_version(cmd)
     return nil
   end
 
-  local result = vim.fn.system(cmd .. " --version")
+  local result = vim.fn.system(vim.fn.shellescape(cmd) .. " --version")
 
   if vim.v.shell_error ~= 0 then
     return nil
@@ -222,7 +222,7 @@ function M.get_latest_git_version(repo_url)
     return nil
   end
 
-  local cmd = string.format("git ls-remote %s HEAD", repo_url)
+  local cmd = string.format("git ls-remote %s HEAD", vim.fn.shellescape(repo_url))
   local result = vim.fn.system(cmd)
 
   if vim.v.shell_error ~= 0 then

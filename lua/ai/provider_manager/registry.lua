@@ -105,7 +105,7 @@ end
 
 ----------------------------------------------------------------------
 -- Add a new provider entry
--- Opens providers.lua for manual config entry
+-- Auto-inserts template config and opens providers.lua for editing
 ----------------------------------------------------------------------
 function M.add_provider(name)
   local valid, err = Validator.validate_provider_name(name)
@@ -114,16 +114,83 @@ function M.add_provider(name)
     return false
   end
 
-  -- Open providers.lua for the user to add config
+  -- Check if provider already exists
+  local def = Providers.get(name)
+  if def then
+    vim.notify("Provider already exists: " .. name, vim.log.levels.WARN)
+    return false
+  end
+
+  -- Open providers.lua
   local config_path = _get_providers_path()
   vim.cmd("edit " .. vim.fn.fnameescape(config_path))
 
-  -- Jump to end of file (before `return M`)
+  -- Find insertion point (before `return M`)
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
   local insert_line = #lines
-  vim.api.nvim_win_set_cursor(0, { insert_line, 0 })
+  
+  -- Find "return M" line
+  for i, line in ipairs(lines) do
+    if line:match("^return M") then
+      insert_line = i - 1
+      break
+    end
+  end
 
-  vim.notify("Provider registration added. Please fill in config for: " .. name, vim.log.levels.INFO)
+  -- Generate template config with placeholder values
+  local template_lines = {
+    "",
+    "M.register(\"" .. name .. "\", {",
+    "  api_key_name = \"" .. name:upper() .. "_API_KEY\",",
+    "  endpoint = \"https://api." .. name .. ".com/v1\",",
+    "  model = \"default-model\",",
+    "  static_models = { \"default-model\" },",
+    "})",
+  }
+
+  -- Insert template at correct position
+  vim.api.nvim_buf_set_lines(0, insert_line, insert_line, false, template_lines)
+  vim.api.nvim_win_set_cursor(0, { insert_line + 3, 15 })  -- Position at endpoint line
+
+  -- Save buffer
+  vim.cmd("write")
+
+  -- Also add empty key entry in ai_keys.lua
+  local Keys = require("ai.keys")
+  local keys_data = Keys.read() or {}
+  keys_data[name] = {
+    default = {
+      api_key = "",
+      base_url = "",
+      base_url_claude = "",
+    },
+  }
+  Keys.write(keys_data)
+
+  -- Show detailed next-step instructions
+  local lines = {
+    "✅ Provider template added for: " .. name,
+    "",
+    "已完成的操作:",
+    "  1. ✓ providers.lua 添加了配置模板（已打开编辑）",
+    "  2. ✓ ai_keys.lua 添加了空的 API key 配置项",
+    "",
+    "接下来需要填写:",
+    "  步骤1: 编辑 providers.lua（当前已打开）",
+    "    - endpoint: https://api." .. name .. ".com/v1",
+    "    - model: default-model",
+    "    - static_models: { \"default-model\" }",
+    "",
+    "  步骤2: 编辑 API key",
+    "    运行命令: <leader>kK 或 :AIKeys",
+    "    文件路径: ~/.local/state/nvim/ai_keys.lua",
+    "    填写内容: api_key = \"your-api-key\"",
+    "",
+    "  步骤3: 同步配置到 OpenCode/Claude Code",
+    "    运行命令: <leader>kS 或 :AISync",
+  }
+  
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
   return true
 end
 

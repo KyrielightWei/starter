@@ -1,130 +1,65 @@
 -- lua/ai/init.lua
--- AI 模块入口 - 重构版
--- 使用方法：
---   require("ai").setup()  -- 初始化（自动加载默认后端）
---   require("ai").setup({ default_backend = "copilot" })  -- 指定后端
+-- AI 模块入口 - 无 Avante 版本
+-- 
+-- 主要 AI 工具：
+--   - OpenCode (CLI + Components)
+--   - Claude Code (CLI + Components)
+--   - Provider Manager
+--   - Commit Picker
+--   - Skill Studio
 --
--- 更换 AI 插件只需：
---   1. 修改 default_backend 配置
---   2. 创建对应的 xxx_adapter.lua 文件
---   3. 所有快捷键和命令会自动适配
---
--- 模块结构：
---   - init.lua        : 主入口，包含所有配置和快捷键（修改此文件即可切换后端）
---   - providers.lua   : Provider 注册中心
---   - keys.lua        : API Key 管理
---   - fetch_models.lua: 动态模型拉取
---   - model_switch.lua: FZF 模型选择器
---   - util.lua        : 工具函数
---   - avante_adapter.lua: Avante.nvim 后端实现（示例）
+-- 快捷键分类：
+--   p/P/A    - Provider Manager
+--   C/f/b/d  - Commit Picker & Diff
+--   k/S/K/T  - 配置与同步
+--   s        - Model Switch (Provider Manager)
 
 local M = {}
 
--- 后端注册表
-local backend = nil
+-- 配置
 local config = {
-  -- 默认配置
-  default_backend = "avante",
-  -- 快捷键前缀
   key_prefix = "<leader>k",
-  -- 是否自动注册快捷键
   auto_setup_keys = true,
-  -- 是否自动注册用户命令
   auto_setup_commands = true,
 }
 
 ----------------------------------------------------------------------
--- 注册后端
--- @param name string: 后端名称（如 "avante", "copilot", "codeium"）
--- @param adapter table: 适配器模块
-----------------------------------------------------------------------
-function M.register_backend(name, adapter)
-  -- 如果适配器有 setup 方法，调用它获取实现
-  local impl = adapter
-  if adapter.setup then
-    local result = adapter.setup()
-    if result then
-      impl = result
-    end
-  end
-
-  backend = {
-    name = name,
-    impl = impl,
-  }
-
-  -- 自动设置快捷键和命令
-  if config.auto_setup_keys then
-    M.setup_keys()
-  end
-  if config.auto_setup_commands then
-    M.setup_commands()
-  end
-
-  vim.notify(string.format("AI backend '%s' registered", name), vim.log.levels.INFO)
-end
-
-----------------------------------------------------------------------
--- 获取当前后端
-----------------------------------------------------------------------
-function M.get_backend()
-  return backend
-end
-
-----------------------------------------------------------------------
--- 命令包装器（安全调用）
+-- 命令包装器（用于向后兼容）
 ----------------------------------------------------------------------
 local function call(fn_name)
   return function()
-    if not backend or not backend.impl then
-      vim.notify("AI backend not registered", vim.log.levels.WARN)
-      return
-    end
-    local fn = backend.impl[fn_name]
-    if not fn then
-      vim.notify(string.format("AI backend does not implement: %s", fn_name), vim.log.levels.WARN)
-      return
-    end
-    fn()
+    vim.notify("功能 '" .. fn_name .. "' 需要安装 Avante 或其他 AI backend", vim.log.levels.WARN)
   end
 end
 
 ----------------------------------------------------------------------
--- 快捷键配置
--- 前缀：<leader>k（AI 相关功能）
--- 
--- 分类：
---   c/n/e/q/s  - AI 核心交互
---   p/P/A      - Provider Manager
---   C/f/b/d    - Commit Picker & Diff
---   k/S/K/T    - 配置与同步
---   t          - 面板控制
+-- 快捷键配置（移除 Avante 特定的，保留通用功能）
 ----------------------------------------------------------------------
 local keys = {
-  -- AI 核心功能（<leader>k 前缀）
-  { "<leader>k", group = "AI Interactive", icon = "🤖" },
-
-  -- === AI 核心交互 ===
-  { "<leader>kc", mode = "n", fn = call("chat"), desc = "AI Chat", icon = "💬" },
-  { "<leader>kn", mode = "n", fn = call("chat_new"), desc = "AI New Chat", icon = "✨" },
-  { "<leader>ke", mode = "v", fn = call("edit"), desc = "AI Edit Selection", icon = "✏️" },
-  { "<leader>kq", mode = "n", fn = call("ask"), desc = "AI Quick Ask", icon = "❓" },
-  { "<leader>ks", mode = "n", fn = call("model_switch"), desc = "Model Switch", icon = "🔄" },
-  { "<leader>kK", mode = "n", fn = call("key_manager"), desc = "Key Manager", icon = "🔑" },
-  { "<leader>kS", mode = "n", fn = call("sessions"), desc = "Chat Sessions", icon = "📁" },
-  { "<leader>kt", mode = "n", fn = call("toggle"), desc = "Toggle Panel", icon = "📋" },
+  -- AI 功能组（<leader>k 前缀）
+  { "<leader>k", group = "AI Tools", icon = "🤖" },
 
   -- === Provider Manager ===
   { "<leader>kp", mode = "n", fn = function()
       local ok, PM = pcall(require, "ai.provider_manager")
       if ok then PM.open() end
-    end, desc = "Provider Manager" },
+    end, desc = "Provider Manager", icon = "📊" },
+
+  -- === Model Switch ===
+  { "<leader>ks", mode = "n", fn = function()
+      local ok, MS = pcall(require, "ai.model_switch")
+      if ok then MS.select(function(choice)
+        if choice then
+          vim.notify("Switched to " .. choice.provider .. "/" .. choice.model, vim.log.levels.INFO)
+        end
+      end) end
+    end, desc = "Model Switch", icon = "🔄" },
 
   -- === Commit Picker & Diff ===
   { "<leader>kC", mode = "n", fn = function()
       local ok, CP = pcall(require, "commit_picker.init")
       if ok then CP.open() end
-    end, desc = "Commit Picker" },
+    end, desc = "Commit Picker", icon = "📝" },
 
   { "<leader>kf", mode = "n", fn = function()
       local ok_nav, Nav = pcall(require, "commit_picker.navigation")
@@ -151,7 +86,7 @@ local keys = {
       else
         Nav.cycle_next()
       end
-    end, desc = "Next Commit" },
+    end, desc = "Next Commit", icon = "⬇️" },
 
   { "<leader>kb", mode = "n", fn = function()
       local ok, Nav = pcall(require, "commit_picker.navigation")
@@ -160,40 +95,108 @@ local keys = {
         return
       end
       Nav.cycle_prev()
-    end, desc = "Prev Commit" },
+    end, desc = "Prev Commit", icon = "⬆️" },
 
-  { "<leader>kd", mode = "n", fn = call("diff"), desc = "Diff Viewer", icon = "📊" },
+  { "<leader>kd", mode = "n", fn = function()
+      -- 使用 DiffviewOpenEnhanced（支持 worktree 和自定义 git 路径）
+      local ok_dv = pcall(require, "diffview")
+      if ok_dv then
+        local ok_cmd, err = pcall(vim.cmd, "DiffviewOpenEnhanced")
+        if not ok_cmd then
+          vim.notify("Diffview 打开失败: " .. tostring(err), vim.log.levels.ERROR)
+        end
+        return
+      end
 
-  -- === Suggestion（插入模式）===
-  { "<M-]>", mode = "i", fn = call("suggestion_next"), desc = "Next AI Suggestion", icon = "⬇️" },
-  { "<M-[>", mode = "i", fn = call("suggestion_prev"), desc = "Prev AI Suggestion", icon = "⬆️" },
-  { "<M-\\>", mode = "i", fn = call("suggestion_accept"), desc = "Accept AI Suggestion", icon = "✅" },
+      -- fallback: 使用 vim-fugitive
+      local ok_fug = pcall(vim.cmd, "Git diff")
+      if not ok_fug then
+        vim.notify("Git diff 不可用，请安装 diffview.nvim 或 vim-fugitive", vim.log.levels.WARN)
+      end
+    end, desc = "Diff Viewer", icon = "📊" },
+
+  -- === 配置与同步 ===
+  { "<leader>kK", mode = "n", fn = function()
+      local ok, Keys = pcall(require, "ai.keys")
+      if ok then Keys.edit() end
+    end, desc = "Edit API Keys", icon = "🔑" },
+
+  { "<leader>kS", mode = "n", fn = function()
+      local ok, Sync = pcall(require, "ai.sync")
+      if ok then Sync.select_and_sync() end
+    end, desc = "Sync Configs", icon = "🔄" },
+
+  -- === Components 管理 ===
+  { "<leader>kc", mode = "n", fn = function()
+      local ok, Picker = pcall(require, "ai.components.picker")
+      if ok then Picker.open() end
+    end, desc = "Component Manager", icon = "📦" },
 }
 
 ----------------------------------------------------------------------
--- 用户命令注册
+-- 用户命令注册（移除 Avante 特定的）
 ----------------------------------------------------------------------
 local commands = {
-  { "AIChat", call("chat"), desc = "Open AI Chat" },
-  { "AIChatNew", call("chat_new"), desc = "Start New AI Chat" },
-  { "AIEdit", call("edit"), desc = "AI Edit Selection", range = true },
-  { "AIAsk", call("ask"), desc = "AI Quick Ask" },
-  { "AIToggle", call("toggle"), desc = "Toggle AI Panel" },
-  { "AIDiff", call("diff"), desc = "View AI Changes Diff" },
-  {
-    "ECCInstall",
-    function()
+  { "AIKeys", function()
+      local ok, Keys = pcall(require, "ai.keys")
+      if ok then Keys.edit() end
+    end, desc = "Edit API Keys" },
+
+  { "AISync", function()
+      local ok, Sync = pcall(require, "ai.sync")
+      if ok then Sync.select_and_sync() end
+    end, desc = "Sync AI Configs" },
+
+  { "AIComponents", function()
+      local ok, Picker = pcall(require, "ai.components.picker")
+      if ok then Picker.open() end
+    end, desc = "Open Component Manager" },
+
+  -- ECC 命令（向后兼容）
+  { "ECCInstall", function()
       require("ai.ecc").open_installer()
-    end,
-    desc = "Install ECC Framework",
-  },
-  {
-    "ECCStatus",
-    function()
+    end, desc = "Install ECC Framework" },
+
+  { "ECCStatus", function()
       require("ai.ecc").show_status()
-    end,
-    desc = "Show ECC Status",
-  },
+    end, desc = "Show ECC Status" },
+
+  -- OpenCode 命令
+  { "OpenCodeWriteConfig", function()
+      local ok, OpenCode = pcall(require, "ai.opencode")
+      if ok then OpenCode.write_config() end
+    end, desc = "Generate OpenCode Config" },
+
+  { "OpenCodeEditTemplate", function()
+      local ok, OpenCode = pcall(require, "ai.opencode")
+      if ok then OpenCode.edit_template() end
+    end, desc = "Edit OpenCode Template" },
+
+  { "OpenCodePreviewConfig", function()
+      local ok, OpenCode = pcall(require, "ai.opencode")
+      if ok then OpenCode.preview_config() end
+    end, desc = "Preview OpenCode Config" },
+
+  -- Claude Code 命令
+  { "ClaudeCodeGenerateConfig", function()
+      local ok, ClaudeCode = pcall(require, "ai.claude_code")
+      if ok then ClaudeCode.write_settings() end
+    end, desc = "Generate Claude Code Settings" },
+
+  { "ClaudeCodeEditSettings", function()
+      local ok, ClaudeCode = pcall(require, "ai.claude_code")
+      if ok then ClaudeCode.edit_settings() end
+    end, desc = "Edit Claude Code Settings" },
+
+  { "ClaudeCodeEditTemplate", function()
+      local ok, ClaudeCode = pcall(require, "ai.claude_code")
+      if ok then ClaudeCode.edit_template() end
+    end, desc = "Edit Claude Code Template" },
+
+  { "ClaudeCodePreviewSettings", function()
+      local ok, ClaudeCode = pcall(require, "ai.claude_code")
+      if ok then ClaudeCode.preview_settings() end
+    end, desc = "Preview Claude Code Settings" },
 }
 
 ----------------------------------------------------------------------
@@ -232,14 +235,12 @@ function M.setup(opts)
   opts = opts or {}
   config = vim.tbl_deep_extend("force", config, opts)
 
-  -- 自动加载默认后端
-  if config.default_backend and not backend then
-    local ok, adapter = pcall(require, "ai." .. config.default_backend .. "_adapter")
-    if ok then
-      M.register_backend(config.default_backend, adapter)
-    else
-      vim.notify(string.format("Failed to load default backend: %s", config.default_backend), vim.log.levels.WARN)
-    end
+  -- Initialize Component System (ECC, GSD, etc.)
+  local ok_comp, Components = pcall(require, "ai.components")
+  if ok_comp then
+    Components.setup()
+  else
+    vim.notify("Failed to initialize component system", vim.log.levels.WARN)
   end
 
   -- 初始化 Skill Studio
@@ -260,30 +261,17 @@ function M.setup(opts)
     CommitPicker.setup()
   end
 
+  -- 注册快捷键和命令
+  if config.auto_setup_keys then
+    M.setup_keys()
+  end
+  if config.auto_setup_commands then
+    M.setup_commands()
+  end
+
+  vim.notify("AI Module initialized (OpenCode + Claude Code)", vim.log.levels.INFO)
+
   return M
 end
-
-----------------------------------------------------------------------
--- 向后兼容性
-----------------------------------------------------------------------
--- 保持旧的调用方式
-setmetatable(M, {
-  __index = function(_, key)
-    if backend and backend.impl then
-      return backend.impl[key]
-    end
-    -- 如果后端未加载，尝试加载默认后端
-    if not backend and config.default_backend then
-      local ok, adapter = pcall(require, "ai." .. config.default_backend .. "_adapter")
-      if ok then
-        M.register_backend(config.default_backend, adapter)
-        if backend and backend.impl then
-          return backend.impl[key]
-        end
-      end
-    end
-    return nil
-  end,
-})
 
 return M

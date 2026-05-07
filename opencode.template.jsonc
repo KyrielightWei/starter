@@ -12,7 +12,7 @@
   "model": "bailian_coding/glm-5",
 
   // 辅助模型（快速响应）
-  "small_model": "bailian_coding/qwen3.5-plus",
+  "small_model": "bailian_coding/qwen3.6-plus",
 
   // 自动更新
   "autoupdate": false,

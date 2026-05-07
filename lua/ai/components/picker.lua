@@ -48,40 +48,27 @@ local function has_fzf_lua()
 end
 
 --- 构建选择器条目（多行卡片视图 per D-32 to D-34）
+--- 优化：避免阻塞 UI，使用简化的缓存状态检查
 ---@return table { display_line = component_name }
 function M.build_entries()
   local Registry = require("ai.components.registry")
-  local Manager = require("ai.components.manager")
-  local Deployments = require("ai.components.deployments")
   local Switcher = require("ai.components.switcher")
 
   local components = Registry.list()
   local entries = {}
-
-  -- WR-06 fix: Pre-fetch all deployment states once to avoid inconsistency
-  local all_deployment_states = {}
-  for _, comp in ipairs(components) do
-    all_deployment_states[comp.name] = Deployments.get_deployment_status(comp.name)
-  end
 
   for _, comp in ipairs(components) do
     -- Get full component for supported_targets
     local comp_full = Registry.get(comp.name)
     local supported_targets = comp_full and comp_full.supported_targets or {}
 
-    -- Use cached deployment state instead of separate queries
-    local deploy_status = all_deployment_states[comp.name]
-
-    -- Build line 1 per D-32, D-34: Cache status
-    -- WR-06: Derive cache status from pre-fetched deployment state
-    local cache_status = deploy_status and deploy_status.is_cached or Manager.is_cached(comp.name)
-    local cache_str
-    if cache_status then
-      local version = deploy_status and deploy_status.cache_version or Manager.get_cache_version(comp.name) or "unknown"
-      cache_str = string.format("[cached %s]", version)
-    else
-      cache_str = "[not cached]"
-    end
+    -- Simplified cache status check (avoid git rev-parse which blocks UI)
+    -- Just check if cache directory exists
+    local Manager = require("ai.components.manager")
+    local cache_path = Manager.get_cache_path(comp.name)
+    local cache_status = vim.fn.isdirectory(cache_path) == 1
+    
+    local cache_str = cache_status and "[cached]" or "[not cached]"
 
     -- Line 1 format: icon + name + cache status + category
     local line1 = string.format(
@@ -91,32 +78,26 @@ function M.build_entries()
       comp.display_name or comp.name,
       ANSI.reset,
       cache_str,
-      comp.category or "unknown"
+      ANSI.dim,
+      comp.category or "unknown",
+      ANSI.reset
     )
 
-    -- Build line 2 per D-33: Deploy status per tool
+    -- Build line 2: Deployment status per tool (from switcher state only)
+    local assignments = Switcher.get_all()
     local deploy_parts = {}
     for _, target in ipairs(supported_targets) do
-      -- WR-06: Use pre-fetched deployment state
-      local deployed = deploy_status and deploy_status.deployed_to and deploy_status.deployed_to[target]
-      if deployed then
-        local method = deploy_status.deployed_to[target].method or "symlink"
-        local version = deploy_status.cache_version or "unknown"
-        table.insert(
-          deploy_parts,
-          string.format("%s%s %s (v%s, %s)%s", ANSI.green, "✓", comp.name, version, method, ANSI.reset)
-        )
+      local assigned_comp = assignments[target]
+      if assigned_comp == comp.name then
+        table.insert(deploy_parts, string.format("%s%s active%s", ANSI.green, "✓", ANSI.reset))
       else
-        table.insert(
-          deploy_parts,
-          string.format("%s%s none (not deployed)%s", ANSI.gray, "○", ANSI.reset)
-        )
+        table.insert(deploy_parts, string.format("%s○ inactive%s", ANSI.gray, ANSI.reset))
       end
     end
 
-    -- If no deploy parts, show "not deployed to any tool"
+    -- If no deploy parts, show "not supported"
     if #deploy_parts == 0 then
-      table.insert(deploy_parts, string.format("%s○ not deployed to any tool%s", ANSI.gray, ANSI.reset))
+      table.insert(deploy_parts, string.format("%s○ not supported%s", ANSI.gray, ANSI.reset))
     end
 
     -- Line 2 format: join deploy parts with " | "
@@ -132,10 +113,10 @@ function M.build_entries()
 end
 
 --- 构建顶部 header（显示工具分配 per D-45 to D-47）
+--- 优化：简化版本显示，避免阻塞 UI
 ---@return string
 function M.build_header()
   local Switcher = require("ai.components.switcher")
-  local Deployments = require("ai.components.deployments")
 
   local assignments = Switcher.get_all()
 
@@ -144,19 +125,11 @@ function M.build_header()
   }
 
   for tool, comp_name in pairs(assignments) do
-    local status = Deployments.get_deployment_status(comp_name)
-    if status and status.deployed_to and status.deployed_to[tool] then
-      -- Per D-46: tool → ✓ component (vX, method)
-      local method = status.deployed_to[tool].method or "symlink"
-      local version = status.cache_version or "unknown"
-      table.insert(
-        lines,
-        string.format("  %s → %s%s %s (v%s, %s)%s", tool, ANSI.green, "✓", comp_name, version, method, ANSI.reset)
-      )
-    else
-      -- Per D-47: tool → ○ none
-      table.insert(lines, string.format("  %s → %s%s none%s", tool, ANSI.gray, "○", ANSI.reset))
-    end
+    -- Simplified: just show assignment, no version info (to avoid git rev-parse blocking)
+    table.insert(
+      lines,
+      string.format("  %s → %s%s %s%s", tool, ANSI.green, "✓", comp_name, ANSI.reset)
+    )
   end
 
   table.insert(lines, "")

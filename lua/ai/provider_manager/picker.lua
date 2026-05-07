@@ -117,7 +117,7 @@ function M.open()
     -- Header with icons and clearer action descriptions
     fzf_opts = {
       ["--header"] = string.format(
-        "%s <C-a> Add  %s <C-d> Delete  %s <C-e> Edit  %s <C-?> Help",
+        "%s <C-a> Add  %s <C-d> Delete  %s <C-e> Edit (选择文件)  %s <C-?> Help",
         icons.add, icons.delete, icons.edit, icons.help
       ),
     },
@@ -224,8 +224,34 @@ function M.add_provider_dialog()
       return
     end
 
+    -- Add provider (generates templates in providers.lua and ai_keys.lua)
     Registry.add_provider(name)
-    vim.notify("Provider added: " .. name .. ". Please add config to providers.lua", vim.log.levels.INFO)
+    
+    -- After providers.lua is saved, offer to open ai_keys.lua
+    vim.defer_fn(function()
+      vim.ui.select(
+        { "立即编辑 API key", "稍后手动编辑" },
+        {
+          prompt = "\n是否立即编辑 API key 配置？\n",
+          format_item = function(item) return item end,
+        },
+        function(choice, idx)
+          if idx == 1 then
+            -- Open ai_keys.lua for editing
+            local Keys = require("ai.keys")
+            Keys.edit()
+            
+            -- Jump to the newly added provider section
+            local pattern = name .. " = {"
+            vim.fn.search(pattern, "w")
+            
+            -- Move to api_key line
+            vim.fn.search("api_key", "w")
+            vim.notify("请填写 api_key = \"your-api-key\"", vim.log.levels.INFO)
+          end
+        end
+      )
+    end, 1000)  -- Delay to let user see the notification first
   end)
 end
 
@@ -241,8 +267,35 @@ function M.delete_provider_dialog(name)
   end)
 end
 
--- Edit provider: open providers.lua at register line (per D-05, D-06, D-07)
+-- Edit provider: provide options to edit providers.lua or ai_keys.lua
 function M.edit_provider(name)
+  vim.ui.select(
+    { 
+      "编辑 Provider 定义", 
+      "编辑 API Key 配置", 
+      "编辑两者（新标签页分屏）" 
+    },
+    {
+      prompt = "\n选择要编辑的配置文件：\n",
+      format_item = function(item) return item end,
+    },
+    function(choice, idx)
+      if idx == 1 then
+        -- Edit providers.lua
+        M._edit_providers_file(name)
+      elseif idx == 2 then
+        -- Edit ai_keys.lua
+        M._edit_keys_file(name)
+      elseif idx == 3 then
+        -- Edit both in split
+        M._edit_both_files(name)
+      end
+    end
+  )
+end
+
+-- Internal: Edit providers.lua at provider line
+function M._edit_providers_file(name)
   local line = Registry.find_provider_line(name)
   -- Use the same path helper logic
   local cwd = vim.fn.getcwd()
@@ -253,11 +306,65 @@ function M.edit_provider(name)
   else
     path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
   end
+  
+  -- Edit file
   vim.cmd("edit " .. vim.fn.fnameescape(path))
+  
+  -- Set buffer name for easier identification
+  vim.api.nvim_buf_set_name(0, "providers.lua [" .. name .. "]")
+  
   if line and line > 0 then
     vim.api.nvim_win_set_cursor(0, { line, 0 })
   end
-  vim.notify("Editing provider: " .. name .. " at line " .. line, vim.log.levels.INFO)
+  vim.notify("编辑 provider 定义: " .. name .. "\n修改 endpoint, model, static_models", vim.log.levels.INFO)
+end
+
+-- Internal: Edit ai_keys.lua at provider section
+function M._edit_keys_file(name)
+  local Keys = require("ai.keys")
+  Keys.edit()
+  
+  -- Set buffer name for easier identification
+  vim.api.nvim_buf_set_name(0, "ai_keys.lua [" .. name .. "]")
+  
+  -- Jump to provider section
+  local pattern = name .. " = {"
+  if vim.fn.search(pattern, "w") > 0 then
+    -- Move to api_key line
+    vim.fn.search("api_key", "w")
+    vim.notify("编辑 API key 配置: " .. name .. "\n填写 api_key = \"your-api-key\"", vim.log.levels.INFO)
+  else
+    vim.notify("Provider " .. name .. " 未在 ai_keys.lua 中找到\n请先添加 provider", vim.log.levels.WARN)
+  end
+end
+
+-- Internal: Edit both files in split view (new tab)
+function M._edit_both_files(name)
+  -- Create new tab for editing
+  vim.cmd("tabnew")
+  
+  -- Set tab name for clarity
+  vim.api.nvim_tabpage_set_var(0, "provider_edit_tab", name)
+  
+  -- Open providers.lua in left split
+  M._edit_providers_file(name)
+  
+  -- Open ai_keys.lua in right split
+  vim.cmd("vsplit")
+  M._edit_keys_file(name)
+  
+  -- Balance windows (equal width)
+  vim.cmd("wincmd =")
+  
+  -- Jump back to left window (providers.lua)
+  vim.cmd("wincmd h")
+  
+  vim.notify(
+    "分屏编辑: " .. name .. 
+    "\n左侧: providers.lua | 右侧: ai_keys.lua" ..
+    "\n完成编辑后可关闭标签页 (:tabclose 或 <leader>tc)",
+    vim.log.levels.INFO
+  )
 end
 
 ----------------------------------------------------------------------
@@ -471,7 +578,7 @@ Keymaps:
   <CR>        Select provider → show models
   %s <C-a>    Add new provider
   %s <C-d>    Delete selected provider
-  %s <C-e>    Edit providers.lua directly
+  %s <C-e>    Edit provider config (choose: providers.lua / ai_keys.lua / both)
   %s <C-?>    Show this help
 
 Fields managed:

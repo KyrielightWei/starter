@@ -183,6 +183,28 @@ local function ensure_config_dir()
   return dir
 end
 
+-- Check if file is a regular file; delete if it's a special file (device, socket, etc.)
+local function ensure_regular_file(path)
+  if vim.fn.filereadable(path) == 1 then
+    return true -- Regular file exists
+  end
+
+  -- Check if path exists but is not a regular file (device, socket, fifo, etc.)
+  local stat = vim.loop.fs_stat(path)
+  if stat and stat.type ~= "file" then
+    -- Delete the special file
+    local ok, err = os.remove(path)
+    if ok then
+      vim.notify("Removed non-regular file: " .. path .. " (type: " .. stat.type .. ")", vim.log.levels.WARN)
+    else
+      vim.notify("Failed to remove non-regular file: " .. path .. " - " .. tostring(err), vim.log.levels.ERROR)
+      return false
+    end
+  end
+
+  return true
+end
+
 local function read_ccstatusline_template()
   local template_path = get_ccstatusline_template_path()
 
@@ -500,6 +522,11 @@ function M.write_settings(opts)
 
   local final = build_final_settings(opts)
   local path = get_settings_path()
+
+  -- Ensure target is a regular file (delete if it's a device/socket)
+  if not ensure_regular_file(path) then
+    return false
+  end
 
   local content = format_json(final)
   local lines = vim.split(content, "\n")

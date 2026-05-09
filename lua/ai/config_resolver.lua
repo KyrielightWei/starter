@@ -168,6 +168,9 @@ function M.get_defaults()
   local Registry = require("ai.provider_manager.registry")
   local provider, model = Registry.get_global_default()
 
+  -- For providers like zenmux that include provider prefix in model names (e.g., "anthropic/claude-opus-4.6")
+  -- the format should be: zenmux/anthropic/claude-opus-4.6
+  -- For providers with simple model names (e.g., "glm-5"), format is: bailian_coding/glm-5
   local default_model = provider .. "/" .. model
 
   return {

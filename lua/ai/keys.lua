@@ -103,6 +103,12 @@ function M.ensure()
   if vim.fn.filereadable(path) == 0 then
     local lines = {
       "return {",
+      '  -- 全局默认配置（Model Switch 自动更新）',
+      "  global_default = {",
+      '    provider = "bailian_coding",',
+      '    model = "qwen3.6-plus",',
+      "  },",
+      "",
       '  profile = "default",',
     }
 
@@ -149,8 +155,18 @@ end
 function M.write(tbl)
   local out = { "return {" }
 
+  -- 写入 global_default（如果存在）
+  if tbl.global_default then
+    table.insert(out, "  -- 全局默认配置（Model Switch 自动更新）")
+    table.insert(out, "  global_default = {")
+    table.insert(out, string.format('    provider = %q,', tbl.global_default.provider or ""))
+    table.insert(out, string.format('    model = %q,', tbl.global_default.model or ""))
+    table.insert(out, "  },")
+    table.insert(out, "")
+  end
+
   for provider, profiles in pairs(tbl) do
-    if provider ~= "profile" and is_safe_name(provider) then
+    if provider ~= "profile" and provider ~= "global_default" and is_safe_name(provider) then
       table.insert(out, string.format("  %s = {", provider))
       for profile, config in pairs(profiles) do
         if not is_safe_name(profile) then
@@ -176,6 +192,37 @@ function M.write(tbl)
   table.insert(out, "}")
 
   vim.fn.writefile(out, keys_path())
+end
+
+----------------------------------------------------------------------
+-- get_global_default(): 获取全局默认 provider 和 model
+----------------------------------------------------------------------
+function M.get_global_default()
+  local tbl = M.read()
+  if not tbl then
+    return "bailian_coding", "qwen3.6-plus"
+  end
+
+  if tbl.global_default and tbl.global_default.provider then
+    return tbl.global_default.provider, tbl.global_default.model
+  end
+
+  -- Fallback: 硬编码值
+  return "bailian_coding", "qwen3.6-plus"
+end
+
+----------------------------------------------------------------------
+-- set_global_default(provider, model): 设置全局默认 provider 和 model
+----------------------------------------------------------------------
+function M.set_global_default(provider, model)
+  local tbl = M.read() or { profile = "default" }
+
+  tbl.global_default = {
+    provider = provider,
+    model = model,
+  }
+
+  M.write(tbl)
 end
 
 ----------------------------------------------------------------------

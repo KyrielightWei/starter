@@ -128,7 +128,7 @@ function M.add_provider(name)
   -- Find insertion point (before `return M`)
   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
   local insert_line = #lines
-  
+
   -- Find "return M" line
   for i, line in ipairs(lines) do
     if line:match("^return M") then
@@ -140,17 +140,17 @@ function M.add_provider(name)
   -- Generate template config with placeholder values
   local template_lines = {
     "",
-    "M.register(\"" .. name .. "\", {",
-    "  api_key_name = \"" .. name:upper() .. "_API_KEY\",",
-    "  endpoint = \"https://api." .. name .. ".com/v1\",",
-    "  model = \"default-model\",",
-    "  static_models = { \"default-model\" },",
+    'M.register("' .. name .. '", {',
+    '  api_key_name = "' .. name:upper() .. '_API_KEY",',
+    '  endpoint = "https://api.' .. name .. '.com/v1",',
+    '  model = "default-model",',
+    '  static_models = { "default-model" },',
     "})",
   }
 
   -- Insert template at correct position
   vim.api.nvim_buf_set_lines(0, insert_line, insert_line, false, template_lines)
-  vim.api.nvim_win_set_cursor(0, { insert_line + 3, 15 })  -- Position at endpoint line
+  vim.api.nvim_win_set_cursor(0, { insert_line + 3, 15 }) -- Position at endpoint line
 
   -- Save buffer
   vim.cmd("write")
@@ -179,17 +179,17 @@ function M.add_provider(name)
     "  步骤1: 编辑 providers.lua（当前已打开）",
     "    - endpoint: https://api." .. name .. ".com/v1",
     "    - model: default-model",
-    "    - static_models: { \"default-model\" }",
+    '    - static_models: { "default-model" }',
     "",
     "  步骤2: 编辑 API key",
     "    运行命令: <leader>kK 或 :AIKeys",
     "    文件路径: ~/.local/state/nvim/ai_keys.lua",
-    "    填写内容: api_key = \"your-api-key\"",
+    '    填写内容: api_key = "your-api-key"',
     "",
     "  步骤3: 同步配置到 OpenCode/Claude Code",
     "    运行命令: <leader>kS 或 :AISync",
   }
-  
+
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
   return true
 end
@@ -231,7 +231,7 @@ function M.delete_provider(name)
     local skip = false
     for _, line in ipairs(lines) do
       local escaped_name = escape_pattern(name)
-      if line:match('M%.register%([\'"]' .. escaped_name .. '[\'"]%s*,') then
+      if line:match("M%.register%(['\"]" .. escaped_name .. "['\"]%s*,") then
         skip = true
       elseif skip then
         if line:match("^%s*%}%s*%)%s*$") then
@@ -290,6 +290,57 @@ function M.list_models(provider_name)
   end
 
   return def.static_models or {}
+end
+
+----------------------------------------------------------------------
+-- Get global default provider and model
+-- Priority: Keys.global_default > first provider with key > hardcoded fallback
+----------------------------------------------------------------------
+function M.get_global_default()
+  local Keys = require("ai.keys")
+  local provider, model = Keys.get_global_default()
+
+  -- Validate provider exists
+  local def = Providers.get(provider)
+  if not def then
+    -- Fallback: find first provider with valid key
+    for _, name in ipairs(Providers.list()) do
+      local key = Keys.get_key(name)
+      if key and key ~= "" then
+        local default_model = M.get_default_model(name)
+        return name, default_model
+      end
+    end
+
+    -- Last fallback: hardcoded
+    return "bailian_coding", "qwen3.6-plus"
+  end
+
+  return provider, model
+end
+
+----------------------------------------------------------------------
+-- Set global default provider and model
+-- Updates Keys.global_default and triggers config sync
+----------------------------------------------------------------------
+function M.set_global_default(provider, model)
+  local Keys = require("ai.keys")
+
+  -- Update Keys config
+  Keys.set_global_default(provider, model)
+
+  -- Also update provider's default model
+  M.set_default_model(provider, model)
+
+  -- Trigger config sync
+  vim.schedule(function()
+    local ok, Sync = pcall(require, "ai.sync")
+    if ok then
+      Sync.sync_all({ silent = true })
+    end
+  end)
+
+  vim.notify(string.format("★ Set global default: %s/%s", provider, model), vim.log.levels.INFO)
 end
 
 ----------------------------------------------------------------------
@@ -357,7 +408,9 @@ function M.get_default_model(provider_name)
 
   -- Level 2: In-memory Providers table
   local def = Providers.get(provider_name)
-  if not def then return nil end
+  if not def then
+    return nil
+  end
   if def.model and def.model ~= "" then
     return def.model
   end
@@ -392,7 +445,7 @@ local function parse_static_models_from_block(content_lines)
       for _ in line:gmatch("{") do
         brace_depth = brace_depth + 1
       end
-      
+
       -- Count closing braces
       for _ in line:gmatch("}") do
         brace_depth = brace_depth - 1
@@ -467,7 +520,9 @@ end
 
 function M.remove_static_model(provider_name, model_id)
   local start, end_line, _ = M.find_provider_block(provider_name)
-  if not start then return false end
+  if not start then
+    return false
+  end
 
   local current = M.list_static_models(provider_name)
   local filtered = {}
@@ -490,7 +545,9 @@ end
 
 function M.update_static_models(provider_name, new_models)
   local start, end_line, _ = M.find_provider_block(provider_name)
-  if not start then return false end
+  if not start then
+    return false
+  end
   return M._update_static_models_in_file(provider_name, start, end_line, new_models)
 end
 
@@ -511,7 +568,7 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
 
   for i = start, end_line do
     local line = lines[i]
-    
+
     if line:match("static_models%s*=%s*{") then
       static_start = i
       -- FIX: Count braces on this line to get accurate depth
@@ -526,7 +583,7 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
         close_count = close_count + 1
       end
       brace_depth = open_count - close_count
-      
+
       -- If inline (same line has `},` or `})`), set static_end immediately
       if close_count > 0 and brace_depth == 0 then
         static_end = i
@@ -537,14 +594,14 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
         end
       end
     end
-    
+
     -- Only count braces on subsequent lines (after static_start)
     if static_start and not static_end and i > static_start then
       -- Count braces to find end of static_models array
       for _ in line:gmatch("{") do
         brace_depth = brace_depth + 1
       end
-      
+
       for _ in line:gmatch("}") do
         brace_depth = brace_depth - 1
         if brace_depth == 0 then
@@ -570,13 +627,13 @@ function M._update_static_models_in_file(provider_name, start, end_line, new_mod
       lines[static_start] = new_content
     else
       -- Multi-line: replace entire block with single line
-      -- Strategy: remove all lines between static_start and static_end, 
+      -- Strategy: remove all lines between static_start and static_end,
       -- then insert new_content at static_start
-      
+
       -- First, check if static_end line is `})` (closes M.register)
       -- If so, we need to keep it and add `},` before it
       local static_end_line = lines[static_end]
-      
+
       if static_end_line:match("^%s*}%s*%)%s*$") then
         -- static_end is `})` — we need to preserve it and add `},`
         -- Remove lines from static_end-1 down to static_start

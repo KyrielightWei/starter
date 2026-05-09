@@ -332,7 +332,10 @@ local function merge_settings(base, override)
 end
 
 local function build_provider_settings()
-  local provider_name = Providers.default_provider
+  -- Use global default from Registry
+  local Registry = require("ai.provider_manager.registry")
+  local provider_name, model = Registry.get_global_default()
+
   local provider_def = Providers.get(provider_name)
 
   if not provider_def then
@@ -357,10 +360,8 @@ local function build_provider_settings()
     using_fallback = true
   end
 
-  -- Claude Code should use user's preferred default model from ai_keys.lua
-  -- Priority: Keys config > Providers.model > Providers.default_model
-  local Registry = require("ai.provider_manager.registry")
-  local model = Registry.get_default_model(provider_name) or Providers.default_model
+  -- Claude Code uses global default model
+  model = model or Registry.get_default_model(provider_name)
 
   local env = {}
 
@@ -717,7 +718,8 @@ function M.check_dependencies()
       table.insert(deps, {
         name = string.format("%s 组件", active_comp:upper()),
         installed = Component.is_installed(),
-        install_hint = Component.install_hint and Component.install_hint() or ("运行 :" .. active_comp:upper() .. "DeployTools"),
+        install_hint = Component.install_hint and Component.install_hint()
+          or ("运行 :" .. active_comp:upper() .. "DeployTools"),
       })
     end
   end

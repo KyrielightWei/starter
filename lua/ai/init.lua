@@ -1,6 +1,6 @@
 -- lua/ai/init.lua
 -- AI 模块入口 - 无 Avante 版本
--- 
+--
 -- 主要 AI 工具：
 --   - OpenCode (CLI + Components)
 --   - Claude Code (CLI + Components)
@@ -40,28 +40,55 @@ local keys = {
   { "<leader>k", group = "AI Tools", icon = "🤖" },
 
   -- === Provider Manager ===
-  { "<leader>kp", mode = "n", fn = function()
+  {
+    "<leader>kp",
+    mode = "n",
+    fn = function()
       local ok, PM = pcall(require, "ai.provider_manager")
-      if ok then PM.open() end
-    end, desc = "Provider Manager", icon = "📊" },
+      if ok then
+        PM.open()
+      end
+    end,
+    desc = "Provider Manager",
+    icon = "📊",
+  },
 
   -- === Model Switch ===
-  { "<leader>ks", mode = "n", fn = function()
+  {
+    "<leader>ks",
+    mode = "n",
+    fn = function()
       local ok, MS = pcall(require, "ai.model_switch")
-      if ok then MS.select(function(choice)
-        if choice then
-          vim.notify("Switched to " .. choice.provider .. "/" .. choice.model, vim.log.levels.INFO)
-        end
-      end) end
-    end, desc = "Model Switch", icon = "🔄" },
+      if ok then
+        MS.select(function(choice)
+          if choice then
+            vim.notify("Switched to " .. choice.provider .. "/" .. choice.model, vim.log.levels.INFO)
+          end
+        end)
+      end
+    end,
+    desc = "Model Switch",
+    icon = "🔄",
+  },
 
   -- === Commit Picker & Diff ===
-  { "<leader>kC", mode = "n", fn = function()
+  {
+    "<leader>kC",
+    mode = "n",
+    fn = function()
       local ok, CP = pcall(require, "commit_picker.init")
-      if ok then CP.open() end
-    end, desc = "Commit Picker", icon = "📝" },
+      if ok then
+        CP.open()
+      end
+    end,
+    desc = "Commit Picker",
+    icon = "📝",
+  },
 
-  { "<leader>kf", mode = "n", fn = function()
+  {
+    "<leader>kf",
+    mode = "n",
+    fn = function()
       local ok_nav, Nav = pcall(require, "commit_picker.navigation")
       if not ok_nav or not Nav.is_loaded() then
         local ok_cp, CP = pcall(require, "commit_picker.init")
@@ -86,18 +113,30 @@ local keys = {
       else
         Nav.cycle_next()
       end
-    end, desc = "Next Commit", icon = "⬇️" },
+    end,
+    desc = "Next Commit",
+    icon = "⬇️",
+  },
 
-  { "<leader>kb", mode = "n", fn = function()
+  {
+    "<leader>kb",
+    mode = "n",
+    fn = function()
       local ok, Nav = pcall(require, "commit_picker.navigation")
       if not ok or not Nav.is_loaded() then
         vim.notify("请先打开 Commit Picker 加载提交列表", vim.log.levels.INFO)
         return
       end
       Nav.cycle_prev()
-    end, desc = "Prev Commit", icon = "⬆️" },
+    end,
+    desc = "Prev Commit",
+    icon = "⬆️",
+  },
 
-  { "<leader>kd", mode = "n", fn = function()
+  {
+    "<leader>kd",
+    mode = "n",
+    fn = function()
       -- 使用 DiffviewOpenEnhanced（支持 worktree 和自定义 git 路径）
       local ok_dv = pcall(require, "diffview")
       if ok_dv then
@@ -113,90 +152,185 @@ local keys = {
       if not ok_fug then
         vim.notify("Git diff 不可用，请安装 diffview.nvim 或 vim-fugitive", vim.log.levels.WARN)
       end
-    end, desc = "Diff Viewer", icon = "📊" },
+    end,
+    desc = "Diff Viewer",
+    icon = "📊",
+  },
 
   -- === 配置与同步 ===
-  { "<leader>kK", mode = "n", fn = function()
+  {
+    "<leader>kK",
+    mode = "n",
+    fn = function()
       local ok, Keys = pcall(require, "ai.keys")
-      if ok then Keys.edit() end
-    end, desc = "Edit API Keys", icon = "🔑" },
+      if ok then
+        Keys.edit()
+      end
+    end,
+    desc = "Edit API Keys",
+    icon = "🔑",
+  },
 
-  { "<leader>kS", mode = "n", fn = function()
+  {
+    "<leader>kS",
+    mode = "n",
+    fn = function()
       local ok, Sync = pcall(require, "ai.sync")
-      if ok then Sync.select_and_sync() end
-    end, desc = "Sync Configs", icon = "🔄" },
+      if ok then
+        Sync.select_and_sync()
+      end
+    end,
+    desc = "Sync Configs",
+    icon = "🔄",
+  },
 
   -- === Components 管理 ===
-  { "<leader>kc", mode = "n", fn = function()
+  {
+    "<leader>kc",
+    mode = "n",
+    fn = function()
       local ok, Picker = pcall(require, "ai.components.picker")
-      if ok then Picker.open() end
-    end, desc = "Component Manager", icon = "📦" },
+      if ok then
+        Picker.open()
+      end
+    end,
+    desc = "Component Manager",
+    icon = "📦",
+  },
 }
 
 ----------------------------------------------------------------------
 -- 用户命令注册（移除 Avante 特定的）
 ----------------------------------------------------------------------
 local commands = {
-  { "AIKeys", function()
+  {
+    "AIKeys",
+    function()
       local ok, Keys = pcall(require, "ai.keys")
-      if ok then Keys.edit() end
-    end, desc = "Edit API Keys" },
+      if ok then
+        Keys.edit()
+      end
+    end,
+    desc = "Edit API Keys",
+  },
 
-  { "AISync", function()
+  {
+    "AISync",
+    function()
       local ok, Sync = pcall(require, "ai.sync")
-      if ok then Sync.select_and_sync() end
-    end, desc = "Sync AI Configs" },
+      if ok then
+        Sync.select_and_sync()
+      end
+    end,
+    desc = "Sync AI Configs",
+  },
 
-  { "AIComponents", function()
+  {
+    "AIComponents",
+    function()
       local ok, Picker = pcall(require, "ai.components.picker")
-      if ok then Picker.open() end
-    end, desc = "Open Component Manager" },
+      if ok then
+        Picker.open()
+      end
+    end,
+    desc = "Open Component Manager",
+  },
 
   -- ECC 命令（向后兼容）
-  { "ECCInstall", function()
+  {
+    "ECCInstall",
+    function()
       require("ai.ecc").open_installer()
-    end, desc = "Install ECC Framework" },
+    end,
+    desc = "Install ECC Framework",
+  },
 
-  { "ECCStatus", function()
+  {
+    "ECCStatus",
+    function()
       require("ai.ecc").show_status()
-    end, desc = "Show ECC Status" },
+    end,
+    desc = "Show ECC Status",
+  },
 
   -- OpenCode 命令
-  { "OpenCodeWriteConfig", function()
+  {
+    "OpenCodeWriteConfig",
+    function()
       local ok, OpenCode = pcall(require, "ai.opencode")
-      if ok then OpenCode.write_config() end
-    end, desc = "Generate OpenCode Config" },
+      if ok then
+        OpenCode.write_config()
+      end
+    end,
+    desc = "Generate OpenCode Config",
+  },
 
-  { "OpenCodeEditTemplate", function()
+  {
+    "OpenCodeEditTemplate",
+    function()
       local ok, OpenCode = pcall(require, "ai.opencode")
-      if ok then OpenCode.edit_template() end
-    end, desc = "Edit OpenCode Template" },
+      if ok then
+        OpenCode.edit_template()
+      end
+    end,
+    desc = "Edit OpenCode Template",
+  },
 
-  { "OpenCodePreviewConfig", function()
+  {
+    "OpenCodePreviewConfig",
+    function()
       local ok, OpenCode = pcall(require, "ai.opencode")
-      if ok then OpenCode.preview_config() end
-    end, desc = "Preview OpenCode Config" },
+      if ok then
+        OpenCode.preview_config()
+      end
+    end,
+    desc = "Preview OpenCode Config",
+  },
 
   -- Claude Code 命令
-  { "ClaudeCodeGenerateConfig", function()
+  {
+    "ClaudeCodeGenerateConfig",
+    function()
       local ok, ClaudeCode = pcall(require, "ai.claude_code")
-      if ok then ClaudeCode.write_settings() end
-    end, desc = "Generate Claude Code Settings" },
+      if ok then
+        ClaudeCode.write_settings()
+      end
+    end,
+    desc = "Generate Claude Code Settings",
+  },
 
-  { "ClaudeCodeEditSettings", function()
+  {
+    "ClaudeCodeEditSettings",
+    function()
       local ok, ClaudeCode = pcall(require, "ai.claude_code")
-      if ok then ClaudeCode.edit_settings() end
-    end, desc = "Edit Claude Code Settings" },
+      if ok then
+        ClaudeCode.edit_settings()
+      end
+    end,
+    desc = "Edit Claude Code Settings",
+  },
 
-  { "ClaudeCodeEditTemplate", function()
+  {
+    "ClaudeCodeEditTemplate",
+    function()
       local ok, ClaudeCode = pcall(require, "ai.claude_code")
-      if ok then ClaudeCode.edit_template() end
-    end, desc = "Edit Claude Code Template" },
+      if ok then
+        ClaudeCode.edit_template()
+      end
+    end,
+    desc = "Edit Claude Code Template",
+  },
 
-  { "ClaudeCodePreviewSettings", function()
+  {
+    "ClaudeCodePreviewSettings",
+    function()
       local ok, ClaudeCode = pcall(require, "ai.claude_code")
-      if ok then ClaudeCode.preview_settings() end
-    end, desc = "Preview Claude Code Settings" },
+      if ok then
+        ClaudeCode.preview_settings()
+      end
+    end,
+    desc = "Preview Claude Code Settings",
+  },
 }
 
 ----------------------------------------------------------------------

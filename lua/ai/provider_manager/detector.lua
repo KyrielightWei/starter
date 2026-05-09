@@ -29,6 +29,7 @@ M.STATUS_AVAILABLE = "available"
 M.STATUS_UNAVAILABLE = "unavailable"
 M.STATUS_TIMEOUT = "timeout"
 M.STATUS_ERROR = "error"
+M.STATUS_AUTH_FAILED = "auth_failed" -- 403/401 认证失败
 
 ----------------------------------------------------------------------
 -- Injectable HTTP function for testability
@@ -44,7 +45,9 @@ end
 -- Private: Sanitize error messages (remove API keys and sensitive data)
 ----------------------------------------------------------------------
 local function sanitize_error(msg)
-  if not msg or msg == "" then return msg end
+  if not msg or msg == "" then
+    return msg
+  end
   -- OpenAI-style: sk-xxx, sk-proj-xxx
   msg = msg:gsub("sk%-[A-Za-z0-9_%-]+", "[KEY_REDACTED]")
   -- DashScope/Alibaba
@@ -63,7 +66,9 @@ end
 -- Private: Check if endpoint is OpenAI-compatible
 ----------------------------------------------------------------------
 local function is_endpoint_compatible(endpoint)
-  if not endpoint then return false end
+  if not endpoint then
+    return false
+  end
   return endpoint:match("/v1/") or endpoint:match("/v1$") or endpoint:match("/compatible%-mode$")
 end
 
@@ -98,11 +103,18 @@ local function do_request(base_url, api_key, model, timeout_ms, callback)
   })
 
   local cmd = {
-    "curl", "-s", "-m", tostring(timeout_sec),
-    "-X", "POST",
-    "-H", "Content-Type: application/json",
-    "-H", "Authorization: Bearer " .. api_key,
-    "-d", body,
+    "curl",
+    "-s",
+    "-m",
+    tostring(timeout_sec),
+    "-X",
+    "POST",
+    "-H",
+    "Content-Type: application/json",
+    "-H",
+    "Authorization: Bearer " .. api_key,
+    "-d",
+    body,
     url,
   }
 
@@ -126,10 +138,23 @@ local function parse_response(stdout, start_time)
     return result
   end
 
+  -- Check for authentication errors (403/401)
+  if json.code == 403 or json.code == 401 then
+    result.status = M.STATUS_AUTH_FAILED
+    result.error_msg = sanitize_error(json.message or "Authentication failed - API key invalid or not registered")
+    return result
+  end
+
   if json.error then
     local err_msg = ""
     if type(json.error) == "table" then
       err_msg = json.error.message or json.error.code or vim.json.encode(json.error)
+      -- Check for 403/401 in nested error
+      if json.error.code == 403 or json.error.code == 401 or json.error.type == "permission_denied" then
+        result.status = M.STATUS_AUTH_FAILED
+        result.error_msg = sanitize_error(err_msg)
+        return result
+      end
     elseif type(json.error) == "string" then
       err_msg = json.error
     end
@@ -157,7 +182,9 @@ local function check_provider_model_async(provider_name, model_id, callback)
   -- WR-02 FIX: Use vim.schedule to avoid stack overflow from synchronous callbacks
   if Cache.is_valid(provider_name, model_id) then
     local cached = Cache.get(provider_name, model_id)
-    vim.schedule(function() callback(cached) end)
+    vim.schedule(function()
+      callback(cached)
+    end)
     return
   end
 
@@ -196,7 +223,10 @@ local function check_provider_model_async(provider_name, model_id, callback)
 
   -- Step 5: Endpoint compatibility check
   if not is_endpoint_compatible(base_url) then
-    vim.notify("Provider " .. provider_name .. " endpoint may not be OpenAI-compatible: " .. base_url, vim.log.levels.WARN)
+    vim.notify(
+      "Provider " .. provider_name .. " endpoint may not be OpenAI-compatible: " .. base_url,
+      vim.log.levels.WARN
+    )
   end
 
   -- Step 6: Make request
@@ -276,7 +306,9 @@ function M.check_single(provider_name, model_id)
   local def = Providers.get(provider_name)
   local timeout = def and def.timeout or 30000
 
-  vim.wait(timeout, function() return done end, 50, false)
+  vim.wait(timeout, function()
+    return done
+  end, 50, false)
 
   return result
 end
@@ -305,7 +337,9 @@ function M.check_all_providers(callback)
   update_progress()
 
   local function run_next()
-    if current > total then return end
+    if current > total then
+      return
+    end
 
     while active < max_concurrent and current <= total do
       local p = providers[current]

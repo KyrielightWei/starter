@@ -96,8 +96,8 @@ end
 ---@return string
 local function escape_lua_string(s)
   return tostring(s):gsub('[%c"\\]', function(c)
-    local escapes = { ['"'] = '\\"', ['\\'] = '\\\\', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
-    return escapes[c] or string.format('\\u%04x', c:byte())
+    local escapes = { ['"'] = '\\"', ["\\"] = "\\\\", ["\n"] = "\\n", ["\r"] = "\\r", ["\t"] = "\\t" }
+    return escapes[c] or string.format("\\u%04x", c:byte())
   end)
 end
 

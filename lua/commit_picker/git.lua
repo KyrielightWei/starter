@@ -10,7 +10,7 @@ local M = {}
 ----------------------------------------------------------------------
 local function run_git(args, opts)
   opts = opts or {}
-  local cwd = opts.cwd or vim.uv.cwd()  -- vim.uv is forward-compatible (IN-03 fix)
+  local cwd = opts.cwd or vim.uv.cwd() -- vim.uv is forward-compatible (IN-03 fix)
 
   -- Wrap vim.system in pcall to handle case where git is not on PATH (CR-02 fix)
   local ok, result = pcall(function()
@@ -62,8 +62,7 @@ function M.get_commit_list(base, head, opts)
 
   if not result.ok then
     -- Return empty if not a git repo or no remote origin
-    if result.error:match("not a git repository") or
-       result.error:match("bad revision") then
+    if result.error:match("not a git repository") or result.error:match("bad revision") then
       return {}
     end
     return { error = true, output = result.error }
@@ -87,10 +86,14 @@ function M.get_commit_list(base, head, opts)
 
       -- Clean up refs string (remove surrounding parens and trim)
       refs = refs:gsub("^%s*%(%s*", ""):gsub("%s*%)%s*$", "")
-      if refs == "" then refs = "" end
+      if refs == "" then
+        refs = ""
+      end
 
       -- Ensure short_sha is available
-      if short_sha == "" then short_sha = sha:sub(1, 7) end
+      if short_sha == "" then
+        short_sha = sha:sub(1, 7)
+      end
 
       table.insert(commits, {
         sha = sha,
@@ -156,15 +159,16 @@ function M.get_commits_for_mode()
     local count = config.count or 20
     if ok_ab and ab then
       vim.notify(
-        string.format("未找到远程提交 (ahead %d, behind %d)，回退到最近 %d 条",
-          ab.ahead, ab.behind, count),
+        string.format(
+          "未找到远程提交 (ahead %d, behind %d)，回退到最近 %d 条",
+          ab.ahead,
+          ab.behind,
+          count
+        ),
         vim.log.levels.WARN
       )
     else
-      vim.notify(
-        string.format("无法获取远程状态，回退到最近 %d 条", count),
-        vim.log.levels.WARN
-      )
+      vim.notify(string.format("无法获取远程状态，回退到最近 %d 条", count), vim.log.levels.WARN)
     end
     return M.get_commit_list(nil, nil, { count = count }), nil
   end
@@ -185,10 +189,7 @@ function M.get_commits_for_mode()
     -- Fallback: invalid base, use last N (WR-03 fix: consistent return with nil base)
     local count = config.count or 20
     local short = (config.base_commit and config.base_commit:sub(1, 7)) or "?"
-    vim.notify(
-      string.format("基础提交不可用 (%s)，回退到最近 %d 条", short, count),
-      vim.log.levels.WARN
-    )
+    vim.notify(string.format("基础提交不可用 (%s)，回退到最近 %d 条", short, count), vim.log.levels.WARN)
     return M.get_commit_list(nil, nil, { count = count }), nil
   end
 

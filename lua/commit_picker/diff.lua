@@ -52,7 +52,7 @@ function M.open_diff(shas)
     return
   end
 
-   -- Skip secondary guard — the buffer-name check at lines 42-49 already handles
+  -- Skip secondary guard — the buffer-name check at lines 42-49 already handles
   -- the common case. The diffview.lib API varies across versions, so we avoid
   -- relying on it directly (UAT bug fix).
 

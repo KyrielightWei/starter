@@ -244,18 +244,18 @@ function M.get_deploy_paths(target)
   if target == "claude" then
     -- D-24: ECC → Claude Code full mapping
     return {
-      { source = cache_base .. "/rules",      target = vim.fn.expand("~/.claude/rules") },
-      { source = cache_base .. "/agents",     target = vim.fn.expand("~/.claude/agents") },
-      { source = cache_base .. "/skills",     target = vim.fn.expand("~/.claude/skills") },
-      { source = cache_base .. "/commands",   target = vim.fn.expand("~/.claude/commands/ecc") },
-      { source = cache_base .. "/hooks",      target = vim.fn.expand("~/.claude/hooks") },
+      { source = cache_base .. "/rules", target = vim.fn.expand("~/.claude/rules") },
+      { source = cache_base .. "/agents", target = vim.fn.expand("~/.claude/agents") },
+      { source = cache_base .. "/skills", target = vim.fn.expand("~/.claude/skills") },
+      { source = cache_base .. "/commands", target = vim.fn.expand("~/.claude/commands/ecc") },
+      { source = cache_base .. "/hooks", target = vim.fn.expand("~/.claude/hooks") },
     }
   elseif target == "opencode" then
     -- D-25: ECC → OpenCode subset mapping
     return {
-      { source = cache_base .. "/agents",     target = vim.fn.expand("~/.config/opencode/agents") },
-      { source = cache_base .. "/skills",     target = vim.fn.expand("~/.config/opencode/skills/ecc") },
-      { source = cache_base .. "/commands",   target = vim.fn.expand("~/.config/opencode/command/ecc") },
+      { source = cache_base .. "/agents", target = vim.fn.expand("~/.config/opencode/agents") },
+      { source = cache_base .. "/skills", target = vim.fn.expand("~/.config/opencode/skills/ecc") },
+      { source = cache_base .. "/commands", target = vim.fn.expand("~/.config/opencode/command/ecc") },
     }
   end
 

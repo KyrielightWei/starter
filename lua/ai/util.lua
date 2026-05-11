@@ -35,22 +35,15 @@ function M.beautify_model_item(m)
 end
 
 ----------------------------------------------------------------------
--- env_var_map：自动从 providers.lua 生成
--- 不再需要手动维护
-----------------------------------------------------------------------
-M.env_var_map = {}
-for name, def in pairs(Providers) do
-  if type(def) == "table" and def.api_key_name then
-    M.env_var_map[name] = def.api_key_name
-  end
-end
-
-----------------------------------------------------------------------
 -- get_env_var(provider)
+-- Look up api_key_name from Providers at call time (not cached at load)
 ----------------------------------------------------------------------
 function M.get_env_var(provider)
-  return M.env_var_map[provider] or "OPENAI_API_KEY"
+  local def = Providers.get(provider)
+  if def and def.api_key_name then
+    return def.api_key_name
+  end
+  return "OPENAI_API_KEY"
 end
 
 return M
-

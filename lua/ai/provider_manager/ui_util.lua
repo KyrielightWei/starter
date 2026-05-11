@@ -23,17 +23,17 @@ local ICONS = {
   warn = "!",
   error = "✗",
   -- Status icons with ASCII fallbacks (addresses C-04 Unicode compatibility concern)
-  status_available   = "✓",
+  status_available = "✓",
   status_unavailable = "✗",
-  status_timeout     = "⏱",
-  status_error       = "⚠",
-  status_unchecked   = "○",
+  status_timeout = "⏱",
+  status_error = "⚠",
+  status_unchecked = "○",
   -- ASCII fallbacks for font compatibility
-  fallback_available   = "[ok]",
+  fallback_available = "[ok]",
   fallback_unavailable = "[--]",
-  fallback_timeout     = "[..]",
-  fallback_error       = "[!!]",
-  fallback_unchecked   = "[  ]",
+  fallback_timeout = "[..]",
+  fallback_error = "[!!]",
+  fallback_unchecked = "[  ]",
 }
 
 ----------------------------------------------------------------------
@@ -49,20 +49,20 @@ end
 function M.get_status_icon(status, use_ascii)
   if use_ascii then
     local ascii_map = {
-      available   = ICONS.fallback_available,
+      available = ICONS.fallback_available,
       unavailable = ICONS.fallback_unavailable,
-      timeout     = ICONS.fallback_timeout,
-      error       = ICONS.fallback_error,
-      unchecked   = ICONS.fallback_unchecked,
+      timeout = ICONS.fallback_timeout,
+      error = ICONS.fallback_error,
+      unchecked = ICONS.fallback_unchecked,
     }
     return ascii_map[status] or ICONS.fallback_unchecked
   end
   local icon_map = {
-    available   = ICONS.status_available,
+    available = ICONS.status_available,
     unavailable = ICONS.status_unavailable,
-    timeout     = ICONS.status_timeout,
-    error       = ICONS.status_error,
-    unchecked   = ICONS.status_unchecked,
+    timeout = ICONS.status_timeout,
+    error = ICONS.status_error,
+    unchecked = ICONS.status_unchecked,
   }
   return icon_map[status] or ICONS.status_unchecked
 end
@@ -72,11 +72,11 @@ end
 ----------------------------------------------------------------------
 function M.get_status_label(status)
   local labels = {
-    available   = "success",
+    available = "success",
     unavailable = "error",
-    timeout     = "warn",
-    error       = "error",
-    unchecked   = "comment",
+    timeout = "warn",
+    error = "error",
+    unchecked = "comment",
   }
   return labels[status] or "comment"
 end
@@ -146,16 +146,16 @@ function M.floating_input(opts, callback)
 
   -- Create buffer FIRST, set all options BEFORE opening window
   local buf = vim.api.nvim_create_buf(false, true)
-  
+
   -- CRITICAL: Set modifiable BEFORE any operations
   vim.api.nvim_buf_set_option(buf, "modifiable", true)
   vim.api.nvim_buf_set_option(buf, "buftype", "acwrite")
   vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
   vim.api.nvim_buf_set_option(buf, "swapfile", false)
-  
+
   -- Set initial content AFTER modifiable is set
   -- Add left padding for better visual appearance
-  local padding = "  "  -- Two spaces for left margin
+  local padding = "  " -- Two spaces for left margin
   if default and #default > 0 then
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { padding .. default })
   else
@@ -165,8 +165,8 @@ function M.floating_input(opts, callback)
   -- Calculate dimensions - top-center position, larger width
   local width = math.max(60, #prompt + #default + 20)
   local height = 1
-  local row = math.floor(vim.o.lines * 0.15)  -- Near top (15% from top)
-  local col = math.floor((vim.o.columns - width) / 2)  -- Center horizontally
+  local row = math.floor(vim.o.lines * 0.15) -- Near top (15% from top)
+  local col = math.floor((vim.o.columns - width) / 2) -- Center horizontally
 
   -- Open floating window
   local win_opts = {
@@ -181,9 +181,9 @@ function M.floating_input(opts, callback)
     title_pos = "center",
     focusable = true,
   }
-  
+
   local win = vim.api.nvim_open_win(buf, true, win_opts)
-  
+
   -- Set window options for better input experience
   vim.api.nvim_win_set_option(win, "winhl", "Normal:Normal")
   vim.api.nvim_win_set_option(win, "cursorline", false)
@@ -196,19 +196,25 @@ function M.floating_input(opts, callback)
     -- Strip leading padding (2 spaces)
     input = input:gsub("^%s*", "")
     vim.api.nvim_win_close(win, true)
-    if callback then callback(input) end
+    if callback then
+      callback(input)
+    end
   end, { buffer = buf, nowait = true, silent = true })
 
   -- Esc: cancel
   vim.keymap.set({ "i", "n" }, "<Esc>", function()
     vim.api.nvim_win_close(win, true)
-    if callback then callback(nil) end
+    if callback then
+      callback(nil)
+    end
   end, { buffer = buf, nowait = true, silent = true })
 
   -- q in normal: cancel
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(win, true)
-    if callback then callback(nil) end
+    if callback then
+      callback(nil)
+    end
   end, { buffer = buf, nowait = true, silent = true })
 
   -- CRITICAL: Enter insert mode IMMEDIATELY using feedkeys

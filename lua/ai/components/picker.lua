@@ -67,7 +67,7 @@ function M.build_entries()
     local Manager = require("ai.components.manager")
     local cache_path = Manager.get_cache_path(comp.name)
     local cache_status = vim.fn.isdirectory(cache_path) == 1
-    
+
     local cache_str = cache_status and "[cached]" or "[not cached]"
 
     -- Line 1 format: icon + name + cache status + category
@@ -126,10 +126,7 @@ function M.build_header()
 
   for tool, comp_name in pairs(assignments) do
     -- Simplified: just show assignment, no version info (to avoid git rev-parse blocking)
-    table.insert(
-      lines,
-      string.format("  %s → %s%s %s%s", tool, ANSI.green, "✓", comp_name, ANSI.reset)
-    )
+    table.insert(lines, string.format("  %s → %s%s %s%s", tool, ANSI.green, "✓", comp_name, ANSI.reset))
   end
 
   table.insert(lines, "")
@@ -338,21 +335,68 @@ function M.open_actions_menu(component_name)
 
   -- Define actions with availability metadata per D-42 to D-44
   local actions = {
-    { name = "Install", available = not is_cached, reason = "already cached", fn = function() Actions.install(component_name) end },
-    { name = "Deploy", available = is_cached, reason = "not cached yet", fn = function() -- Deployments logic
-      local Manager2 = require("ai.components.manager")
-      local targets = comp.supported_targets or { "claude", "opencode" }
-      vim.ui.select(targets, { prompt = "Deploy to:" }, function(target)
-        if target then
-          Manager2.deploy_to(component_name, target)
-        end
-      end)
-    end },
-    { name = "Update", available = is_cached, reason = "not cached", fn = function() Actions.update(component_name) end },
-    { name = "Uninstall", available = is_cached, reason = "not cached", fn = function() Actions.uninstall(component_name) end },
-    { name = "Switch Tool Assignment", available = true, reason = "", fn = function() M.open_switch_menu(component_name) end },
-    { name = "View Version Details", available = true, reason = "", fn = function() Previewer.show_version_detail(component_name) end },
-    { name = "Open Config Directory", available = true, reason = "", fn = function() Actions.open_config_dir(component_name) end },
+    {
+      name = "Install",
+      available = not is_cached,
+      reason = "already cached",
+      fn = function()
+        Actions.install(component_name)
+      end,
+    },
+    {
+      name = "Deploy",
+      available = is_cached,
+      reason = "not cached yet",
+      fn = function() -- Deployments logic
+        local Manager2 = require("ai.components.manager")
+        local targets = comp.supported_targets or { "claude", "opencode" }
+        vim.ui.select(targets, { prompt = "Deploy to:" }, function(target)
+          if target then
+            Manager2.deploy_to(component_name, target)
+          end
+        end)
+      end,
+    },
+    {
+      name = "Update",
+      available = is_cached,
+      reason = "not cached",
+      fn = function()
+        Actions.update(component_name)
+      end,
+    },
+    {
+      name = "Uninstall",
+      available = is_cached,
+      reason = "not cached",
+      fn = function()
+        Actions.uninstall(component_name)
+      end,
+    },
+    {
+      name = "Switch Tool Assignment",
+      available = true,
+      reason = "",
+      fn = function()
+        M.open_switch_menu(component_name)
+      end,
+    },
+    {
+      name = "View Version Details",
+      available = true,
+      reason = "",
+      fn = function()
+        Previewer.show_version_detail(component_name)
+      end,
+    },
+    {
+      name = "Open Config Directory",
+      available = true,
+      reason = "",
+      fn = function()
+        Actions.open_config_dir(component_name)
+      end,
+    },
   }
 
   -- Build display_lines with ANSI styling per D-42

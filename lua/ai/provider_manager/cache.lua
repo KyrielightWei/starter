@@ -8,9 +8,9 @@
 local M = {}
 
 local TTL_BY_STATUS = {
-  available   = 300,
-  timeout     = 60,
-  error       = 30,
+  available = 300,
+  timeout = 60,
+  error = 30,
   unavailable = 120,
 }
 
@@ -109,10 +109,10 @@ function M.set(provider, model, result)
   end
 
   data[provider][model] = {
-    status        = result.status or "error",
+    status = result.status or "error",
     response_time = result.response_time or 0,
-    error_msg     = result.error_msg or "",
-    timestamp     = result.timestamp or os.time(),
+    error_msg = result.error_msg or "",
+    timestamp = result.timestamp or os.time(),
   }
 
   save_cache(data)

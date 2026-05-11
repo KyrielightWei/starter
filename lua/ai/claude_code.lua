@@ -385,12 +385,14 @@ local function build_provider_settings()
   -- Claude Code uses global default model
   model = model or Registry.get_default_model(provider_name)
 
-  -- Extract model ID from provider-prefixed format (e.g., "anthropic/claude-opus-4.6" -> "claude-opus-4.6")
-  -- Some providers like zenmux include provider prefix in model names
+  -- Strip provider prefix for Claude Code env vars
+  -- Zenmux official format: claude-opus-4-6 (dash-separated, no provider prefix)
   local model_id = model
   if model:match("/") then
     model_id = model:match("([^/]+)$")
   end
+  -- Normalize dots to dashes (e.g., claude-opus-4.6 -> claude-opus-4-6)
+  model_id = model_id:gsub("%.", "-")
 
   local env = {}
 
@@ -402,11 +404,11 @@ local function build_provider_settings()
     env["ANTHROPIC_BASE_URL"] = endpoint
   end
 
-  env["ANTHROPIC_MODEL"] = model_id
-  env["ANTHROPIC_SMALL_FAST_MODEL"] = model_id
+  -- Use Zenmux official env var format (no ANTHROPIC_MODEL, only DEFAULT_* variants)
   env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = model_id
-  env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model_id
   env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model_id
+  env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model_id
+  env["ANTHROPIC_SMALL_FAST_MODEL"] = model_id
 
   local settings = {}
   if vim.tbl_count(env) > 0 then
@@ -668,8 +670,8 @@ function M.preview_settings()
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(buf, "filetype", "json")
-  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_set_option_value("filetype", "json", { buf = buf })
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
   vim.api.nvim_buf_set_name(buf, "Claude Code Settings Preview")
 
   vim.api.nvim_win_set_buf(0, buf)

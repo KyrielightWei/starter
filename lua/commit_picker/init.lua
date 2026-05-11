@@ -131,7 +131,9 @@ function M.open()
         -- Open settings panel using :AICommitConfig command
         vim.schedule(function()
           local ok, Settings = pcall(require, "commit_picker.settings")
-          if ok then Settings.open() end
+          if ok then
+            Settings.open()
+          end
         end)
       elseif action_name == "help" then
         local help_text = [[
@@ -160,19 +162,23 @@ function M.open()
         local height = math.min(#lines, math.floor(vim.o.lines * 0.5))
         local win_opts = {
           relative = "editor",
-          width  = width,
+          width = width,
           height = height,
-          col    = math.floor((vim.o.columns - width) / 2),
-          row    = math.floor((vim.o.lines - height) / 2),
-          style  = "minimal",
+          col = math.floor((vim.o.columns - width) / 2),
+          row = math.floor((vim.o.lines - height) / 2),
+          style = "minimal",
           border = "rounded",
-          title  = " Commit Picker Help ",
+          title = " Commit Picker Help ",
           title_pos = "center",
         }
 
         local win = vim.api.nvim_open_win(buf, true, win_opts)
-        vim.keymap.set("n", "q", function() vim.api.nvim_win_close(win, true) end, { buffer = buf })
-        vim.keymap.set("n", "<Esc>", function() vim.api.nvim_win_close(win, true) end, { buffer = buf })
+        vim.keymap.set("n", "q", function()
+          vim.api.nvim_win_close(win, true)
+        end, { buffer = buf })
+        vim.keymap.set("n", "<Esc>", function()
+          vim.api.nvim_win_close(win, true)
+        end, { buffer = buf })
       end
     end,
   })

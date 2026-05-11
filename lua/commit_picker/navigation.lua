@@ -6,9 +6,9 @@ local M = {}
 ----------------------------------------------------------------------
 -- Module-local state (not persisted across Neovim sessions)
 ----------------------------------------------------------------------
-local commit_list = nil      -- Array of {sha, short_sha, subject, date, refs}
-local current_index = nil     -- 1-based index into commit_list
-local view_mode = "single"    -- "single" (sha^..sha) or "range" (sha1..sha2)
+local commit_list = nil -- Array of {sha, short_sha, subject, date, refs}
+local current_index = nil -- 1-based index into commit_list
+local view_mode = "single" -- "single" (sha^..sha) or "range" (sha1..sha2)
 
 ----------------------------------------------------------------------
 -- Injected dependencies (set via M.setup)

@@ -65,13 +65,8 @@ function M.build_preview(component_name)
   for _, dep in ipairs(deps) do
     local icon = dep.installed and "✓" or "✗"
     local version_str = dep.version or ""
-    lines[#lines + 1] = string.format(
-      "  %s %s: %s %s",
-      icon,
-      dep.name,
-      version_str,
-      dep.installed and "" or "(MISSING)"
-    )
+    lines[#lines + 1] =
+      string.format("  %s %s: %s %s", icon, dep.name, version_str, dep.installed and "" or "(MISSING)")
   end
   if #deps == 0 then
     lines[#lines + 1] = "  (none)"

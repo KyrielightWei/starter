@@ -225,7 +225,10 @@ local function validate_template(config)
     if not config.model:match("^[%w_-]+/.+$") then
       table.insert(
         errors,
-        string.format("model '%s' 必须使用 'provider/model' 格式，例如 'bailian_coding/qwen3.6-plus'", config.model)
+        string.format(
+          "model '%s' 必须使用 'provider/model' 格式，例如 'bailian_coding/qwen3.6-plus'",
+          config.model
+        )
       )
     end
   end
@@ -251,13 +254,13 @@ local function validate_template(config)
       skill = true,
       doom_loop = true,
     }
-    
+
     for perm, value in pairs(config.permission) do
       -- 检查权限类型
       if not valid_perms[perm] then
         table.insert(warnings, string.format("permission 中未知权限: %s", perm))
       end
-      
+
       -- 检查权限值格式
       if type(value) == "string" then
         -- 简单格式: "read": "ask" 或 "edit": "allow"
@@ -279,7 +282,7 @@ local function validate_template(config)
       end
     end
   end
-  
+
   -- Agent validation - 支持 agent 权限覆盖
   if config.agent then
     if type(config.agent) ~= "table" then
@@ -633,9 +636,8 @@ function M.write_config()
   end
 
   if comp_status then
-    table.insert(notify_lines, "  Rules: ~/.claude/rules/")
-    table.insert(notify_lines, "  Agents: ~/.claude/agents/")
     local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
+    table.insert(notify_lines, "  Config: " .. xdg_config .. "/opencode/config.json")
     table.insert(notify_lines, "  Commands: " .. xdg_config .. "/opencode/commands/")
   end
 
@@ -652,7 +654,7 @@ end
 function M.edit_template()
   local template_path = get_opencode_template_path()
 
-if vim.fn.filereadable(template_path) == 0 then
+  if vim.fn.filereadable(template_path) == 0 then
     local default_template = [[{
   "$schema": "https://opencode.ai/config.json",
 
@@ -804,8 +806,8 @@ if vim.fn.filereadable(template_path) == 0 then
 
   vim.cmd("edit " .. vim.fn.fnameescape(template_path))
 
-  vim.api.nvim_buf_set_option(0, "filetype", "jsonc")
-  vim.api.nvim_buf_set_option(0, "commentstring", "// %s")
+  vim.api.nvim_set_option_value("filetype", "jsonc", { buf = 0 })
+  vim.api.nvim_set_option_value("commentstring", "// %s", { buf = 0 })
 end
 
 function M.preview_config()
@@ -819,8 +821,8 @@ function M.preview_config()
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(buf, "filetype", "json")
-  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_set_option_value("filetype", "json", { buf = buf })
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
   vim.api.nvim_buf_set_name(buf, "OpenCode Config Preview")
 
   vim.api.nvim_win_set_buf(0, buf)

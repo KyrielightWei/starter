@@ -7,10 +7,10 @@ M._win = nil
 M._buf = nil
 
 local STATUS_SYMBOLS = {
-  available   = "✓",
+  available = "✓",
   unavailable = "✗",
-  timeout     = "⏱",
-  warning     = "⚠",
+  timeout = "⏱",
+  warning = "⚠",
 }
 
 local function status_symbol(status)
@@ -83,10 +83,7 @@ function M.show_results(results, title)
   local lines = {}
 
   -- Header (no truncation needed for fixed column names)
-  local header = string.format("%-16s %-16s %-10s %-10s %s",
-    "Provider", "Model", "Status",
-    "Time(ms)", "Error"
-  )
+  local header = string.format("%-16s %-16s %-10s %-10s %s", "Provider", "Model", "Status", "Time(ms)", "Error")
   table.insert(lines, header)
   table.insert(lines, string.rep("─", vim.api.nvim_strwidth(header)))
 
@@ -99,9 +96,7 @@ function M.show_results(results, title)
     local time_ms = tostring(r.response_time or 0)
     local error_msg = r.error_msg and r.error_msg ~= "" and truncate(r.error_msg) or ""
 
-    local line = string.format("%-16s %-16s %-10s %-10s %s",
-      provider, model, status, time_ms, error_msg
-    )
+    local line = string.format("%-16s %-16s %-10s %-10s %s", provider, model, status, time_ms, error_msg)
     table.insert(lines, line)
   end
 

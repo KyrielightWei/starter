@@ -17,7 +17,9 @@ local Status = require("ai.provider_manager.status")
 ----------------------------------------------------------------------
 local function provider_exists(name)
   for _, p in ipairs(Registry.list_providers()) do
-    if p.name == name then return true end
+    if p.name == name then
+      return true
+    end
   end
   return false
 end
@@ -66,13 +68,17 @@ local function cmd_check_provider(opts)
 
   -- Run async check (non-blocking — does not freeze UI)
   vim.notify("Checking " .. provider .. "/" .. model .. "...", vim.log.levels.INFO)
-  Detector.check_provider_model(provider, model, vim.schedule_wrap(function(result)
-    if result then
-      Results.show_single_result(result, "Detection Result: " .. provider .. "/" .. model)
-    else
-      vim.notify("Check failed for " .. provider .. "/" .. model, vim.log.levels.ERROR)
-    end
-  end))
+  Detector.check_provider_model(
+    provider,
+    model,
+    vim.schedule_wrap(function(result)
+      if result then
+        Results.show_single_result(result, "Detection Result: " .. provider .. "/" .. model)
+      else
+        vim.notify("Check failed for " .. provider .. "/" .. model, vim.log.levels.ERROR)
+      end
+    end)
+  )
 end
 
 ----------------------------------------------------------------------
@@ -161,14 +167,18 @@ M.show_help = Picker.show_help
 M.check_provider = function(provider_name, callback)
   Detector.check_provider(provider_name, function(r)
     Results.show_single_result(r, "Detection Result: " .. provider_name)
-    if callback then callback(r) end
+    if callback then
+      callback(r)
+    end
   end)
 end
 
 M.check_all = function(callback)
   Detector.check_all_providers(function(results)
     Results.show_results(results, "All Providers Detection")
-    if callback then callback(results) end
+    if callback then
+      callback(results)
+    end
   end)
 end
 

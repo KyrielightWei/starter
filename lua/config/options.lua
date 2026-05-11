@@ -3,14 +3,14 @@
 -- Add any additional options here
 
 vim.g.clipboard = {
-  name = 'OSC 52',
+  name = "OSC 52",
   copy = {
-    ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
-    ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+    ["+"] = require("vim.ui.clipboard.osc52").copy("+"),
+    ["*"] = require("vim.ui.clipboard.osc52").copy("*"),
   },
   paste = {
-    ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
-    ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+    ["+"] = require("vim.ui.clipboard.osc52").paste("+"),
+    ["*"] = require("vim.ui.clipboard.osc52").paste("*"),
   },
 }
 
@@ -21,4 +21,4 @@ vim.g.root_spec = { { ".git", "lua" }, "lsp", "cwd" }
 
 vim.g.autoformat = false
 
-vim.opt.mouse = ''
+vim.opt.mouse = ""

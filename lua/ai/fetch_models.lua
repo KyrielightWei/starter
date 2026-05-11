@@ -69,22 +69,36 @@ function M.fetch(provider_name)
     -- 构建完整的命令字符串
     local cmd = ""
     for i, part in ipairs(cmd_parts) do
-      if i > 1 then cmd = cmd .. " " end
+      if i > 1 then
+        cmd = cmd .. " "
+      end
       cmd = cmd .. string.format("%q", part)
     end
 
-    local fh = io.popen(cmd)
-    if fh then
-      local out = fh:read("*a")
-      fh:close()
+    -- Use vim.system (async, non-blocking) with vim.wait to preserve sync API
+    local result = nil
+    local done = false
+    local ok, proc = pcall(vim.system, cmd_parts, { text = true }, function(obj)
+      result = obj
+      done = true
+    end)
 
-      if out and out:match("%S") then
-        local ok, json = pcall(vim.fn.json_decode, out)
-        if ok and type(json) == "table" then
+    if ok and proc then
+      -- Wait up to 5 seconds for the response
+      vim.wait(5000, function()
+        return done
+      end)
+
+      if result and result.code == 0 and result.stdout and result.stdout:match("%S") then
+        local out = result.stdout
+        local ok_json, json = pcall(vim.fn.json_decode, out)
+        if ok_json and type(json) == "table" then
           -- OpenAI 格式：{ data = { {id=...}, ... } }
           if json.data and type(json.data) == "table" then
             for _, v in ipairs(json.data) do
-              if v.id then table.insert(collected, v) end
+              if v.id then
+                table.insert(collected, v)
+              end
             end
 
           -- 数组格式：[{id=...}, ...]
@@ -132,17 +146,23 @@ function M.fetch(provider_name)
   if #uniq > 0 then
     -- 拉取成功：打印模型数量和成功的链接
     local success_url = succ[1] or "unknown"
-    vim.notify(string.format("✅ 成功从 %s 拉取到 %d 个模型 (URL: %s)",
-      provider_name, #uniq, success_url), vim.log.levels.INFO)
+    vim.notify(
+      string.format("✅ 成功从 %s 拉取到 %d 个模型 (URL: %s)", provider_name, #uniq, success_url),
+      vim.log.levels.INFO
+    )
   else
     -- 拉取失败：打印告警信息
     if #fail > 0 then
       local failed_urls = table.concat(fail, ", ")
-      vim.notify(string.format("⚠️  %s 模型列表拉取失败，尝试的URL: %s",
-        provider_name, failed_urls), vim.log.levels.WARN)
+      vim.notify(
+        string.format("⚠️  %s 模型列表拉取失败，尝试的URL: %s", provider_name, failed_urls),
+        vim.log.levels.WARN
+      )
     else
-      vim.notify(string.format("⚠️  %s 模型列表拉取失败，未尝试任何URL",
-        provider_name), vim.log.levels.WARN)
+      vim.notify(
+        string.format("⚠️  %s 模型列表拉取失败，未尝试任何URL", provider_name),
+        vim.log.levels.WARN
+      )
     end
   end
 
@@ -150,4 +170,3 @@ function M.fetch(provider_name)
 end
 
 return M
-

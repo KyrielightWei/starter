@@ -177,8 +177,7 @@ function M.mark_step_complete(step_num, duration)
   end
 
   -- WR-04: Use appropriate format for integer seconds
-  local duration_str = duration == math.floor(duration)
-    and string.format("%ds", duration)
+  local duration_str = duration == math.floor(duration) and string.format("%ds", duration)
     or string.format("%.1fs", duration)
 
   -- Get current line

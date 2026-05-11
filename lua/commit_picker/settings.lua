@@ -20,8 +20,7 @@ local DIM = "\27[2m"
 ----------------------------------------------------------------------
 local function format_setting(name, value, icon)
   icon = icon or "◦"
-  return string.format("%s %s: %s%s%s  %s[▶ change]%s",
-    icon, name, GREEN, tostring(value), RESET, DIM, RESET)
+  return string.format("%s %s: %s%s%s  %s[▶ change]%s", icon, name, GREEN, tostring(value), RESET, DIM, RESET)
 end
 
 ----------------------------------------------------------------------
@@ -45,9 +44,7 @@ function M.open()
     last_n = "最近 N 条",
     since_base = "从基础提交开始",
   }
-  local base_display = config.base_commit
-      and config.base_commit:sub(1, 7)
-      or "无"
+  local base_display = config.base_commit and config.base_commit:sub(1, 7) or "无"
 
   local items = {}
   local action_map = {}
@@ -105,12 +102,14 @@ function M.open()
     table.insert(new_items, new_base_line)
     new_action_map[new_base_line] = { action = "change_base" }
 
-    local new_save = string.format("%s%s保存并退出: %s%s%s",
+    local new_save = string.format(
+      "%s%s保存并退出: %s%s%s",
       changed and YELLOW or GREEN,
       changed and "[★ " or "[",
       mode_label[pending.mode] or pending.mode,
       changed and " ★]" or "]",
-      RESET)
+      RESET
+    )
     table.insert(new_items, new_save)
     new_action_map[new_save] = { action = "save" }
 
@@ -118,10 +117,16 @@ function M.open()
     table.insert(new_items, new_reset)
     new_action_map[new_reset] = { action = "reset" }
 
-    M._render_picker(new_items, new_action_map, pending, function(p) changed = true; pending = p end)
+    M._render_picker(new_items, new_action_map, pending, function(p)
+      changed = true
+      pending = p
+    end)
   end
 
-  M._render_picker(items, action_map, pending, function(p) changed = true; pending = p end)
+  M._render_picker(items, action_map, pending, function(p)
+    changed = true
+    pending = p
+  end)
 end
 
 ----------------------------------------------------------------------
@@ -129,7 +134,9 @@ end
 ----------------------------------------------------------------------
 function M._render_picker(items, action_map, pending, on_update)
   local ok, fzf = pcall(require, "fzf-lua")
-  if not ok then return end
+  if not ok then
+    return
+  end
 
   fzf.fzf_exec(items, {
     prompt = " Commit Picker Settings > ",
@@ -141,15 +148,22 @@ function M._render_picker(items, action_map, pending, on_update)
     fzf_opts = {
       ["--header"] = string.format(
         "%s <CR> Edit  %s <C-s> Save  %s <C-r> Reset  %s <C-?> Help",
-        "<Enter>", "<Ctrl-s>", "<Ctrl-r>", "<Ctrl-/>"
+        "<Enter>",
+        "<Ctrl-s>",
+        "<Ctrl-r>",
+        "<Ctrl-/>"
       ),
     },
     actions = {
       -- <CR>: edit selected setting
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local action = action_map[selected[1]]
-        if not action then return end
+        if not action then
+          return
+        end
         M._handle_action(action.action, pending, on_update)
       end,
 
@@ -183,10 +197,8 @@ end
 function M._handle_action(action_name, pending, on_update)
   if action_name == "change_mode" then
     M._select_mode(pending, on_update)
-
   elseif action_name == "change_count" then
     M._input_count(pending, on_update)
-
   elseif action_name == "change_base" then
     M._select_base_commit(pending, on_update)
   end
@@ -197,7 +209,9 @@ end
 ----------------------------------------------------------------------
 function M._select_mode(pending, on_update)
   local ok, fzf = pcall(require, "fzf-lua")
-  if not ok then return end
+  if not ok then
+    return
+  end
 
   local modes = {
     { value = "unpushed", display = "未推送提交 (origin/HEAD..HEAD)" },
@@ -223,7 +237,9 @@ function M._select_mode(pending, on_update)
     },
     actions = {
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local new_mode = value_map[selected[1]]
         if new_mode then
           pending.mode = new_mode
@@ -246,7 +262,9 @@ function M._input_count(pending, on_update)
     prompt = "显示提交数量 (1-500): ",
     default = tostring(pending.count),
   }, function(input)
-    if not input or input == "" then return end
+    if not input or input == "" then
+      return
+    end
 
     local num = tonumber(input)
     if not num or num < 1 or num > 500 or num ~= math.floor(num) then
@@ -273,7 +291,9 @@ function M._select_base_commit(pending, on_update)
   end
 
   local ok, fzf = pcall(require, "fzf-lua")
-  if not ok then return end
+  if not ok then
+    return
+  end
 
   -- Build display items
   local items = {}
@@ -303,7 +323,9 @@ function M._select_base_commit(pending, on_update)
     },
     actions = {
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local line = selected[1]
         local sha = sha_map[line]
         if sha == "__CLEAR__" then
@@ -315,10 +337,14 @@ function M._select_base_commit(pending, on_update)
       end,
     },
     preview = function(selected)
-      if not selected or #selected == 0 then return "" end
+      if not selected or #selected == 0 then
+        return ""
+      end
       local line = type(selected) == "table" and selected[1] or selected
       local sha = line:match("^%[([%x]+)%]")
-      if not sha then return "" end
+      if not sha then
+        return ""
+      end
       local result = vim.system({ "git", "show", sha, "--stat" }):wait()
       return result.stdout or ""
     end,

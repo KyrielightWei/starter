@@ -235,26 +235,22 @@ local function check_provider_model_async(provider_name, model_id, callback)
 
   do_request(base_url, api_key, model_id, timeout, function(obj)
     local result
-    if obj.code == nil and obj.signal == nil then
-      result = parse_response(obj.stdout or obj, start_time)
-    elseif obj.code ~= 0 then
-      -- WR-09 FIX: handle both signal name and signal number
-      if obj.signal and (obj.signal.name == "sigterm" or obj.signal == "sigterm") then
-        result = {
-          status = M.STATUS_TIMEOUT,
-          response_time = math.floor(uv.now() - start_time),
-          error_msg = "Request timed out",
-        }
-      else
-        local err = sanitize_error(obj.stderr or "curl error")
-        result = {
-          status = M.STATUS_UNAVAILABLE,
-          response_time = math.floor(uv.now() - start_time),
-          error_msg = err ~= "" and err or "Connection failed",
-        }
-      end
-    else
+    if obj.code == 0 then
       result = parse_response(obj.stdout, start_time)
+    elseif obj.signal and (obj.signal.name == "sigterm" or obj.signal == "sigterm") then
+      -- WR-09 FIX: handle both signal name and signal number
+      result = {
+        status = M.STATUS_TIMEOUT,
+        response_time = math.floor(uv.now() - start_time),
+        error_msg = "Request timed out",
+      }
+    else
+      local err = sanitize_error(obj.stderr or "curl error")
+      result = {
+        status = M.STATUS_UNAVAILABLE,
+        response_time = math.floor(uv.now() - start_time),
+        error_msg = err ~= "" and err or "Connection failed",
+      }
     end
 
     if result.status == M.STATUS_AVAILABLE then

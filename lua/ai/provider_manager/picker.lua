@@ -64,10 +64,14 @@ function M.open()
     actions = {
       -- <CR> Select: proceed to model selection (Step 2)
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local display = selected[1]
         local name = name_map[display]
-        if not name then return end
+        if not name then
+          return
+        end
         M._select_model(name)
       end,
 
@@ -118,7 +122,10 @@ function M.open()
     fzf_opts = {
       ["--header"] = string.format(
         "%s <C-a> Add  %s <C-d> Delete  %s <C-e> Edit (选择文件)  %s <C-?> Help",
-        icons.add, icons.delete, icons.edit, icons.help
+        icons.add,
+        icons.delete,
+        icons.edit,
+        icons.help
       ),
     },
   })
@@ -130,7 +137,9 @@ end
 ----------------------------------------------------------------------
 function M._select_model(provider_name)
   local ok, fzf = pcall(require, "fzf-lua")
-  if not ok then return end
+  if not ok then
+    return
+  end
 
   local models = Registry.list_models(provider_name)
   local icons = UIUtil.get_icons()
@@ -166,7 +175,10 @@ function M._select_model(provider_name)
 
   -- Empty state with icon
   if #items == 0 then
-    vim.notify(string.format("%s No models available for %s. Check endpoint.", icons.model, provider_name), vim.log.levels.WARN)
+    vim.notify(
+      string.format("%s No models available for %s. Check endpoint.", icons.model, provider_name),
+      vim.log.levels.WARN
+    )
     return
   end
 
@@ -179,14 +191,22 @@ function M._select_model(provider_name)
     },
     actions = {
       ["default"] = function(sel)
-        if not sel or #sel == 0 then return end
+        if not sel or #sel == 0 then
+          return
+        end
         local label = sel[1]
         local model = id_map[label]
-        if not model then return end
+        if not model then
+          return
+        end
 
         -- Update default model via registry
         Registry.set_default_model(provider_name, model)
-        UIUtil.notify_with_icon(string.format("Set %s default: %s", provider_name, model), vim.log.levels.INFO, "default")
+        UIUtil.notify_with_icon(
+          string.format("Set %s default: %s", provider_name, model),
+          vim.log.levels.INFO,
+          "default"
+        )
       end,
 
       -- <C-e> Edit static models (no extra keymap on provider picker)
@@ -200,7 +220,12 @@ function M._select_model(provider_name)
       end,
     },
     fzf_opts = {
-      ["--header"] = string.format("%s <CR> Set Default  %s <C-e> Edit Static Models  %s <C-?> Help", icons.default, icons.edit, icons.help),
+      ["--header"] = string.format(
+        "%s <CR> Set Default  %s <C-e> Edit Static Models  %s <C-?> Help",
+        icons.default,
+        icons.edit,
+        icons.help
+      ),
     },
   })
 end
@@ -216,7 +241,9 @@ function M.add_provider_dialog()
     prompt = "New provider name: ",
     default = "",
   }, function(name)
-    if not name or name == "" then return end
+    if not name or name == "" then
+      return
+    end
 
     local valid, err = Validator.validate_provider_name(name)
     if not valid then
@@ -226,32 +253,30 @@ function M.add_provider_dialog()
 
     -- Add provider (generates templates in providers.lua and ai_keys.lua)
     Registry.add_provider(name)
-    
+
     -- After providers.lua is saved, offer to open ai_keys.lua
     vim.defer_fn(function()
-      vim.ui.select(
-        { "立即编辑 API key", "稍后手动编辑" },
-        {
-          prompt = "\n是否立即编辑 API key 配置？\n",
-          format_item = function(item) return item end,
-        },
-        function(choice, idx)
-          if idx == 1 then
-            -- Open ai_keys.lua for editing
-            local Keys = require("ai.keys")
-            Keys.edit()
-            
-            -- Jump to the newly added provider section
-            local pattern = name .. " = {"
-            vim.fn.search(pattern, "w")
-            
-            -- Move to api_key line
-            vim.fn.search("api_key", "w")
-            vim.notify("请填写 api_key = \"your-api-key\"", vim.log.levels.INFO)
-          end
+      vim.ui.select({ "立即编辑 API key", "稍后手动编辑" }, {
+        prompt = "\n是否立即编辑 API key 配置？\n",
+        format_item = function(item)
+          return item
+        end,
+      }, function(choice, idx)
+        if idx == 1 then
+          -- Open ai_keys.lua for editing
+          local Keys = require("ai.keys")
+          Keys.edit()
+
+          -- Jump to the newly added provider section
+          local pattern = name .. " = {"
+          vim.fn.search(pattern, "w")
+
+          -- Move to api_key line
+          vim.fn.search("api_key", "w")
+          vim.notify('请填写 api_key = "your-api-key"', vim.log.levels.INFO)
         end
-      )
-    end, 1000)  -- Delay to let user see the notification first
+      end)
+    end, 1000) -- Delay to let user see the notification first
   end)
 end
 
@@ -269,29 +294,27 @@ end
 
 -- Edit provider: provide options to edit providers.lua or ai_keys.lua
 function M.edit_provider(name)
-  vim.ui.select(
-    { 
-      "编辑 Provider 定义", 
-      "编辑 API Key 配置", 
-      "编辑两者（新标签页分屏）" 
-    },
-    {
-      prompt = "\n选择要编辑的配置文件：\n",
-      format_item = function(item) return item end,
-    },
-    function(choice, idx)
-      if idx == 1 then
-        -- Edit providers.lua
-        M._edit_providers_file(name)
-      elseif idx == 2 then
-        -- Edit ai_keys.lua
-        M._edit_keys_file(name)
-      elseif idx == 3 then
-        -- Edit both in split
-        M._edit_both_files(name)
-      end
+  vim.ui.select({
+    "编辑 Provider 定义",
+    "编辑 API Key 配置",
+    "编辑两者（新标签页分屏）",
+  }, {
+    prompt = "\n选择要编辑的配置文件：\n",
+    format_item = function(item)
+      return item
+    end,
+  }, function(choice, idx)
+    if idx == 1 then
+      -- Edit providers.lua
+      M._edit_providers_file(name)
+    elseif idx == 2 then
+      -- Edit ai_keys.lua
+      M._edit_keys_file(name)
+    elseif idx == 3 then
+      -- Edit both in split
+      M._edit_both_files(name)
     end
-  )
+  end)
 end
 
 -- Internal: Edit providers.lua at provider line
@@ -306,13 +329,13 @@ function M._edit_providers_file(name)
   else
     path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
   end
-  
+
   -- Edit file
   vim.cmd("edit " .. vim.fn.fnameescape(path))
-  
+
   -- Set buffer name for easier identification
   vim.api.nvim_buf_set_name(0, "providers.lua [" .. name .. "]")
-  
+
   if line and line > 0 then
     vim.api.nvim_win_set_cursor(0, { line, 0 })
   end
@@ -323,16 +346,16 @@ end
 function M._edit_keys_file(name)
   local Keys = require("ai.keys")
   Keys.edit()
-  
+
   -- Set buffer name for easier identification
   vim.api.nvim_buf_set_name(0, "ai_keys.lua [" .. name .. "]")
-  
+
   -- Jump to provider section
   local pattern = name .. " = {"
   if vim.fn.search(pattern, "w") > 0 then
     -- Move to api_key line
     vim.fn.search("api_key", "w")
-    vim.notify("编辑 API key 配置: " .. name .. "\n填写 api_key = \"your-api-key\"", vim.log.levels.INFO)
+    vim.notify("编辑 API key 配置: " .. name .. '\n填写 api_key = "your-api-key"', vim.log.levels.INFO)
   else
     vim.notify("Provider " .. name .. " 未在 ai_keys.lua 中找到\n请先添加 provider", vim.log.levels.WARN)
   end
@@ -342,27 +365,28 @@ end
 function M._edit_both_files(name)
   -- Create new tab for editing
   vim.cmd("tabnew")
-  
+
   -- Set tab name for clarity
   vim.api.nvim_tabpage_set_var(0, "provider_edit_tab", name)
-  
+
   -- Open providers.lua in left split
   M._edit_providers_file(name)
-  
+
   -- Open ai_keys.lua in right split
   vim.cmd("vsplit")
   M._edit_keys_file(name)
-  
+
   -- Balance windows (equal width)
   vim.cmd("wincmd =")
-  
+
   -- Jump back to left window (providers.lua)
   vim.cmd("wincmd h")
-  
+
   vim.notify(
-    "分屏编辑: " .. name .. 
-    "\n左侧: providers.lua | 右侧: ai_keys.lua" ..
-    "\n完成编辑后可关闭标签页 (:tabclose 或 <leader>tc)",
+    "分屏编辑: "
+      .. name
+      .. "\n左侧: providers.lua | 右侧: ai_keys.lua"
+      .. "\n完成编辑后可关闭标签页 (:tabclose 或 <leader>tc)",
     vim.log.levels.INFO
   )
 end
@@ -373,7 +397,9 @@ end
 ----------------------------------------------------------------------
 function M._edit_static_models(provider_name)
   local ok, fzf = pcall(require, "fzf-lua")
-  if not ok then return end
+  if not ok then
+    return
+  end
 
   local current_models = Registry.list_static_models(provider_name)
   local icons = UIUtil.get_icons()
@@ -405,7 +431,9 @@ function M._edit_static_models(provider_name)
     actions = {
       -- <CR> on "+ Add new model" → floating input dialog
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local item = selected[1]
         local action = action_map[item]
         if action and action.type == "add" then
@@ -421,7 +449,9 @@ function M._edit_static_models(provider_name)
 
       -- <C-e> Rename selected model via floating input
       ["ctrl-e"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local item = selected[1]
         local action = action_map[item]
         if action and action.type == "keep" then
@@ -433,13 +463,17 @@ function M._edit_static_models(provider_name)
 
       -- <C-d> Remove selected model
       ["ctrl-d"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local item = selected[1]
         local action = action_map[item]
         if action and action.type == "keep" then
           Registry.remove_static_model(provider_name, action.model_id)
           -- Auto-refresh static models editor
-          vim.defer_fn(function() M._edit_static_models(provider_name) end, 50)
+          vim.defer_fn(function()
+            M._edit_static_models(provider_name)
+          end, 50)
         else
           vim.notify("Select a model to remove", vim.log.levels.WARN)
         end
@@ -453,7 +487,11 @@ function M._edit_static_models(provider_name)
     fzf_opts = {
       ["--header"] = string.format(
         "%s <C-a> Add  %s <C-e> Rename  %s <C-d> Remove  %s <C-?> Help | <CR>on '%s Add' line",
-        icons.add, icons.edit, icons.delete, icons.help, icons.add
+        icons.add,
+        icons.edit,
+        icons.delete,
+        icons.help,
+        icons.add
       ),
     },
   })
@@ -463,15 +501,19 @@ end
 -- Use UIUtil.floating_input for reliable modifiable + insert mode
 function M._add_static_model_dialog(provider_name)
   local icons = UIUtil.get_icons()
-  
+
   UIUtil.floating_input({
     prompt = string.format("%s New model for %s: ", icons.add, provider_name),
     default = "",
   }, function(model_id)
-    if not model_id or model_id == "" then return end
+    if not model_id or model_id == "" then
+      return
+    end
     local ok = Registry.add_static_model(provider_name, model_id)
     if ok then
-      vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
+      vim.defer_fn(function()
+        M._edit_static_models(provider_name)
+      end, 100)
     end
   end)
 end
@@ -479,12 +521,14 @@ end
 -- Rename static model dialog
 function M._rename_static_model_dialog(provider_name, old_model_id)
   local icons = UIUtil.get_icons()
-  
+
   UIUtil.floating_input({
     prompt = string.format("%s Rename '%s' to: ", icons.edit, old_model_id),
     default = old_model_id,
   }, function(new_model_id)
-    if not new_model_id or new_model_id == "" or new_model_id == old_model_id then return end
+    if not new_model_id or new_model_id == "" or new_model_id == old_model_id then
+      return
+    end
 
     local current = Registry.list_static_models(provider_name)
     local found_old = false
@@ -513,7 +557,9 @@ function M._rename_static_model_dialog(provider_name, old_model_id)
 
     local ok = Registry.update_static_models(provider_name, new_models)
     if ok then
-      vim.defer_fn(function() M._edit_static_models(provider_name) end, 100)
+      vim.defer_fn(function()
+        M._edit_static_models(provider_name)
+      end, 100)
     end
   end)
 end
@@ -521,8 +567,9 @@ end
 -- Static models help (with softer icons)
 function M._show_static_models_help(provider_name)
   local icons = UIUtil.get_icons()
-  
-  local help_text = string.format([[
+
+  local help_text = string.format(
+    [[
 %s Static Models Editor — %s
 
 Keymaps:
@@ -538,7 +585,18 @@ Tips:
   %s Changes persist to providers.lua
 
 Press q to close
-]], icons.model, provider_name, icons.add, icons.add, icons.add, icons.edit, icons.delete, icons.help, icons.check, icons.clock)
+]],
+    icons.model,
+    provider_name,
+    icons.add,
+    icons.add,
+    icons.add,
+    icons.edit,
+    icons.delete,
+    icons.help,
+    icons.check,
+    icons.clock
+  )
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
@@ -570,8 +628,9 @@ end
 ----------------------------------------------------------------------
 function M.show_help()
   local icons = UIUtil.get_icons()
-  
-  local help_text = string.format([[
+
+  local help_text = string.format(
+    [[
 %s Provider Manager - Help
 
 Keymaps:
@@ -588,7 +647,13 @@ Fields managed:
   Static models list
 
 Press q to close
-]], icons.provider, icons.add, icons.delete, icons.edit, icons.help)
+]],
+    icons.provider,
+    icons.add,
+    icons.delete,
+    icons.edit,
+    icons.help
+  )
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
@@ -621,8 +686,9 @@ end
 ----------------------------------------------------------------------
 function M._show_model_picker_help(provider_name)
   local icons = UIUtil.get_icons()
-  
-  local help_text = string.format([[
+
+  local help_text = string.format(
+    [[
 %s Model Picker — %s
 
 Keymaps:
@@ -636,7 +702,12 @@ Tips:
   Setting default updates ai_keys.lua
 
 Press q to close
-]], icons.model, provider_name, icons.edit, icons.help)
+]],
+    icons.model,
+    provider_name,
+    icons.edit,
+    icons.help
+  )
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))

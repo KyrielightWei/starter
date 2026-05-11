@@ -182,7 +182,10 @@ function M.generate_tui_config()
   local theme_content = format_json_pretty(theme_config)
   vim.fn.writefile(vim.split(theme_content, "\n"), theme_path)
 
-  vim.notify("✅ OpenCode TUI 配置和主题已生成\n" .. "TUI: " .. tui_path .. "\n" .. "主题: " .. theme_path, vim.log.levels.INFO)
+  vim.notify(
+    "✅ OpenCode TUI 配置和主题已生成\n" .. "TUI: " .. tui_path .. "\n" .. "主题: " .. theme_path,
+    vim.log.levels.INFO
+  )
 
   return true
 end

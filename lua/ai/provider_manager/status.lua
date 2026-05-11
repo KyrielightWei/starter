@@ -47,16 +47,20 @@ function M.trigger_async_check(provider, model, on_complete)
   local captured_provider = provider
   local captured_model = model
 
-  Detector.check_provider_model(provider, model, vim.schedule_wrap(function(result)
-    -- Stale guard: check if user is still on this provider+model
-    local current = State.get()
-    if not current or current.provider ~= captured_provider or current.model ~= captured_model then
-      return -- Discard stale callback
-    end
-    if on_complete then
-      on_complete(result)
-    end
-  end))
+  Detector.check_provider_model(
+    provider,
+    model,
+    vim.schedule_wrap(function(result)
+      -- Stale guard: check if user is still on this provider+model
+      local current = State.get()
+      if not current or current.provider ~= captured_provider or current.model ~= captured_model then
+        return -- Discard stale callback
+      end
+      if on_complete then
+        on_complete(result)
+      end
+    end)
+  )
 end
 
 ----------------------------------------------------------------------

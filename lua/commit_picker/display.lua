@@ -10,7 +10,9 @@ local ok, fzf = pcall(require, "fzf-lua")
 if not ok then
   vim.notify("[commit_picker] fzf-lua not installed", vim.log.levels.ERROR)
   return {
-    show_picker = function() vim.notify("fzf-lua 未安装，无法显示 picker", vim.log.levels.ERROR) end,
+    show_picker = function()
+      vim.notify("fzf-lua 未安装，无法显示 picker", vim.log.levels.ERROR)
+    end,
     close = function() end,
   }
 end
@@ -18,18 +20,20 @@ end
 -- ANSI color codes embedded in display strings for colored SHA (D-05)
 -- fzf-lua renders ANSI escapes in display lines
 local SHA_COLOR = "\27[38;5;111m"
-local BASE_COLOR = "\27[38;5;220m"  -- Yellow for base commit marker
-local RESET       = "\27[0m"
-local DIM         = "\27[2m"
-local GREEN       = "\27[38;5;114m"
-local CYAN        = "\27[38;5;111m"
+local BASE_COLOR = "\27[38;5;220m" -- Yellow for base commit marker
+local RESET = "\27[0m"
+local DIM = "\27[2m"
+local GREEN = "\27[38;5;114m"
+local CYAN = "\27[38;5;111m"
 
 ----------------------------------------------------------------------
 -- Internal: open base commit picker → saves selection & returns
 ----------------------------------------------------------------------
 local function open_base_picker(on_refresh)
   local ok, Git = pcall(require, "commit_picker.git")
-  if not ok then return end
+  if not ok then
+    return
+  end
 
   local commits = Git.get_commit_list(nil, "HEAD", { count = 100 })
   if not commits or #commits == 0 then
@@ -63,13 +67,17 @@ local function open_base_picker(on_refresh)
     fzf_opts = { ["--header"] = string.format("%s <Enter> Select  %s <Esc> Cancel", "<Enter>", "<Esc>") },
     actions = {
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         local sha = sha_map[selected[1]]
         if sha == "__CLEAR__" then
           if cfg_ok and Config then
             local raw = Config.get_config()
             local new_cfg = {}
-            for k, v in pairs(raw) do new_cfg[k] = v end
+            for k, v in pairs(raw) do
+              new_cfg[k] = v
+            end
             new_cfg.base_commit = nil
             new_cfg.mode = "unpushed"
             Config.save_config(new_cfg)
@@ -80,7 +88,9 @@ local function open_base_picker(on_refresh)
           if cfg_ok and Config then
             local raw = Config.get_config()
             local new_cfg = {}
-            for k, v in pairs(raw) do new_cfg[k] = v end
+            for k, v in pairs(raw) do
+              new_cfg[k] = v
+            end
             new_cfg.base_commit = sha
             new_cfg.mode = "since_base"
             Config.save_config(new_cfg)
@@ -90,14 +100,20 @@ local function open_base_picker(on_refresh)
         end
 
         -- Refresh the main picker to reflect the new base
-        if on_refresh then vim.schedule(on_refresh) end
+        if on_refresh then
+          vim.schedule(on_refresh)
+        end
       end,
     },
     preview = function(selected)
-      if not selected then return "" end
+      if not selected then
+        return ""
+      end
       local line = type(selected) == "table" and selected[1] or selected
       local sh = line:match("^%[([%x]+)%]")
-      if not sh then return "" end
+      if not sh then
+        return ""
+      end
       local result = vim.system({ "git", "show", sh, "--stat" }):wait()
       return result.stdout or ""
     end,
@@ -127,16 +143,18 @@ function M.show_picker(commits, opts)
   local PREVIEW_CACHE_MAX = 100
 
   -- Shortcut hints header (Ctrl+B/C/? are custom fzf-lua actions in addition to visible rows)
-  local hints = string.format(
-    "<Enter>: Diff  <Ctrl+Space>: Select  <Ctrl+B>: Base  <Ctrl+C>: Config  <Ctrl+?>: Help"
-  )
+  local hints = string.format("<Enter>: Diff  <Ctrl+Space>: Select  <Ctrl+B>: Base  <Ctrl+C>: Config  <Ctrl+?>: Help")
 
   -- Visible action items at the top
   local display_lines = {
-    string.format("%s⚡%s  %s [b]%s  设为基础提交 (Set Base)",        GREEN, RESET, DIM, RESET),
-    string.format("%s⚙%s  %s [c]%s  打开配置面板 (Config)",           CYAN,  RESET, DIM, RESET),
-    string.format("%s❓%s  %s [?]%s  帮助 (Help)",                      DIM,   RESET, DIM, RESET),
-    string.format("%s──────────────────────────────────────────────%s",  DIM,   RESET),
+    string.format("%s⚡%s  %s [b]%s  设为基础提交 (Set Base)", GREEN, RESET, DIM, RESET),
+    string.format("%s⚙%s  %s [c]%s  打开配置面板 (Config)", CYAN, RESET, DIM, RESET),
+    string.format("%s❓%s  %s [?]%s  帮助 (Help)", DIM, RESET, DIM, RESET),
+    string.format(
+      "%s──────────────────────────────────────────────%s",
+      DIM,
+      RESET
+    ),
   }
   local sha_map = {}
   sha_map[display_lines[1]] = "__ACTION_BASE__"
@@ -150,34 +168,31 @@ function M.show_picker(commits, opts)
     local display
 
     if opts.base_commit and c.sha == opts.base_commit then
-      display = string.format(
-        "%s base %s | %s  %s  (%s%s)",
-        BASE_COLOR, RESET, sha_colored, c.subject, c.date, refs_part
-      )
+      display =
+        string.format("%s base %s | %s  %s  (%s%s)", BASE_COLOR, RESET, sha_colored, c.subject, c.date, refs_part)
     else
-      display = string.format(
-        "%s  %s  (%s%s)",
-        sha_colored, c.subject, c.date, refs_part
-      )
+      display = string.format("%s  %s  (%s%s)", sha_colored, c.subject, c.date, refs_part)
     end
 
     table.insert(display_lines, display)
     sha_map[display] = c.sha
     local plain = string.format("[%s]  %s  (%s%s)", c.short_sha, c.subject, c.date, refs_part)
-    if plain ~= display then sha_map[plain] = c.sha end
+    if plain ~= display then
+      sha_map[plain] = c.sha
+    end
   end
 
   -- fzf-lua picker with multi-select and preview
   fzf.fzf_exec(display_lines, {
     prompt = opts.prompt or " Commit Picker > ",
     winopts = {
-      width  = 0.6, -- D-12
+      width = 0.6, -- D-12
       height = 0.4, -- D-12
       preview = { layout = "vertical", vertical = "down:40%" },
     },
     fzf_opts = {
       -- Only fzf built-in bindings here; custom key actions go in actions table below
-      ["--bind"]   = "ctrl-space:toggle,ctrl-a:toggle-all",
+      ["--bind"] = "ctrl-space:toggle,ctrl-a:toggle-all",
       ["--header"] = hints,
     },
     actions = {
@@ -187,16 +202,22 @@ function M.show_picker(commits, opts)
       end,
       -- Ctrl+C: open settings/config panel
       ["ctrl-c"] = function()
-        if opts.on_action then opts.on_action("config") end
+        if opts.on_action then
+          opts.on_action("config")
+        end
       end,
       -- Ctrl+/: show help popup
       ["ctrl-/"] = function()
-        if opts.on_action then opts.on_action("help") end
+        if opts.on_action then
+          opts.on_action("help")
+        end
       end,
 
       -- <CR>: extract SHAs from selected lines and invoke callback (D-13)
       ["default"] = function(selected)
-        if not selected or #selected == 0 then return end
+        if not selected or #selected == 0 then
+          return
+        end
         -- Check if user selected one of the visible action rows
         local picked = sha_map[selected[1]]
         if picked == "__ACTION_BASE__" then
@@ -204,11 +225,15 @@ function M.show_picker(commits, opts)
           return
         end
         if picked == "__ACTION_CONFIG__" then
-          if opts.on_action then opts.on_action("config") end
+          if opts.on_action then
+            opts.on_action("config")
+          end
           return
         end
         if picked == "__ACTION_HELP__" then
-          if opts.on_action then opts.on_action("help") end
+          if opts.on_action then
+            opts.on_action("help")
+          end
           return
         end
 
@@ -230,13 +255,17 @@ function M.show_picker(commits, opts)
             end
           end
         end
-        if #shas > 0 and opts.on_select then opts.on_select(shas) end
+        if #shas > 0 and opts.on_select then
+          opts.on_select(shas)
+        end
       end,
     },
 
     -- Preview: scoped to this picker invocation (avoids stale data across reopen)
     preview = function(selected)
-      if not selected or #selected == 0 then return "" end
+      if not selected or #selected == 0 then
+        return ""
+      end
       local line = type(selected) == "table" and selected[1] or selected
       local clean_line = line:gsub("\27%[[^m]*m", "")
       local sha = clean_line:match("^%[([%x]+)%]") or line:match("^%[([%x]+)%]")
@@ -244,13 +273,19 @@ function M.show_picker(commits, opts)
         -- Prefer sha_map, fallback to extracted hex or original
         sha = sha_map[line] or sha_map[clean_line] or sha
       end
-      if not sha or sha:match("^__ACTION") then return "" end
+      if not sha or sha:match("^__ACTION") then
+        return ""
+      end
 
-      if preview_cache[sha] then return preview_cache[sha] end
+      if preview_cache[sha] then
+        return preview_cache[sha]
+      end
 
       -- Evict overflow
       local count = 0
-      for _ in pairs(preview_cache) do count = count + 1 end
+      for _ in pairs(preview_cache) do
+        count = count + 1
+      end
       if count >= PREVIEW_CACHE_MAX then
         local key = next(preview_cache)
         preview_cache[key] = nil

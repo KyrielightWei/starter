@@ -95,7 +95,7 @@ return {
         command = "clang-format",
         -- A list of strings, or a function that returns a list of strings
         -- Return a single string instead of a list to run the command in a shell
-        args = {  "-assume-filename", "$FILENAME", "--style", clang_format_ob_arg, },
+        args = { "-assume-filename", "$FILENAME", "--style", clang_format_ob_arg },
         -- If the formatter supports range formatting, create the range arguments here
         range_args = function(self, ctx)
           local start_offset, end_offset = util.get_offsets_from_range(ctx.buf, ctx.range)
@@ -107,7 +107,7 @@ return {
             tostring(start_offset),
             "--length",
             tostring(length),
-           "--style",
+            "--style",
             clang_format_ob_arg,
           }
         end,

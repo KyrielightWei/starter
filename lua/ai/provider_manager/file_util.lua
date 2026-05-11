@@ -102,6 +102,25 @@ function M.read_lua_table(path)
     end
   end
 
+  -- Pre-scan file content for dangerous patterns before executing with dofile
+  -- This provides defense-in-depth alongside directory containment checks
+  local content_lines = vim.fn.readfile(path)
+  local content = table.concat(content_lines, "\n")
+  local dangerous_patterns = {
+    "os%.execute",
+    "os%.spawn",
+    "io%.popen",
+    "loadstring",
+    "loadfile",
+    "debug%.sethook",
+    "jit%.ffi",
+  }
+  for _, pattern in ipairs(dangerous_patterns) do
+    if content:match(pattern) then
+      return nil, "File contains potentially dangerous code pattern: " .. pattern
+    end
+  end
+
   local ok, result = pcall(dofile, path)
   if not ok then
     return nil, "Failed to parse Lua file: " .. tostring(result)

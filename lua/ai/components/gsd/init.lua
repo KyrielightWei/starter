@@ -234,16 +234,16 @@ function M.get_deploy_paths(target)
     -- D-26: GSD → OpenCode full mapping
     return {
       { source = cache_base .. "/commands/gsd", target = vim.fn.expand("~/.config/opencode/command/gsd") },
-      { source = cache_base .. "/agents",       target = vim.fn.expand("~/.opencode/agents") },
-      { source = cache_base .. "/skills/gsd",   target = vim.fn.expand("~/.opencode/skills/gsd") },
-      { source = cache_base .. "/hooks",        target = vim.fn.expand("~/.opencode/hooks") },
-      { source = cache_base .. "/bin",          target = vim.fn.expand("~/.local/bin") },
+      { source = cache_base .. "/agents", target = vim.fn.expand("~/.opencode/agents") },
+      { source = cache_base .. "/skills/gsd", target = vim.fn.expand("~/.opencode/skills/gsd") },
+      { source = cache_base .. "/hooks", target = vim.fn.expand("~/.opencode/hooks") },
+      { source = cache_base .. "/bin", target = vim.fn.expand("~/.local/bin") },
     }
   elseif target == "claude" then
     -- D-27: GSD → Claude Code subset mapping
     return {
-      { source = cache_base .. "/agents/gsd",   target = vim.fn.expand("~/.claude/agents/gsd") },
-      { source = cache_base .. "/skills/gsd",   target = vim.fn.expand("~/.claude/skills/gsd") },
+      { source = cache_base .. "/agents/gsd", target = vim.fn.expand("~/.claude/agents/gsd") },
+      { source = cache_base .. "/skills/gsd", target = vim.fn.expand("~/.claude/skills/gsd") },
       { source = cache_base .. "/commands/gsd", target = vim.fn.expand("~/.claude/commands/gsd") },
     }
   end

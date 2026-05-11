@@ -102,9 +102,10 @@ function M.validate_config(config)
       return { ok = false, error = "mode 必须是字符串" }
     end
     if not ALLOWED_MODES[config.mode] then
-      return { ok = false, error = string.format(
-        "无效模式 '%s'，允许的模式: unpushed, last_n, since_base", config.mode
-      )}
+      return {
+        ok = false,
+        error = string.format("无效模式 '%s'，允许的模式: unpushed, last_n, since_base", config.mode),
+      }
     end
   end
 
@@ -142,9 +143,10 @@ function M.validate_config(config)
 
     -- Verify exists in git history
     if not validate_sha_exists(config.base_commit) then
-      return { ok = false, error = string.format(
-        "基础提交不存在于 git 历史中: %s", config.base_commit:sub(1, 7)
-      )}
+      return {
+        ok = false,
+        error = string.format("基础提交不存在于 git 历史中: %s", config.base_commit:sub(1, 7)),
+      }
     end
   end
 
@@ -179,8 +181,11 @@ local function merge_with_defaults(raw)
   end
 
   -- Accept base_commit if format looks reasonable (full validation in validate_config)
-  if raw.base_commit ~= nil and type(raw.base_commit) == "string"
-     and raw.base_commit:match("^%x%x%x%x%x%x%x[%x]*$") then
+  if
+    raw.base_commit ~= nil
+    and type(raw.base_commit) == "string"
+    and raw.base_commit:match("^%x%x%x%x%x%x%x[%x]*$")
+  then
     config.base_commit = raw.base_commit
   end
 

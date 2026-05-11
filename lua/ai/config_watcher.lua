@@ -40,13 +40,17 @@ local function debounce_sync()
   end
 
   debounce_timer = vim.loop.new_timer()
-  debounce_timer:start(500, 0, vim.schedule_wrap(function()
-    do_sync()
-    if debounce_timer then
-      debounce_timer:close()
-      debounce_timer = nil
-    end
-  end))
+  debounce_timer:start(
+    500,
+    0,
+    vim.schedule_wrap(function()
+      do_sync()
+      if debounce_timer then
+        debounce_timer:close()
+        debounce_timer = nil
+      end
+    end)
+  )
 end
 
 function M.watch()

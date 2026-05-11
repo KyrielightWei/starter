@@ -190,7 +190,9 @@ function M.get_latest_npm_version_async(package_name, callback)
       end
     end,
     on_exit = function(_, exit_code)
-      if timed_out then return end
+      if timed_out then
+        return
+      end
       if exit_code ~= 0 or #stdout == 0 then
         callback(nil)
         return
@@ -201,7 +203,9 @@ function M.get_latest_npm_version_async(package_name, callback)
   })
   -- Timeout cleanup after 15 seconds
   vim.defer_fn(function()
-    if timed_out then return end
+    if timed_out then
+      return
+    end
     timed_out = true
     if job_id and job_id > 0 then
       pcall(vim.fn.jobstop, job_id)
@@ -262,7 +266,9 @@ function M.get_latest_git_version_async(repo_url, callback)
       end
     end,
     on_exit = function(_, exit_code)
-      if timed_out then return end
+      if timed_out then
+        return
+      end
       if exit_code ~= 0 or #stdout == 0 then
         callback(nil)
         return
@@ -273,7 +279,9 @@ function M.get_latest_git_version_async(repo_url, callback)
   })
   -- Timeout cleanup after 15 seconds
   vim.defer_fn(function()
-    if timed_out then return end
+    if timed_out then
+      return
+    end
     timed_out = true
     if job_id and job_id > 0 then
       pcall(vim.fn.jobstop, job_id)

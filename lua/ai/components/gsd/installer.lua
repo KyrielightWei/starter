@@ -175,7 +175,9 @@ end
 --- 获取安装命令提示
 ---@return string
 function M.install_hint()
-  return "git clone " .. GSD_REPO .. " ~/.local/share/nvim/ai_components/cache/gsd && npm install && npm run build:hooks"
+  return "git clone "
+    .. GSD_REPO
+    .. " ~/.local/share/nvim/ai_components/cache/gsd && npm install && npm run build:hooks"
 end
 
 --- 获取支持的安装目标 (IN-05: 接口一致性)

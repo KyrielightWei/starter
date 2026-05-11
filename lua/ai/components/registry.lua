@@ -259,7 +259,12 @@ function M.validate_state_consistency()
       if assigned and assigned ~= component_name then
         table.insert(
           issues,
-          string.format("状态不一致：%s 已部署到 %s，但 switcher 分配了 %s", component_name, target, assigned)
+          string.format(
+            "状态不一致：%s 已部署到 %s，但 switcher 分配了 %s",
+            component_name,
+            target,
+            assigned
+          )
         )
       end
     end

@@ -169,13 +169,7 @@ end
 ---@return string
 function M.install_hint()
   local cache_path = Manager.get_cache_path("ecc")
-  return "git clone "
-    .. ECC_REPO
-    .. " "
-    .. cache_path
-    .. " --depth=1 && cd "
-    .. cache_path
-    .. " && npm install"
+  return "git clone " .. ECC_REPO .. " " .. cache_path .. " --depth=1 && cd " .. cache_path .. " && npm install"
 end
 
 --- 获取支持的安装目标

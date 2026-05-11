@@ -138,12 +138,13 @@ function M.validate_component(component)
   -- 验证可选缓存方法类型（如果存在）
   for _, method in ipairs(M.optional_cache_methods) do
     if component[method.name] ~= nil and type(component[method.name]) ~= method.type then
-      return false, string.format(
-        "Component optional method '%s' must be %s, got %s",
-        method.name,
-        method.type,
-        type(component[method.name])
-      )
+      return false,
+        string.format(
+          "Component optional method '%s' must be %s, got %s",
+          method.name,
+          method.type,
+          type(component[method.name])
+        )
     end
   end
 

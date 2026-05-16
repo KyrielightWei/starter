@@ -192,6 +192,18 @@ function M.write(tbl)
   table.insert(out, "}")
 
   vim.fn.writefile(out, keys_path())
+
+  -- Invalidate caches after writing
+  -- This ensures subsequent reads get fresh values
+  local ok, Resolver = pcall(require, "ai.config_resolver")
+  if ok and Resolver.invalidate_cache then
+    Resolver.invalidate_cache()
+  end
+
+  local ok2, Fetch = pcall(require, "ai.fetch_models")
+  if ok2 and Fetch.clear_cache then
+    Fetch.clear_cache()
+  end
 end
 
 ----------------------------------------------------------------------

@@ -329,25 +329,23 @@ function M.set_global_default(provider, model)
   -- Update Keys config
   Keys.set_global_default(provider, model)
 
-  -- Also update provider's default model
-  M.set_default_model(provider, model)
+  -- Also update provider's default model (but don't sync/notify - we'll sync at the end)
+  M.set_default_model(provider, model, { skip_sync = true, skip_notify = true })
 
-  -- Trigger config sync
-  vim.schedule(function()
-    local ok, Sync = pcall(require, "ai.sync")
-    if ok then
-      Sync.sync_all({ silent = true })
-    end
-  end)
-
-  vim.notify(string.format("★ Set global default: %s/%s", provider, model), vim.log.levels.INFO)
+  -- Trigger config sync immediately (not vim.schedule - may be lost when FZF closes)
+  local ok, Sync = pcall(require, "ai.sync")
+  if ok then
+    Sync.sync_all({ silent = false }) -- Show sync results to user
+  end
 end
 
 ----------------------------------------------------------------------
 -- Set default model for a provider
 -- Updates both Keys config and in-memory Providers table
 ----------------------------------------------------------------------
-function M.set_default_model(provider_name, model_id)
+function M.set_default_model(provider_name, model_id, opts)
+  opts = opts or {}
+
   -- Read current keys config
   local config = Keys.read()
   if not config then
@@ -373,17 +371,19 @@ function M.set_default_model(provider_name, model_id)
     def.model = model_id
   end
 
-  -- Trigger config sync to Claude Code / OpenCode
-  -- Keys.write() directly writes file (no BufWritePost event)
-  -- so we must manually trigger sync
-  vim.schedule(function()
+  -- Trigger config sync (skip if called from set_global_default which will sync)
+  if not opts.skip_sync then
     local ok, Sync = pcall(require, "ai.sync")
     if ok then
-      Sync.sync_all({ silent = true })
+      Sync.sync_all({ silent = false })
     end
-  end)
+  end
 
-  vim.notify(string.format("Set %s default model to: %s", provider_name, model_id), vim.log.levels.INFO)
+  -- Notify (skip if called from set_global_default - sync will show results)
+  if not opts.skip_notify then
+    vim.notify(string.format("Set %s default model to: %s", provider_name, model_id), vim.log.levels.INFO)
+  end
+
   return true
 end
 

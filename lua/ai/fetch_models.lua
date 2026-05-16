@@ -6,6 +6,17 @@ local Keys = require("ai.keys")
 
 local M = {}
 
+-- 模型列表缓存（5分钟有效期）
+local model_cache = {}
+local cache_ttl = 300 -- seconds
+
+----------------------------------------------------------------------
+-- clear_cache(): 清除所有缓存
+----------------------------------------------------------------------
+function M.clear_cache()
+  model_cache = {}
+end
+
 ----------------------------------------------------------------------
 -- fetch(provider_name)
 -- 返回：models, tried_urls, succeeded_urls, failed_urls
@@ -14,6 +25,13 @@ function M.fetch(provider_name)
   local def = Providers.get(provider_name)
   if not def or not def.endpoint then
     return nil, {}, {}, {}
+  end
+
+  -- 检查缓存
+  local cached = model_cache[provider_name]
+  if cached and cached.timestamp and os.time() - cached.timestamp < cache_ttl then
+    -- 缓存有效，直接返回（静默，不打印日志）
+    return cached.models, {}, { cached.url }, {}
   end
 
   local endpoint = def.endpoint
@@ -52,6 +70,16 @@ function M.fetch(provider_name)
 
   local tried, succ, fail = {}, {}, {}
   local collected = {}
+  
+  -- Progress notification ID (used for replace)
+  local progress_id = "fetch_models_" .. provider_name
+  
+  -- Show progress notification once before trying URLs
+  vim.notify(
+    string.format("⏳ 正在从 %s 拉取模型列表...", provider_name),
+    vim.log.levels.INFO,
+    { title = "Model Fetch", replace = progress_id }
+  )
 
   for _, url in ipairs(candidates) do
     table.insert(tried, url)
@@ -66,28 +94,32 @@ function M.fetch(provider_name)
     end
     table.insert(cmd_parts, url)
 
-    -- 构建完整的命令字符串
-    local cmd = ""
-    for i, part in ipairs(cmd_parts) do
-      if i > 1 then
-        cmd = cmd .. " "
-      end
-      cmd = cmd .. string.format("%q", part)
-    end
-
     -- Use vim.system (async, non-blocking) with vim.wait to preserve sync API
     local result = nil
     local done = false
+    
     local ok, proc = pcall(vim.system, cmd_parts, { text = true }, function(obj)
       result = obj
       done = true
     end)
 
     if ok and proc then
-      -- Wait up to 5 seconds for the response
-      vim.wait(5000, function()
+      -- Wait up to 3 seconds with progress updates
+      local wait_ms = 3000
+      local elapsed = 0
+      vim.wait(wait_ms, function()
+        elapsed = elapsed + 100
+        -- Update progress every 500ms
+        if elapsed % 500 == 0 then
+          local seconds = elapsed / 1000
+          vim.notify(
+            string.format("⏳ 正在拉取 %s 模型列表... (%.1fs)", provider_name, seconds),
+            vim.log.levels.INFO,
+            { title = "Model Fetch", replace = progress_id }
+          )
+        end
         return done
-      end)
+      end, 100) -- check every 100ms
 
       if result and result.code == 0 and result.stdout and result.stdout:match("%S") then
         local out = result.stdout
@@ -118,6 +150,8 @@ function M.fetch(provider_name)
 
           if #collected > 0 then
             table.insert(succ, url)
+            -- Success! Break out of loop, don't try other URLs
+            break
           else
             table.insert(fail, url)
           end
@@ -142,26 +176,38 @@ function M.fetch(provider_name)
     end
   end
 
-  -- 打印日志
+  -- 成功时保存到缓存
+  if #uniq > 0 and #succ > 0 then
+    model_cache[provider_name] = {
+      models = uniq,
+      timestamp = os.time(),
+      url = succ[1],
+    }
+  end
+
+  -- 打印日志（替换进度通知）
   if #uniq > 0 then
     -- 拉取成功：打印模型数量和成功的链接
     local success_url = succ[1] or "unknown"
     vim.notify(
-      string.format("✅ 成功从 %s 拉取到 %d 个模型 (URL: %s)", provider_name, #uniq, success_url),
-      vim.log.levels.INFO
+      string.format("✅ 成功从 %s 拉取到 %d 个模型", provider_name, #uniq),
+      vim.log.levels.INFO,
+      { title = "Model Fetch", replace = progress_id }
     )
   else
     -- 拉取失败：打印告警信息
     if #fail > 0 then
       local failed_urls = table.concat(fail, ", ")
       vim.notify(
-        string.format("⚠️  %s 模型列表拉取失败，尝试的URL: %s", provider_name, failed_urls),
-        vim.log.levels.WARN
+        string.format("⚠️  %s 模型列表拉取失败\n尝试的URL: %s", provider_name, failed_urls),
+        vim.log.levels.WARN,
+        { title = "Model Fetch", replace = progress_id }
       )
     else
       vim.notify(
         string.format("⚠️  %s 模型列表拉取失败，未尝试任何URL", provider_name),
-        vim.log.levels.WARN
+        vim.log.levels.WARN,
+        { title = "Model Fetch", replace = progress_id }
       )
     end
   end

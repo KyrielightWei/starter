@@ -353,6 +353,182 @@ local function merge_settings(base, override)
   return result
 end
 
+----------------------------------------------------------------------
+-- Helper: Detect model type and version from model name
+-- Returns: type ("opus", "sonnet", "haiku", or "unknown"), version string
+----------------------------------------------------------------------
+local function detect_model_type_and_version(model_name)
+  -- Strip provider prefix if present
+  local model_id = model_name
+  if model_name:match("/") then
+    model_id = model_name:match("([^/]+)$")
+  end
+
+  -- Normalize to lowercase for matching
+  local lower_id = model_id:lower()
+
+  -- Extract version number (e.g., "4.7", "4.6", "4.5")
+  local version = model_id:match("%d+[%.%-]%d+") or "4.5"
+
+  -- Detect model type
+  if lower_id:match("opus") then
+    return "opus", version
+  elseif lower_id:match("sonnet") then
+    return "sonnet", version
+  elseif lower_id:match("haiku") then
+    return "haiku", version
+  end
+
+  return "unknown", version
+end
+
+----------------------------------------------------------------------
+-- Helper: Build model ID from type and version
+-- Format: claude-{type}-{version} (dash-separated)
+----------------------------------------------------------------------
+local function build_model_id(model_type, version)
+  -- Normalize version: dots to dashes
+  local normalized_version = version:gsub("%.", "-")
+  return string.format("claude-%s-%s", model_type, normalized_version)
+end
+
+----------------------------------------------------------------------
+-- Helper: Find best matching model from provider's static_models
+-- Returns the actual model ID from the list, or builds one if not found
+----------------------------------------------------------------------
+local function find_best_model_for_type(provider_def, target_type, version)
+  if not provider_def or not provider_def.static_models then
+    return build_model_id(target_type, version)
+  end
+
+  -- Try to find exact match first (same type, same version)
+  for _, model in ipairs(provider_def.static_models) do
+    local m_type, m_version = detect_model_type_and_version(model)
+    if m_type == target_type then
+      -- Return first matching type (usually the latest)
+      local model_id = model
+      if model:match("/") then
+        model_id = model:match("([^/]+)$")
+      end
+      return model_id:gsub("%.", "-")
+    end
+  end
+
+  -- No match found, build from version
+  return build_model_id(target_type, version)
+end
+
+----------------------------------------------------------------------
+-- Helper: Resolve all Claude model env vars from user's selected model
+-- Returns: { opus_model, sonnet_model, haiku_model, small_fast_model }
+----------------------------------------------------------------------
+local function resolve_claude_models(provider_def, selected_model)
+  local selected_type, selected_version = detect_model_type_and_version(selected_model)
+
+  -- Normalize selected model ID
+  local selected_id = selected_model
+  if selected_model:match("/") then
+    selected_id = selected_model:match("([^/]+)$")
+  end
+  selected_id = selected_id:gsub("%.", "-")
+
+  -- Resolve each model based on selected type
+  local opus_model, sonnet_model, haiku_model
+
+  if selected_type == "opus" then
+    -- User selected opus → use it, find matching sonnet/haiku
+    opus_model = selected_id
+    sonnet_model = find_best_model_for_type(provider_def, "sonnet", selected_version)
+    haiku_model = find_best_model_for_type(provider_def, "haiku", selected_version)
+  elseif selected_type == "sonnet" then
+    -- User selected sonnet → use it, find matching opus/haiku
+    opus_model = find_best_model_for_type(provider_def, "opus", selected_version)
+    sonnet_model = selected_id
+    haiku_model = find_best_model_for_type(provider_def, "haiku", selected_version)
+  elseif selected_type == "haiku" then
+    -- User selected haiku → use it, find matching opus/sonnet
+    opus_model = find_best_model_for_type(provider_def, "opus", selected_version)
+    sonnet_model = find_best_model_for_type(provider_def, "sonnet", selected_version)
+    haiku_model = selected_id
+  else
+    -- Unknown type → use selected for all (fallback behavior)
+    opus_model = selected_id
+    sonnet_model = selected_id
+    haiku_model = selected_id
+  end
+
+  -- Small fast model = haiku (fastest)
+  local small_fast_model = haiku_model
+
+  return {
+    opus_model = opus_model,
+    sonnet_model = sonnet_model,
+    haiku_model = haiku_model,
+    small_fast_model = small_fast_model,
+  }
+end
+
+----------------------------------------------------------------------
+-- Helper: Check if provider supports Claude Code
+-- Two conditions indicate Claude Code support:
+-- 1. Provider has Claude models in static_models (zenmux, direct Anthropic)
+-- 2. Provider has base_url_claude configured (proxy services like bailian_coding)
+----------------------------------------------------------------------
+local function provider_supports_claude_code(provider_def, provider_config)
+  -- Check if provider has explicit Claude endpoint configured
+  if provider_config and provider_config.base_url_claude and provider_config.base_url_claude ~= "" then
+    return true
+  end
+
+  -- Check if provider has Claude models in static_models
+  if provider_def and provider_def.static_models then
+    for _, model in ipairs(provider_def.static_models) do
+      local model_type, _ = detect_model_type_and_version(model)
+      if model_type ~= "unknown" then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+----------------------------------------------------------------------
+-- Helper: Check if provider has actual Claude models in static_models
+-- Different from provider_supports_claude_code - this checks for model names
+----------------------------------------------------------------------
+local function provider_has_claude_models(provider_def)
+  if not provider_def or not provider_def.static_models then
+    return false
+  end
+
+  for _, model in ipairs(provider_def.static_models) do
+    local model_type, _ = detect_model_type_and_version(model)
+    if model_type ~= "unknown" then
+      return true
+    end
+  end
+
+  return false
+end
+
+----------------------------------------------------------------------
+-- Helper: Get best available Claude models from provider
+-- Returns: { opus_model, sonnet_model, haiku_model, small_fast_model }
+----------------------------------------------------------------------
+local function get_best_claude_models(provider_def)
+  local opus_model = find_best_model_for_type(provider_def, "opus", "4.7")
+  local sonnet_model = find_best_model_for_type(provider_def, "sonnet", "4.6")
+  local haiku_model = find_best_model_for_type(provider_def, "haiku", "4.5")
+
+  return {
+    opus_model = opus_model,
+    sonnet_model = sonnet_model,
+    haiku_model = haiku_model,
+    small_fast_model = haiku_model,
+  }
+end
+
 local function build_provider_settings()
   -- Use global default from Registry
   local Registry = require("ai.provider_manager.registry")
@@ -385,14 +561,25 @@ local function build_provider_settings()
   -- Claude Code uses global default model
   model = model or Registry.get_default_model(provider_name)
 
-  -- Strip provider prefix for Claude Code env vars
-  -- Zenmux official format: claude-opus-4-6 (dash-separated, no provider prefix)
-  local model_id = model
-  if model:match("/") then
-    model_id = model:match("([^/]+)$")
+  -- Detect if selected model is a Claude model
+  local selected_type = detect_model_type_and_version(model)
+  local is_claude_model = selected_type ~= "unknown"
+
+  -- Check if provider supports Claude Code (via base_url_claude or has Claude models)
+  local supports_claude_code = provider_supports_claude_code(provider_def, config)
+
+  -- If provider doesn't support Claude Code, skip sync
+  -- This provider is for other tools (OpenCode, Avante) only
+  if not supports_claude_code then
+    vim.notify(
+      string.format(
+        "ℹ️  Provider '%s' 未配置 Claude Code 支持，跳过同步\n此设置仅影响 OpenCode/Avante，Claude Code 保持原有配置",
+        provider_name
+      ),
+      vim.log.levels.INFO
+    )
+    return {} -- Return empty settings, don't modify Claude Code
   end
-  -- Normalize dots to dashes (e.g., claude-opus-4.6 -> claude-opus-4-6)
-  model_id = model_id:gsub("%.", "-")
 
   local env = {}
 
@@ -404,11 +591,37 @@ local function build_provider_settings()
     env["ANTHROPIC_BASE_URL"] = endpoint
   end
 
-  -- Use Zenmux official env var format (no ANTHROPIC_MODEL, only DEFAULT_* variants)
-  env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = model_id
-  env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model_id
-  env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model_id
-  env["ANTHROPIC_SMALL_FAST_MODEL"] = model_id
+  -- Only set model env vars based on provider type:
+  -- 1. User selected a Claude model (opus/sonnet/haiku) → use smart mapping
+  -- 2. Provider has Claude models but user selected non-Claude → use best available Claude models
+  -- 3. Provider uses custom model names (via base_url_claude) → use selected model for all
+  if is_claude_model then
+    -- User selected a Claude model → smart mapping
+    local models = resolve_claude_models(provider_def, model)
+    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = models.opus_model
+    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = models.sonnet_model
+    env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = models.haiku_model
+    env["ANTHROPIC_SMALL_FAST_MODEL"] = models.small_fast_model
+  elseif provider_has_claude_models(provider_def) then
+    -- Provider has Claude models but user selected non-Claude → use best available Claude models
+    local models = get_best_claude_models(provider_def)
+    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = models.opus_model
+    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = models.sonnet_model
+    env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = models.haiku_model
+    env["ANTHROPIC_SMALL_FAST_MODEL"] = models.small_fast_model
+  else
+    -- Provider uses custom model names (like bailian_coding with glm-5)
+    -- Use selected model for all env vars since the proxy handles it
+    local model_id = model
+    if model:match("/") then
+      model_id = model:match("([^/]+)$")
+    end
+    model_id = model_id:gsub("%.", "-")
+    env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = model_id
+    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = model_id
+    env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = model_id
+    env["ANTHROPIC_SMALL_FAST_MODEL"] = model_id
+  end
 
   local settings = {}
   if vim.tbl_count(env) > 0 then

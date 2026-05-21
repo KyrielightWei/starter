@@ -201,8 +201,9 @@ function M.export_keys()
   local keys_data = Keys.read() or {}
   local exported = {}
 
-  for provider_name, provider_def in pairs(Providers) do
-    if type(provider_def) == "table" and provider_def.api_key_name then
+  for _, provider_name in ipairs(Providers.list()) do
+    local provider_def = Providers.get(provider_name)
+    if provider_def and provider_def.api_key_name then
       local key = Keys.get_key(provider_name)
       if key and key ~= "" then
         exported[provider_def.api_key_name] = key
@@ -225,6 +226,9 @@ function M.export_to_env_file(path)
 
   path = path or vim.fn.stdpath("config") .. "/ai_env.sh"
   vim.fn.writefile(lines, path)
+  -- Security: Set restrictive permissions on env file containing API keys
+  -- chmod 600 = 6*64 = 384 in decimal (LuaJIT doesn't support 0o600 octal)
+  vim.uv.fs_chmod(path, 384)
 
   vim.notify("Exported " .. #lines .. " keys to " .. path, vim.log.levels.INFO)
 

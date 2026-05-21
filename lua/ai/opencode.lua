@@ -536,29 +536,67 @@ function M.write_config()
   local Registry = require("ai.components.registry")
   local comp_name = Switcher.get_active("opencode")
 
-  -- Guard: component not assigned
-  if not comp_name or not Registry.is_registered(comp_name) then
-    local assignments = Switcher.get_all()
-    local lines = {
-      "❌ OpenCode: 未分配组件",
-      "",
-      "  当前分配:",
-    }
-    for tool, comp in pairs(assignments) do
-      table.insert(lines, string.format("    %s → %s", tool, comp))
-    end
-    table.insert(lines, "")
-    table.insert(lines, "  修复选项:")
-    table.insert(lines, "    1. 运行组件选择器为 OpenCode 分配一个组件")
-    table.insert(lines, string.format("    2. 运行 :OpenCodeWriteConfig 在分配组件后重试"))
-    table.insert(lines, "")
-    if comp_name then
-      table.insert(lines, string.format("  已分配: %s (但未在注册表中找到)", comp_name))
-      table.insert(lines, "  提示: 该组件可能未部署或未注册")
-    else
-      table.insert(lines, "  提示: OpenCode 还没有被分配到任何组件")
+  -- 如果没有分配组件，直接生成配置
+  if not comp_name then
+    local config, auth_config, ok = M.generate_config()
+    if not ok then
+      vim.notify("配置生成失败，请修复模板错误后重试", vim.log.levels.ERROR)
+      return false
     end
 
+    -- 写入配置
+    local opencode_dir = get_opencode_config_dir()
+    if vim.fn.isdirectory(opencode_dir) == 0 then
+      vim.fn.mkdir(opencode_dir, "p")
+    end
+
+    -- 写入 instructions.md
+    local instructions_md_path = opencode_dir .. "/instructions.md"
+    local SystemPrompt = require("ai.system_prompt")
+    local instructions_content = SystemPrompt.for_tool("opencode")
+    vim.fn.writefile(vim.split(instructions_content, "\n"), instructions_md_path)
+
+    config.agent = config.agent or {}
+    config.agent.build = config.agent.build or {}
+    config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
+
+    -- 写入 API key 文件
+    for provider, key in pairs(auth_config) do
+      if key and key ~= "" and key:sub(1, 6) ~= "${env:" then
+        local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
+        vim.fn.writefile({ key }, key_file)
+        -- Security: Set restrictive permissions on API key files
+        -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
+        vim.uv.fs_chmod(key_file, 384)
+      end
+    end
+
+    -- 写入 opencode.json
+    local config_path = get_opencode_config_path()
+    local config_content = format_json(config)
+    vim.fn.writefile(vim.split(config_content, "\n"), config_path)
+
+    -- 生成 TUI 配置
+    local ok_tui, TuiConfig = pcall(require, "ai.opencode_tui")
+    if ok_tui then
+      TuiConfig.generate_tui_config()
+    end
+
+    vim.notify("✅ OpenCode 配置生成成功（无组件）\n📝 To use a component, run :AIComponents", vim.log.levels.INFO)
+    return true
+  end
+
+  -- 如果分配了组件，检查组件是否存在
+  if not Registry.is_registered(comp_name) then
+    local lines = {
+      string.format("❌ 组件 '%s' 未注册 (OpenCode 分配)", comp_name),
+      "",
+      "  快速修复:",
+      "    运行 :AIComponents 打开组件管理器",
+      "    或选择 Unassign 取消分配",
+      "",
+      string.format("  当前分配: opencode → %s", comp_name),
+    }
     vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
     return false
   end
@@ -566,19 +604,28 @@ function M.write_config()
   -- 动态加载组件
   local Component = require("ai.components." .. comp_name)
 
-  -- 检查组件是否已安装
-  if not Component.is_installed() then
+  -- 检查组件是否已缓存或已部署
+  local Manager = require("ai.components.manager")
+  local Deployments = require("ai.components.deployments")
+  local is_cached = Manager.is_cached(comp_name)
+  local is_deployed = Deployments.is_deployed_to(comp_name, "opencode")
+
+  if not is_cached or not is_deployed then
     local lines = {
-      string.format("❌ 组件 '%s' 未安装 (OpenCode 分配)", comp_name),
+      string.format("⚠️  组件 '%s' 未就绪 (OpenCode 分配)", comp_name),
       "",
-      "  快速修复:",
-      string.format("    运行 :%sDeployTools (部署到工具)", comp_name:upper()),
-      string.format("    或切换为其他已安装的组件"),
+      "  状态:",
+      string.format("    缓存: %s", is_cached and "✓ 已缓存" or "○ 未缓存"),
+      string.format("    部署: %s", is_deployed and "✓ 已部署" or "○ 未部署"),
       "",
-      string.format("  当前分配: opencode → %s", comp_name),
+      "  自动取消分配以生成配置",
+      "  要使用组件，请运行 :AIComponents 手动安装部署",
     }
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
-    return false
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN)
+
+    -- 取消分配，然后 fall through 到无组件分支（不递归）
+    Switcher.clear("opencode")
+    comp_name = nil
   end
 
   local config, auth_config, ok = M.generate_config()
@@ -613,6 +660,9 @@ function M.write_config()
         -- Actual API key: write to file
         local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
         vim.fn.writefile({ key }, key_file)
+        -- Security: Set restrictive permissions on API key files
+        -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
+        vim.uv.fs_chmod(key_file, 384)
       end
     end
   end

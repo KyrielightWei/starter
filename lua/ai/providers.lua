@@ -3,6 +3,9 @@
 
 local M = {}
 
+-- Private registry table to separate data from methods
+local registry = {}
+
 ----------------------------------------------------------------------
 -- 全局默认值获取函数（动态从 ai_keys.lua 读取）
 -- 不再硬编码，由 Registry.get_global_default() 管理
@@ -25,14 +28,9 @@ function M.get_default_model()
   return "qwen3.6-plus" -- fallback
 end
 
--- 向后兼容：保留属性访问接口（不推荐直接访问）
--- 建议使用 M.get_default_provider() 和 M.get_default_model()
-M.default_provider = nil -- deprecated
-M.default_model = nil -- deprecated
-
 -- 注册 provider
 function M.register(name, conf)
-  M[name] = {
+  registry[name] = {
     inherited = conf.inherited or "openai",
     api_key_name = conf.api_key_name, -- 用于自动生成 env_var_map
     endpoint = conf.endpoint,
@@ -46,7 +44,7 @@ end
 -- 返回 provider 列表
 function M.list()
   local out = {}
-  for name, def in pairs(M) do
+  for name, def in pairs(registry) do
     if type(def) == "table" and def.endpoint then
       table.insert(out, name)
     end
@@ -56,7 +54,7 @@ end
 
 -- 获取 provider 配置
 function M.get(name)
-  return M[name]
+  return registry[name]
 end
 
 ----------------------------------------------------------------------

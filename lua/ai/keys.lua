@@ -136,6 +136,16 @@ function M.ensure()
 
     table.insert(lines, "}")
     vim.fn.writefile(lines, path)
+  else
+    -- Migration: add global_default to existing files if missing
+    local tbl = safe_load_lua(path)
+    if tbl and not tbl.global_default then
+      tbl.global_default = {
+        provider = "bailian_coding",
+        model = "qwen3.6-plus",
+      }
+      M.write(tbl)
+    end
   end
 
   return safe_load_lua(path)
@@ -378,7 +388,7 @@ end
 function M.edit()
   M.ensure()
   local path = keys_path()
-  vim.cmd("edit " .. path)
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
 end
 
 return M

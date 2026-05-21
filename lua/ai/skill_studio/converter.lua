@@ -1,242 +1,132 @@
 -- lua/ai/skill_studio/converter.lua
--- Format converter between Claude Code and OpenCode
+-- Skill format converter for OpenCode and QoderCLI
 
 local M = {}
 
 ----------------------------------------------------------------------
--- Skill Name Conversion
+-- Parse frontmatter from skill content
 ----------------------------------------------------------------------
-local function to_opencode_name(name)
-  return name:lower():gsub("[^a-z0-9-]", "-"):gsub("-+", "-"):gsub("^-", ""):gsub("-$", "")
+function M.parse_frontmatter(content)
+  local result = {}
+  local frontmatter = content:match("^%-%-%-\n(.-)\n%-%-%-")
+  if not frontmatter then
+    return result
+  end
+
+  -- Extract name
+  local name = frontmatter:match("name:%s*[\"']?([^\"'\n]+)[\"']?")
+  if name then
+    result.name = vim.trim(name)
+  end
+
+  -- Extract description
+  local description = frontmatter:match("description:%s*[\"']?([^\"'\n]+)[\"']?")
+  if description then
+    result.description = vim.trim(description)
+  end
+
+  -- Extract version
+  local version = frontmatter:match("version:%s*[\"']?([^\"'\n]+)[\"']?")
+  if version then
+    result.version = vim.trim(version)
+  end
+
+  return result
 end
 
-local function to_claude_name(name)
-  return name:lower():gsub("[^a-z0-9-]", "-"):gsub("-+", "-")
+----------------------------------------------------------------------
+-- Extract body (content after frontmatter)
+----------------------------------------------------------------------
+function M.extract_body(content)
+  local body = content:match("%-%-%-\n.*\n%-%-%-\n(.*)")
+  if body then
+    return vim.trim(body)
+  end
+  return content
 end
 
 ----------------------------------------------------------------------
--- Claude Code -> OpenCode
+-- Convert to OpenCode skills format
+-- OpenCode 完全兼容 Claude skill 格式！
+-- 只需复制到 .opencode/skills/ 目录
+-- 参考: https://opencode.ai/docs/skills/
 ----------------------------------------------------------------------
-function M.claude_to_opencode_skill(item)
-  local frontmatter = item.frontmatter or {}
+function M.to_opencode(name, content)
+  -- OpenCode 自动发现 .opencode/skills/<name>/SKILL.md
+  -- 格式与 Claude skill 完全相同，无需转换
+  local opencode_dir = vim.fn.getcwd() .. "/.opencode/skills/" .. name
+  vim.fn.mkdir(opencode_dir, "p")
+  vim.fn.writefile(vim.split(content, "\n"), opencode_dir .. "/SKILL.md")
 
-  return {
-    type = "skill",
-    target = "opencode",
-    level = item.level,
-    frontmatter = {
-      name = to_opencode_name(frontmatter.name or "unnamed-skill"),
-      description = frontmatter.description or "",
-      version = frontmatter.version or "1.0.0",
-      license = frontmatter.license,
-      compatibility = "opencode",
-    },
-    body = item.body or "",
-  }
+  return true, nil
 end
 
-function M.claude_to_opencode_mcp(item)
-  local opencode_mcp = {}
+----------------------------------------------------------------------
+-- Convert to QoderCLI format (same as Claude, just copy)
+----------------------------------------------------------------------
+function M.to_qoder(name, content)
+  -- QoderCLI uses same SKILL.md format, just copy to different location
+  local qoder_dir = vim.fn.getcwd() .. "/.qoder/skills/" .. name
+  vim.fn.mkdir(qoder_dir, "p")
+  vim.fn.writefile(vim.split(content, "\n"), qoder_dir .. "/SKILL.md")
 
-  for server_name, server_config in pairs(item.config or {}) do
-    local new_config = {}
+  return true, nil
+end
 
-    if server_config.type == "stdio" then
-      new_config.type = "local"
-      new_config.command = server_config.command
-      if server_config.args then
-        new_config.command = type(server_config.command) == "table" and server_config.command
-          or { server_config.command }
-        for _, arg in ipairs(server_config.args) do
-          table.insert(new_config.command, arg)
-        end
-      end
+----------------------------------------------------------------------
+-- Convert to Cursor rules format
+----------------------------------------------------------------------
+function M.to_cursor(name, content)
+  local body = M.extract_body(content)
+  local cursor_dir = vim.fn.getcwd() .. "/.cursor/rules"
+  vim.fn.mkdir(cursor_dir, "p")
+
+  -- Cursor uses .mdc files
+  local cursor_content = string.format(
+    [[---
+description: %s
+globs: ["*"]
+---
+
+%s
+]],
+    name,
+    body
+  )
+
+  vim.fn.writefile(vim.split(cursor_content, "\n"), cursor_dir .. "/" .. name .. ".mdc")
+  return true, nil
+end
+
+----------------------------------------------------------------------
+-- Batch convert all skills
+----------------------------------------------------------------------
+function M.batch_convert(target)
+  local skills = require("ai.skill_studio").list_all()
+  local results = { success = {}, failed = {} }
+
+  for name, info in pairs(skills) do
+    local content = table.concat(vim.fn.readfile(info.path), "\n")
+    local ok, err
+
+    if target == "opencode" then
+      ok, err = M.to_opencode(name, content)
+    elseif target == "qoder" then
+      ok, err = M.to_qoder(name, content)
+    elseif target == "cursor" then
+      ok, err = M.to_cursor(name, content)
     else
-      new_config.type = "remote"
-      new_config.url = server_config.url
-      new_config.headers = server_config.headers
+      err = "Unknown target: " .. target
     end
 
-    new_config.environment = server_config.env or server_config.environment
-    new_config.enabled = server_config.enabled ~= false
-    new_config.timeout = server_config.timeout or 5000
-
-    opencode_mcp[server_name] = new_config
-  end
-
-  return {
-    type = "mcp",
-    target = "opencode",
-    level = item.level,
-    config = opencode_mcp,
-  }
-end
-
-----------------------------------------------------------------------
--- OpenCode -> Claude Code
-----------------------------------------------------------------------
-function M.opencode_to_claude_skill(item)
-  local frontmatter = item.frontmatter or {}
-
-  return {
-    type = "skill",
-    target = "claude",
-    level = item.level,
-    frontmatter = {
-      name = to_claude_name(frontmatter.name or "unnamed-skill"),
-      description = frontmatter.description or "",
-      version = frontmatter.version or "1.0.0",
-      license = frontmatter.license,
-    },
-    body = item.body or "",
-  }
-end
-
-function M.opencode_to_claude_mcp(item)
-  local claude_mcp = {}
-
-  for server_name, server_config in pairs(item.config or {}) do
-    local new_config = {}
-
-    if server_config.type == "local" then
-      new_config.type = "stdio"
-      if type(server_config.command) == "table" then
-        new_config.command = server_config.command[1]
-        new_config.args = {}
-        for i = 2, #server_config.command do
-          table.insert(new_config.args, server_config.command[i])
-        end
-      else
-        new_config.command = server_config.command
-      end
+    if ok then
+      results.success[name] = true
     else
-      new_config.type = server_config.type or "http"
-      new_config.url = server_config.url
-      new_config.headers = server_config.headers
-    end
-
-    new_config.env = server_config.environment or server_config.env
-
-    claude_mcp[server_name] = new_config
-  end
-
-  return {
-    type = "mcp",
-    target = "claude",
-    level = item.level,
-    config = claude_mcp,
-  }
-end
-
-----------------------------------------------------------------------
--- Main Convert Function
-----------------------------------------------------------------------
-function M.convert(item, new_target)
-  local current_target = item.target
-  local item_type = item.type
-
-  if current_target == new_target then
-    return item
-  end
-
-  if item_type == "skill" then
-    if new_target == "opencode" then
-      return M.claude_to_opencode_skill(item)
-    else
-      return M.opencode_to_claude_skill(item)
-    end
-  elseif item_type == "mcp" then
-    if new_target == "opencode" then
-      return M.claude_to_opencode_mcp(item)
-    else
-      return M.opencode_to_claude_mcp(item)
-    end
-  elseif item_type == "command" then
-    return nil, "Commands are Claude Code specific and cannot be converted to OpenCode"
-  end
-
-  return nil, "Unknown item type"
-end
-
-----------------------------------------------------------------------
--- Batch Convert
-----------------------------------------------------------------------
-function M.batch_convert(items, new_target)
-  local results = {}
-  local errors = {}
-
-  for i, item in ipairs(items) do
-    local converted, err = M.convert(item, new_target)
-    if converted then
-      table.insert(results, converted)
-    else
-      table.insert(errors, { index = i, error = err })
+      results.failed[name] = err
     end
   end
 
-  return results, errors
-end
-
-----------------------------------------------------------------------
--- Preview Conversion
-----------------------------------------------------------------------
-function M.preview(item, new_target)
-  local converted, err = M.convert(item, new_target)
-  if not converted then
-    return nil, err
-  end
-
-  local preview_lines = {}
-
-  table.insert(preview_lines, string.format("# Conversion: %s -> %s", item.target, new_target))
-  table.insert(preview_lines, "")
-  table.insert(preview_lines, "## Before")
-  table.insert(preview_lines, "```")
-  table.insert(preview_lines, vim.inspect(item))
-  table.insert(preview_lines, "```")
-  table.insert(preview_lines, "")
-  table.insert(preview_lines, "## After")
-  table.insert(preview_lines, "```")
-  table.insert(preview_lines, vim.inspect(converted))
-  table.insert(preview_lines, "```")
-
-  return table.concat(preview_lines, "\n"), converted
-end
-
-----------------------------------------------------------------------
--- Detect Format
-----------------------------------------------------------------------
-function M.detect_format(content)
-  if type(content) == "string" then
-    if content:match("^%s*%-%-%-") then
-      local frontmatter = content:match("^%-%-%-(.-)%-%-%-")
-      if frontmatter then
-        if frontmatter:match("compatibility:%s*opencode") then
-          return "opencode"
-        end
-        return "claude"
-      end
-    end
-
-    if content:match("^%s*{") then
-      return "json"
-    end
-  end
-
-  if type(content) == "table" then
-    if content.frontmatter then
-      if content.frontmatter.compatibility == "opencode" then
-        return "opencode"
-      end
-      return "claude"
-    end
-
-    if content.config then
-      return "mcp"
-    end
-  end
-
-  return "unknown"
+  return results
 end
 
 return M

@@ -128,10 +128,10 @@ local function resolve_refs(value, context)
           return table.concat(vim.fn.readfile(expanded), "\n")
         end
       elseif ref_type == "exec" then
-        local result = vim.fn.system(ref_key)
-        if vim.v.shell_error == 0 then
-          return vim.trim(result)
-        end
+        -- Security: ${exec:...} is disabled to prevent command injection
+        -- If you need dynamic values, use ${env:...} or ${file:...} instead
+        vim.notify("${exec:...} is disabled for security", vim.log.levels.WARN)
+        return ""
       end
 
       return ""

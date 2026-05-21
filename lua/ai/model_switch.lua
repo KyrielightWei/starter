@@ -130,6 +130,12 @@ function M.select(callback)
                   provider = provider,
                   model = model,
                 })
+              else
+                -- 如果没有 callback，显示更明确的成功通知
+                vim.notify(
+                  string.format("✅ 已切换到 %s / %s\n此模型将作为 OpenCode 和 Claude Code 的默认模型", provider, model),
+                  vim.log.levels.INFO
+                )
               end
             end,
           },

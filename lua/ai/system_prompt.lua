@@ -193,7 +193,7 @@ end
 function M.edit_prompts()
   M.ensure_default_files()
   local dir = get_prompts_dir()
-  vim.cmd("edit " .. dir)
+  vim.cmd("edit " .. vim.fn.fnameescape(dir))
 end
 
 ----------------------------------------------------------------------

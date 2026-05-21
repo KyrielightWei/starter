@@ -90,7 +90,7 @@ function M.read_lua_table(path)
   -- Use exact directory containment check (not prefix match)
   -- Prevents bypass via sibling directories like ai_evil/
   local uv = vim.uv or vim.loop
-  local stat = (uv.fs_stat or stat) and (uv.fs_stat or vim.uv.fs_stat)(abs_path)
+  local stat = uv.fs_stat(abs_path)
   if not stat or stat.type ~= "file" then
     return nil, "Path is not a regular file: " .. path
   end

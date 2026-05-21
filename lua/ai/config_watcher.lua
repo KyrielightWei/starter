@@ -3,7 +3,7 @@
 
 local M = {}
 
-M.enabled = true
+M.enabled = false
 local debounce_timer = nil
 
 local function should_trigger_update(filepath)
@@ -39,7 +39,7 @@ local function debounce_sync()
     debounce_timer:close()
   end
 
-  debounce_timer = vim.loop.new_timer()
+  debounce_timer = vim.uv.new_timer()
   debounce_timer:start(
     500,
     0,
@@ -57,7 +57,7 @@ function M.watch()
   if M.enabled then
     return
   end
-  M.enabled = true
+  M.enabled = false
 
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = vim.api.nvim_create_augroup("AIConfigWatcher", { clear = true }),
@@ -86,6 +86,7 @@ function M.watch()
     end,
   })
 
+  M.enabled = true
   vim.notify("AI config watcher enabled", vim.log.levels.INFO)
 end
 

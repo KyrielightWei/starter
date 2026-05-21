@@ -321,22 +321,57 @@ end
 
 ----------------------------------------------------------------------
 -- Set global default provider and model
--- Updates Keys.global_default and triggers config sync
+-- FIX: Use a single read-modify-write cycle to avoid losing global_default
+-- Previous bug: Keys.set_global_default() wrote the file, then
+-- M.set_default_model() read it back and wrote again. If anything
+-- interfered between the two writes (buffer save, external process),
+-- global_default would be lost.
 ----------------------------------------------------------------------
 function M.set_global_default(provider, model)
   local Keys = require("ai.keys")
 
-  -- Update Keys config
-  Keys.set_global_default(provider, model)
+  -- Single read-modify-write: apply BOTH changes to the same table
+  local tbl = Keys.read() or { profile = "default" }
 
-  -- Also update provider's default model (but don't sync/notify - we'll sync at the end)
-  M.set_default_model(provider, model, { skip_sync = true, skip_notify = true })
+  -- Change 1: set global_default
+  tbl.global_default = {
+    provider = provider,
+    model = model,
+  }
 
-  -- Trigger config sync immediately (not vim.schedule - may be lost when FZF closes)
-  local ok, Sync = pcall(require, "ai.sync")
-  if ok then
-    Sync.sync_all({ silent = false }) -- Show sync results to user
+  -- Change 2: set provider's default model (inside the default profile)
+  if not tbl[provider] then
+    tbl[provider] = {}
   end
+  if not tbl[provider].default then
+    tbl[provider].default = {}
+  end
+  tbl[provider].default.model = model
+
+  -- Single write
+  Keys.write(tbl)
+
+  -- Also update Providers table in memory
+  local def = Providers.get(provider)
+  if def then
+    def.model = model
+  end
+
+  -- Notify State subscribers
+  local ok_state, State = pcall(require, "ai.state")
+  if ok_state then
+    State.set(provider, model)
+  end
+
+  -- Trigger config sync (only once, not twice)
+  vim.schedule(function()
+    local ok, Sync = pcall(require, "ai.sync")
+    if ok then
+      Sync.sync_all({ silent = true })
+    end
+  end)
+
+  vim.notify(string.format("★ Set global default: %s / %s", provider, model), vim.log.levels.INFO)
 end
 
 ----------------------------------------------------------------------

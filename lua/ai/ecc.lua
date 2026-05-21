@@ -1,30 +1,11 @@
 -- lua/ai/ecc.lua
--- ECC shim: 向后兼容层，重定向到 components/ecc
---
--- 此文件保留向后兼容性，所有原有调用方式继续工作。
--- 实际实现已迁移到 lua/ai/components/ecc/
+-- ECC (Everything Claude Code) tool detection and installation
 
 local M = {}
-
---- 获取 ECC 组件实例
----@return AIComponent
-local function get_component()
-  local ok, comp = pcall(require, "ai.components.ecc")
-  if ok and comp then
-    return comp
-  end
-  -- 如果组件系统未加载，返回空实现
-  return nil
-end
 
 --- 检测 ECC 是否已安装
 ---@return boolean
 function M.is_installed()
-  local comp = get_component()
-  if comp then
-    return comp.is_installed()
-  end
-  -- 简单检测
   local state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
   return vim.fn.filereadable(state_path) == 1
 end
@@ -32,20 +13,28 @@ end
 --- 获取 ECC 安装状态
 ---@return table|nil
 function M.get_status()
-  local comp = get_component()
-  if comp then
-    return comp.get_status()
+  local state_path = vim.fn.expand("~/.claude/ecc/install-state.json")
+  if vim.fn.filereadable(state_path) ~= 1 then
+    return nil
   end
-  return nil
+
+  local ok, content = pcall(vim.fn.readfile, state_path)
+  if not ok or #content == 0 then
+    return nil
+  end
+
+  local json_str = table.concat(content, "\n")
+  local ok2, data = pcall(vim.json.decode, json_str)
+  if not ok2 then
+    return nil
+  end
+
+  return data
 end
 
 --- 获取安装命令提示
 ---@return string
 function M.install_hint()
-  local comp = get_component()
-  if comp then
-    return comp.install_hint()
-  end
   return "git clone https://github.com/affaan-m/everything-claude-code.git /tmp/ecc --depth=1 && cd /tmp/ecc && npm install && node scripts/install-apply.js --profile developer"
 end
 
@@ -54,38 +43,61 @@ end
 ---@param on_progress function|nil
 ---@return boolean, string
 function M.install(opts, on_progress)
-  local comp = get_component()
-  if comp then
-    return comp.install(opts, on_progress)
+  opts = opts or {}
+
+  local notify = function(msg, level)
+    vim.notify(msg, level or vim.log.levels.INFO)
+    if on_progress then
+      on_progress(msg)
+    end
   end
-  return false, "Component system not loaded"
+
+  notify("Installing ECC Framework...")
+
+
+  local cmd = M.install_hint()
+  local output = vim.fn.system(cmd)
+
+  if vim.v.shell_error ~= 0 then
+    return false, "Installation failed: " .. output
+  end
+
+  notify("ECC installed successfully")
+  return true, "Installation complete"
 end
 
 --- 显示 ECC 状态
 function M.show_status()
-  local comp = get_component()
-  if comp then
-    comp.show_status()
+  local status = M.get_status()
+  if status then
+    vim.notify("ECC installed: " .. tostring(status.installed_at or "unknown"), vim.log.levels.INFO)
   else
-    local status = M.get_status()
-    if status then
-      vim.notify("ECC installed: " .. tostring(status.installed_at), vim.log.levels.INFO)
-    else
-      vim.notify("ECC not installed", vim.log.levels.WARN)
-    end
+    vim.notify("ECC not installed. Run :ECCInstall to install", vim.log.levels.WARN)
   end
+end
+
+--- 打开安装器
+function M.open_installer()
+  if M.is_installed() then
+    vim.notify("ECC already installed", vim.log.levels.INFO)
+    return
+  end
+
+  vim.ui.select({"Yes", "No"}, {
+    prompt = "Install ECC Framework?",
+  }, function(choice)
+    if choice == "Yes" then
+      M.install({}, function(msg)
+        vim.notify(msg, vim.log.levels.INFO)
+      end)
+    end
+  end)
 end
 
 --- 格式化 ECC 状态通知行
 ---@param ecc table|nil
 ---@return string[]
 function M.format_notification(ecc)
-  local comp = get_component()
-  if comp then
-    local Status = require("ai.components.ecc.status")
-    return Status.format_notification(ecc)
-  end
-
   local lines = {}
   if ecc then
     table.insert(lines, "🔧 ECC Framework:")

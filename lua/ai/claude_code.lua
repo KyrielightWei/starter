@@ -185,20 +185,44 @@ end
 
 -- Check if file is a regular file; delete if it's a special file (device, socket, etc.)
 local function ensure_regular_file(path)
-  if vim.fn.filereadable(path) == 1 then
+  -- First try to check if it's readable
+  local readable = vim.fn.filereadable(path)
+  if readable == 1 then
     return true -- Regular file exists
   end
 
-  -- Check if path exists but is not a regular file (device, socket, fifo, etc.)
-  local stat = vim.loop.fs_stat(path)
+  -- Try to stat the file
+  local uv = vim.uv or vim.loop
+  local stat_ok, stat = pcall(uv.fs_stat, path)
+  if not stat_ok then
+    -- Cannot stat - might be a special file or permission issue
+    -- Try to remove it anyway using shell command
+    vim.notify("Warning: Cannot access " .. path .. ", attempting removal...", vim.log.levels.WARN)
+    local rm_ok = vim.fn.system("rm -f " .. vim.fn.shellescape(path))
+    if vim.v.shell_error == 0 then
+      vim.notify("Removed inaccessible file: " .. path, vim.log.levels.INFO)
+      return true
+    else
+      vim.notify("Failed to remove: " .. path .. ". Please manually delete it.", vim.log.levels.ERROR)
+      return false
+    end
+  end
+
   if stat and stat.type ~= "file" then
     -- Delete the special file
     local ok, err = os.remove(path)
     if ok then
       vim.notify("Removed non-regular file: " .. path .. " (type: " .. stat.type .. ")", vim.log.levels.WARN)
     else
-      vim.notify("Failed to remove non-regular file: " .. path .. " - " .. tostring(err), vim.log.levels.ERROR)
-      return false
+      -- os.remove failed, try shell rm
+      local rm_ok = vim.fn.system("rm -f " .. vim.fn.shellescape(path))
+      if vim.v.shell_error == 0 then
+        vim.notify("Removed special file via shell: " .. path, vim.log.levels.WARN)
+        return true
+      else
+        vim.notify("Failed to remove non-regular file: " .. path .. " - " .. tostring(err) .. ". Please manually delete it.", vim.log.levels.ERROR)
+        return false
+      end
     end
   end
 
@@ -688,50 +712,84 @@ function M.write_settings(opts)
   local Registry = require("ai.components.registry")
   local comp_name = Switcher.get_active("claude")
 
-  -- Guard: component not assigned
-  if not comp_name or not Registry.is_registered(comp_name) then
-    local assignments = Switcher.get_all()
-    local lines = {
-      "❌ Claude Code: 未分配组件",
-      "",
-      "  当前分配:",
-    }
-    for tool, comp in pairs(assignments) do
-      table.insert(lines, string.format("    %s → %s", tool, comp))
-    end
-    table.insert(lines, "")
-    table.insert(lines, "  修复选项:")
-    table.insert(lines, "    1. 运行组件选择器为 Claude Code 分配一个组件")
-    table.insert(lines, string.format("    2. 运行 :ClaudeCodeGenerateConfig 在分配组件后重试"))
-    table.insert(lines, "")
-    if comp_name then
-      table.insert(lines, string.format("  已分配: %s (但未在注册表中找到)", comp_name))
-      table.insert(lines, "  提示: 该组件可能未部署或未注册")
-    else
-      table.insert(lines, "  提示: Claude Code 还没有被分配到任何组件")
+  -- 如果分配了组件但组件未就绪，自动取消分配（不递归）
+  if comp_name then
+    if not Registry.is_registered(comp_name) then
+      local lines = {
+        string.format("❌ 组件 '%s' 未注册 (Claude Code 分配)", comp_name),
+        "",
+        "  快速修复:",
+        "    运行 :AIComponents 打开组件管理器",
+        "    或选择 Unassign 取消分配",
+        "",
+        string.format("  当前分配: claude → %s", comp_name),
+      }
+      vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
+      return false
     end
 
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
-    return false
+    -- 动态加载组件
+    local Component = require("ai.components." .. comp_name)
+
+    -- 检查组件是否已缓存或已部署
+    local Manager = require("ai.components.manager")
+    local Deployments = require("ai.components.deployments")
+    local is_cached = Manager.is_cached(comp_name)
+    local is_deployed = Deployments.is_deployed_to(comp_name, "claude")
+
+    if not is_cached or not is_deployed then
+      local lines = {
+        string.format("⚠️  组件 '%s' 未就绪 (Claude Code 分配)", comp_name),
+        "",
+        "  状态:",
+        string.format("    缓存: %s", is_cached and "✓ 已缓存" or "○ 未缓存"),
+        string.format("    部署: %s", is_deployed and "✓ 已部署" or "○ 未部署"),
+        "",
+        "  自动取消分配以生成配置",
+        "  要使用组件，请运行 :AIComponents 手动安装部署",
+      }
+      vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN)
+
+      -- 取消分配，然后 fall through 到无组件分支（不递归）
+      Switcher.clear("claude")
+      comp_name = nil
+    end
   end
 
-  -- 动态加载组件
+  -- 无组件分支
+  if not comp_name then
+    ensure_config_dir()
+
+    local final = build_final_settings(opts)
+    local path = get_settings_path()
+
+    -- Ensure target is a regular file (delete if it's a device/socket)
+    if not ensure_regular_file(path) then
+      return false
+    end
+
+    local content = format_json(final)
+    local lines = vim.split(content, "\n")
+    vim.fn.writefile(lines, path)
+
+    -- 同步 ccstatusline 配置
+    local ccstatusline_ok, ccstatusline_err = write_ccstatusline_settings()
+
+    local notify_lines = { "✅ Claude Code settings written (no component assigned)" }
+    if ccstatusline_ok then
+      table.insert(notify_lines, "✅ ccstatusline config synced")
+    elseif ccstatusline_err then
+      table.insert(notify_lines, "⚠️  ccstatusline: " .. ccstatusline_err)
+    end
+    table.insert(notify_lines, "")
+    table.insert(notify_lines, "📝 To use a component, run :AIComponents and assign one")
+
+    vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
+    return true
+  end
+
+  -- 组件就绪分支
   local Component = require("ai.components." .. comp_name)
-
-  -- 检查组件是否已安装
-  if not Component.is_installed() then
-    local lines = {
-      string.format("❌ 组件 '%s' 未安装 (Claude Code 分配)", comp_name),
-      "",
-      "  快速修复:",
-      string.format("    运行 :%sDeployTools (部署到工具)", comp_name:upper()),
-      string.format("    或切换为其他已安装的组件"),
-      "",
-      string.format("  当前分配: claude → %s", comp_name),
-    }
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
-    return false
-  end
 
   ensure_config_dir()
 
@@ -960,15 +1018,20 @@ function M.check_dependencies()
   -- 动态检查 switcher 分配的组件依赖
   local Switcher = require("ai.components.switcher")
   local Registry = require("ai.components.registry")
+  local Manager = require("ai.components.manager")
   local active_comp = Switcher.get_active("claude")
   if active_comp and Registry.is_registered(active_comp) then
     local ok, Component = pcall(require, "ai.components." .. active_comp)
     if ok then
+      local Deployments = require("ai.components.deployments")
+      local is_cached = Manager.is_cached(active_comp)
+      local is_deployed = Deployments.is_deployed_to(active_comp, "claude")
       table.insert(deps, {
         name = string.format("%s 组件", active_comp:upper()),
-        installed = Component.is_installed(),
-        install_hint = Component.install_hint and Component.install_hint()
-          or ("运行 :" .. active_comp:upper() .. "DeployTools"),
+        installed = is_cached and is_deployed,
+        install_hint = is_cached
+            and string.format("运行 :AIComponents 然后 Deploy 到 claude")
+            or string.format("运行 :AIComponentInstall %s 然后 Deploy", active_comp),
       })
     end
   end

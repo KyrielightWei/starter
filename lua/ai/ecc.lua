@@ -120,13 +120,7 @@ end
 
 --- 打开安装 UI
 function M.open_installer()
-  -- 重定向到组件选择器
-  local ok, Picker = pcall(require, "ai.components.picker")
-  if ok then
-    Picker.open()
-  else
-    vim.notify("Run :AIComponents to open the component manager", vim.log.levels.INFO)
-  end
+  vim.notify("Component system has been removed. ECC framework is no longer available.", vim.log.levels.INFO)
 end
 
 return M

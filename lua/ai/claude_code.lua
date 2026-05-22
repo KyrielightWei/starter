@@ -707,96 +707,11 @@ end
 function M.write_settings(opts)
   opts = opts or {}
 
-  -- 读取 switcher 分配的组件
-  local Switcher = require("ai.components.switcher")
-  local Registry = require("ai.components.registry")
-  local comp_name = Switcher.get_active("claude")
-
-  -- 如果分配了组件但组件未就绪，自动取消分配（不递归）
-  if comp_name then
-    if not Registry.is_registered(comp_name) then
-      local lines = {
-        string.format("❌ 组件 '%s' 未注册 (Claude Code 分配)", comp_name),
-        "",
-        "  快速修复:",
-        "    运行 :AIComponents 打开组件管理器",
-        "    或选择 Unassign 取消分配",
-        "",
-        string.format("  当前分配: claude → %s", comp_name),
-      }
-      vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
-      return false
-    end
-
-    -- 动态加载组件
-    local Component = require("ai.components." .. comp_name)
-
-    -- 检查组件是否已缓存或已部署
-    local Manager = require("ai.components.manager")
-    local Deployments = require("ai.components.deployments")
-    local is_cached = Manager.is_cached(comp_name)
-    local is_deployed = Deployments.is_deployed_to(comp_name, "claude")
-
-    if not is_cached or not is_deployed then
-      local lines = {
-        string.format("⚠️  组件 '%s' 未就绪 (Claude Code 分配)", comp_name),
-        "",
-        "  状态:",
-        string.format("    缓存: %s", is_cached and "✓ 已缓存" or "○ 未缓存"),
-        string.format("    部署: %s", is_deployed and "✓ 已部署" or "○ 未部署"),
-        "",
-        "  自动取消分配以生成配置",
-        "  要使用组件，请运行 :AIComponents 手动安装部署",
-      }
-      vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN)
-
-      -- 取消分配，然后 fall through 到无组件分支（不递归）
-      Switcher.clear("claude")
-      comp_name = nil
-    end
-  end
-
-  -- 无组件分支
-  if not comp_name then
-    ensure_config_dir()
-
-    local final = build_final_settings(opts)
-    local path = get_settings_path()
-
-    -- Ensure target is a regular file (delete if it's a device/socket)
-    if not ensure_regular_file(path) then
-      return false
-    end
-
-    local content = format_json(final)
-    local lines = vim.split(content, "\n")
-    vim.fn.writefile(lines, path)
-
-    -- 同步 ccstatusline 配置
-    local ccstatusline_ok, ccstatusline_err = write_ccstatusline_settings()
-
-    local notify_lines = { "✅ Claude Code settings written (no component assigned)" }
-    if ccstatusline_ok then
-      table.insert(notify_lines, "✅ ccstatusline config synced")
-    elseif ccstatusline_err then
-      table.insert(notify_lines, "⚠️  ccstatusline: " .. ccstatusline_err)
-    end
-    table.insert(notify_lines, "")
-    table.insert(notify_lines, "📝 To use a component, run :AIComponents and assign one")
-
-    vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
-    return true
-  end
-
-  -- 组件就绪分支
-  local Component = require("ai.components." .. comp_name)
-
   ensure_config_dir()
 
   local final = build_final_settings(opts)
   local path = get_settings_path()
 
-  -- Ensure target is a regular file (delete if it's a device/socket)
   if not ensure_regular_file(path) then
     return false
   end
@@ -805,25 +720,17 @@ function M.write_settings(opts)
   local lines = vim.split(content, "\n")
   vim.fn.writefile(lines, path)
 
-  -- 同步 ccstatusline 配置
   local ccstatusline_ok, ccstatusline_err = write_ccstatusline_settings()
 
-  -- 检测组件状态并通知
-  local comp_status = Component.get_status()
-  local notify_lines2 = { "✅ Claude Code settings written to: " .. path }
+  local notify_lines = { "✅ Claude Code settings written to: " .. path }
 
   if ccstatusline_ok then
-    table.insert(notify_lines2, "✅ ccstatusline config synced to: " .. get_ccstatusline_settings_path())
+    table.insert(notify_lines, "✅ ccstatusline config synced to: " .. get_ccstatusline_settings_path())
   elseif ccstatusline_err then
-    table.insert(notify_lines2, "⚠️  ccstatusline: " .. ccstatusline_err)
+    table.insert(notify_lines, "⚠️  ccstatusline: " .. ccstatusline_err)
   end
 
-  vim.list_extend(notify_lines2, { "" })
-  if Component.format_notification then
-    vim.list_extend(notify_lines2, Component.format_notification(comp_status))
-  end
-
-  vim.notify(table.concat(notify_lines2, "\n"), vim.log.levels.INFO)
+  vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
 
   return true
 end
@@ -1015,50 +922,12 @@ function M.check_dependencies()
     install_hint = "需要 npm/npx (通过 npx -y ccstatusline@latest 按需运行)",
   })
 
-  -- 动态检查 switcher 分配的组件依赖
-  local Switcher = require("ai.components.switcher")
-  local Registry = require("ai.components.registry")
-  local Manager = require("ai.components.manager")
-  local active_comp = Switcher.get_active("claude")
-  if active_comp and Registry.is_registered(active_comp) then
-    local ok, Component = pcall(require, "ai.components." .. active_comp)
-    if ok then
-      local Deployments = require("ai.components.deployments")
-      local is_cached = Manager.is_cached(active_comp)
-      local is_deployed = Deployments.is_deployed_to(active_comp, "claude")
-      table.insert(deps, {
-        name = string.format("%s 组件", active_comp:upper()),
-        installed = is_cached and is_deployed,
-        install_hint = is_cached
-            and string.format("运行 :AIComponents 然后 Deploy 到 claude")
-            or string.format("运行 :AIComponentInstall %s 然后 Deploy", active_comp),
-      })
-    end
-  end
-
   return deps
-end
-
-----------------------------------------------------------------------
--- get_active_component_status(): 动态获取 switcher 分配组件的安装状态
-----------------------------------------------------------------------
-function M.get_active_component_status()
-  local Switcher = require("ai.components.switcher")
-  local comp_name = Switcher.get_active("claude")
-  if not comp_name then
-    return nil
-  end
-  local ok, Component = pcall(require, "ai.components." .. comp_name)
-  if not ok then
-    return nil
-  end
-  return Component.get_status()
 end
 
 function M.get_status()
   local installed, message = M.check_installation()
   local config_exists = vim.fn.filereadable(get_settings_path()) == 1
-  local comp = M.get_active_component_status()
   local deps = M.check_dependencies()
   local missing_deps = vim.tbl_filter(function(d)
     return not d.installed
@@ -1069,7 +938,6 @@ function M.get_status()
     message = message,
     config_exists = config_exists,
     config_path = get_settings_path(),
-    component = comp,
     missing_deps = missing_deps,
   }
 end

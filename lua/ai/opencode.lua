@@ -531,173 +531,51 @@ function M.generate_config()
 end
 
 function M.write_config()
-  -- 读取 switcher 分配的组件
-  local Switcher = require("ai.components.switcher")
-  local Registry = require("ai.components.registry")
-  local comp_name = Switcher.get_active("opencode")
-
-  -- 如果没有分配组件，直接生成配置
-  if not comp_name then
-    local config, auth_config, ok = M.generate_config()
-    if not ok then
-      vim.notify("配置生成失败，请修复模板错误后重试", vim.log.levels.ERROR)
-      return false
-    end
-
-    -- 写入配置
-    local opencode_dir = get_opencode_config_dir()
-    if vim.fn.isdirectory(opencode_dir) == 0 then
-      vim.fn.mkdir(opencode_dir, "p")
-    end
-
-    -- 写入 instructions.md
-    local instructions_md_path = opencode_dir .. "/instructions.md"
-    local SystemPrompt = require("ai.system_prompt")
-    local instructions_content = SystemPrompt.for_tool("opencode")
-    vim.fn.writefile(vim.split(instructions_content, "\n"), instructions_md_path)
-
-    config.agent = config.agent or {}
-    config.agent.build = config.agent.build or {}
-    config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
-
-    -- 写入 API key 文件
-    for provider, key in pairs(auth_config) do
-      if key and key ~= "" and key:sub(1, 6) ~= "${env:" then
-        local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
-        vim.fn.writefile({ key }, key_file)
-        -- Security: Set restrictive permissions on API key files
-        -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
-        vim.uv.fs_chmod(key_file, 384)
-      end
-    end
-
-    -- 写入 opencode.json
-    local config_path = get_opencode_config_path()
-    local config_content = format_json(config)
-    vim.fn.writefile(vim.split(config_content, "\n"), config_path)
-
-    -- 生成 TUI 配置
-    local ok_tui, TuiConfig = pcall(require, "ai.opencode_tui")
-    if ok_tui then
-      TuiConfig.generate_tui_config()
-    end
-
-    vim.notify("✅ OpenCode 配置生成成功（无组件）\n📝 To use a component, run :AIComponents", vim.log.levels.INFO)
-    return true
-  end
-
-  -- 如果分配了组件，检查组件是否存在
-  if not Registry.is_registered(comp_name) then
-    local lines = {
-      string.format("❌ 组件 '%s' 未注册 (OpenCode 分配)", comp_name),
-      "",
-      "  快速修复:",
-      "    运行 :AIComponents 打开组件管理器",
-      "    或选择 Unassign 取消分配",
-      "",
-      string.format("  当前分配: opencode → %s", comp_name),
-    }
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.ERROR)
-    return false
-  end
-
-  -- 动态加载组件
-  local Component = require("ai.components." .. comp_name)
-
-  -- 检查组件是否已缓存或已部署
-  local Manager = require("ai.components.manager")
-  local Deployments = require("ai.components.deployments")
-  local is_cached = Manager.is_cached(comp_name)
-  local is_deployed = Deployments.is_deployed_to(comp_name, "opencode")
-
-  if not is_cached or not is_deployed then
-    local lines = {
-      string.format("⚠️  组件 '%s' 未就绪 (OpenCode 分配)", comp_name),
-      "",
-      "  状态:",
-      string.format("    缓存: %s", is_cached and "✓ 已缓存" or "○ 未缓存"),
-      string.format("    部署: %s", is_deployed and "✓ 已部署" or "○ 未部署"),
-      "",
-      "  自动取消分配以生成配置",
-      "  要使用组件，请运行 :AIComponents 手动安装部署",
-    }
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.WARN)
-
-    -- 取消分配，然后 fall through 到无组件分支（不递归）
-    Switcher.clear("opencode")
-    comp_name = nil
-  end
-
   local config, auth_config, ok = M.generate_config()
   if not ok then
     vim.notify("配置生成失败，请修复模板错误后重试", vim.log.levels.ERROR)
     return false
   end
 
-  -- 确保 OpenCode 配置目录存在
+  -- 写入配置
   local opencode_dir = get_opencode_config_dir()
   if vim.fn.isdirectory(opencode_dir) == 0 then
     vim.fn.mkdir(opencode_dir, "p")
   end
 
-  -- 写入 instructions.md 文件
+  -- 写入 instructions.md
   local instructions_md_path = opencode_dir .. "/instructions.md"
   local SystemPrompt = require("ai.system_prompt")
   local instructions_content = SystemPrompt.for_tool("opencode")
   vim.fn.writefile(vim.split(instructions_content, "\n"), instructions_md_path)
 
-  -- 设置 build agent 的 system prompt (使用 {file:...} 引用)
   config.agent = config.agent or {}
   config.agent.build = config.agent.build or {}
   config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
 
-  -- 写入 API key 文件 (仅当使用 {file:...} 格式时)
-  -- 如果使用 {env:...} 格式，则不写入文件
+  -- 写入 API key 文件
   for provider, key in pairs(auth_config) do
-    if key and key ~= "" then
-      -- Check if key is environment variable reference: ${env:VAR_NAME}
-      if key:sub(1, 6) ~= "${env:" then
-        -- Actual API key: write to file
-        local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
-        vim.fn.writefile({ key }, key_file)
-        -- Security: Set restrictive permissions on API key files
-        -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
-        vim.uv.fs_chmod(key_file, 384)
-      end
+    if key and key ~= "" and key:sub(1, 6) ~= "${env:" then
+      local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
+      vim.fn.writefile({ key }, key_file)
+      -- Security: Set restrictive permissions on API key files
+      -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
+      vim.uv.fs_chmod(key_file, 384)
     end
   end
 
-  -- 写入 opencode.json（OpenCode 官方配置）
+  -- 写入 opencode.json
   local config_path = get_opencode_config_path()
   local config_content = format_json(config)
   vim.fn.writefile(vim.split(config_content, "\n"), config_path)
 
-  -- 生成 TUI 配置和主题（美化界面）
+  -- 生成 TUI 配置
   local ok_tui, TuiConfig = pcall(require, "ai.opencode_tui")
   if ok_tui then
     TuiConfig.generate_tui_config()
   end
 
-  -- 打印配置结果
-  local comp_status = Component.get_status()
-  local notify_lines = { "✅ OpenCode 配置生成成功", "" }
-  if Component.format_notification then
-    vim.list_extend(notify_lines, Component.format_notification(comp_status))
-  end
-
-  if comp_status then
-    local xdg_config = os.getenv("XDG_CONFIG_HOME") or vim.fn.expand("~/.config")
-    table.insert(notify_lines, "  Config: " .. xdg_config .. "/opencode/config.json")
-    table.insert(notify_lines, "  Commands: " .. xdg_config .. "/opencode/commands/")
-  end
-
-  table.insert(notify_lines, "")
-  table.insert(notify_lines, "🎨 TUI 主题: lytmode (已自动生成)")
-  table.insert(notify_lines, "   主题文件: ~/.config/opencode/themes/lytmode.json")
-  table.insert(notify_lines, "   TUI 配置: ~/.config/opencode/tui.json")
-
-  vim.notify(table.concat(notify_lines, "\n"), vim.log.levels.INFO)
-
+  vim.notify("✅ OpenCode 配置生成成功", vim.log.levels.INFO)
   return true
 end
 

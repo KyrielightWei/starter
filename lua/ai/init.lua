@@ -184,19 +184,6 @@ local keys = {
     icon = "🔄",
   },
 
-  -- === Components 管理 ===
-  {
-    "<leader>kc",
-    mode = "n",
-    fn = function()
-      local ok, Picker = pcall(require, "ai.components.picker")
-      if ok then
-        Picker.open()
-      end
-    end,
-    desc = "Component Manager",
-    icon = "📦",
-  },
 }
 
 ----------------------------------------------------------------------
@@ -223,17 +210,6 @@ local commands = {
       end
     end,
     desc = "Sync AI Configs",
-  },
-
-  {
-    "AIComponents",
-    function()
-      local ok, Picker = pcall(require, "ai.components.picker")
-      if ok then
-        Picker.open()
-      end
-    end,
-    desc = "Open Component Manager",
   },
 
   -- ECC 命令（向后兼容）
@@ -368,14 +344,6 @@ end
 function M.setup(opts)
   opts = opts or {}
   config = vim.tbl_deep_extend("force", config, opts)
-
-  -- Initialize Component System (ECC, GSD, etc.)
-  local ok_comp, Components = pcall(require, "ai.components")
-  if ok_comp then
-    Components.setup()
-  else
-    vim.notify("Failed to initialize component system", vim.log.levels.WARN)
-  end
 
   -- 初始化 Skill Studio
   local ok, SkillStudio = pcall(require, "ai.skill_studio")

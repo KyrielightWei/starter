@@ -12,7 +12,7 @@
 --   p/P/A    - Provider Manager
 --   C/f/b/d  - Commit Picker & Diff
 --   k/S/K/T  - 配置与同步
---   s        - Model Switch (Provider Manager)
+--   s        - Model Switch (支持选择作用范围)
 
 local M = {}
 
@@ -60,11 +60,7 @@ local keys = {
     fn = function()
       local ok, MS = pcall(require, "ai.model_switch")
       if ok then
-        MS.select(function(choice)
-          if choice then
-            vim.notify("Switched to " .. choice.provider .. "/" .. choice.model, vim.log.levels.INFO)
-          end
-        end)
+        MS.select()
       end
     end,
     desc = "Model Switch",
@@ -183,7 +179,6 @@ local keys = {
     desc = "Sync Configs",
     icon = "🔄",
   },
-
 }
 
 ----------------------------------------------------------------------
@@ -306,6 +301,223 @@ local commands = {
       end
     end,
     desc = "Preview Claude Code Settings",
+  },
+
+  -- Model Commands
+  {
+    "AIModelSwitch",
+    function()
+      local ok, MS = pcall(require, "ai.model_switch")
+      if ok then
+        MS.select()
+      end
+    end,
+    desc = "Switch Model (with scope selection)",
+  },
+
+  {
+    "AIModelClearTool",
+    function(opts)
+      local tool = opts.args
+      if tool == "" then
+        vim.ui.select({ "opencode", "claude_code" }, {
+          prompt = "Select tool to clear:",
+        }, function(selected)
+          if selected then
+            local Registry = require("ai.provider_manager.registry")
+            Registry.clear_tool_default(selected)
+          end
+        end)
+      else
+        local Registry = require("ai.provider_manager.registry")
+        Registry.clear_tool_default(tool)
+      end
+    end,
+    desc = "Clear Tool-specific Model Config",
+    nargs = "?",
+  },
+
+  {
+    "AIModelShowConfig",
+    function()
+      local Registry = require("ai.provider_manager.registry")
+
+      local global_provider, global_model = Registry.get_global_default()
+      local opencode_provider, opencode_model = Registry.get_tool_default("opencode")
+      local claude_provider, claude_model = Registry.get_tool_default("claude_code")
+
+      local lines = {
+        "Current Model Configuration:",
+        "",
+        string.format("  Global Default:      %s / %s", global_provider, global_model),
+        string.format(
+          "  OpenCode:            %s / %s",
+          opencode_provider or "(global)",
+          opencode_model or global_model
+        ),
+        string.format("  Claude Code:         %s / %s", claude_provider or "(global)", claude_model or global_model),
+      }
+
+      vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+    end,
+    desc = "Show Current Model Configuration",
+  },
+
+  -- Template Version Commands
+  {
+    "AITemplateSelect",
+    function(opts)
+      local tool = opts.args or "opencode"
+      local TemplatePicker = require("ai.template_picker")
+      TemplatePicker.open(tool)
+    end,
+    desc = "Select template version for AI tool",
+    nargs = "?",
+    complete = function()
+      return { "opencode", "claude_code" }
+    end,
+  },
+
+  {
+    "AITemplateList",
+    function(opts)
+      local tool = opts.args or "opencode"
+      local TemplateVersion = require("ai.template_version")
+      local versions = TemplateVersion.list(tool)
+      if #versions == 0 then
+        vim.notify("No templates found for " .. tool, vim.log.levels.INFO)
+      else
+        local State = require("ai.state")
+        local current = State.get_template_version(tool)
+        local lines = {}
+        for _, v in ipairs(versions) do
+          local prefix = v == current and "* " or "  "
+          table.insert(lines, prefix .. v)
+        end
+        vim.notify("Templates for " .. tool .. ":\n" .. table.concat(lines, "\n"), vim.log.levels.INFO)
+      end
+    end,
+    desc = "List template versions for AI tool",
+    nargs = "?",
+    complete = function()
+      return { "opencode", "claude_code" }
+    end,
+  },
+
+  {
+    "AITemplateCreate",
+    function(opts)
+      local args = vim.split(opts.args or "", " ")
+      local tool = args[1] or "opencode"
+      local name = args[2]
+      local source = args[3]
+      if not name then
+        vim.notify("Usage: AITemplateCreate <tool> <name> [source]", vim.log.levels.ERROR)
+        return
+      end
+      local TemplateVersion = require("ai.template_version")
+      local ok, result = TemplateVersion.create(tool, name, source)
+      if ok then
+        vim.notify("Created: " .. result, vim.log.levels.INFO)
+      else
+        vim.notify(result, vim.log.levels.ERROR)
+      end
+    end,
+    desc = "Create new template version",
+    nargs = "+",
+  },
+
+  {
+    "AITemplateDelete",
+    function(opts)
+      local args = vim.split(opts.args or "", " ")
+      local tool = args[1] or "opencode"
+      local name = args[2]
+      if not name then
+        vim.notify("Usage: AITemplateDelete <tool> <name>", vim.log.levels.ERROR)
+        return
+      end
+      local TemplateVersion = require("ai.template_version")
+      local ok, result = TemplateVersion.delete(tool, name)
+      if ok then
+        vim.notify(result, vim.log.levels.INFO)
+      else
+        vim.notify(result, vim.log.levels.ERROR)
+      end
+    end,
+    desc = "Delete template version",
+    nargs = "+",
+  },
+
+  {
+    "AITemplateRename",
+    function(opts)
+      local args = vim.split(opts.args or "", " ")
+      local tool = args[1] or "opencode"
+      local old_name = args[2]
+      local new_name = args[3]
+      if not old_name or not new_name then
+        vim.notify("Usage: AITemplateRename <tool> <old> <new>", vim.log.levels.ERROR)
+        return
+      end
+      local TemplateVersion = require("ai.template_version")
+      local ok, result = TemplateVersion.rename(tool, old_name, new_name)
+      if ok then
+        vim.notify(result, vim.log.levels.INFO)
+      else
+        vim.notify(result, vim.log.levels.ERROR)
+      end
+    end,
+    desc = "Rename template version",
+    nargs = "+",
+  },
+
+  {
+    "AITemplateEdit",
+    function(opts)
+      local tool = opts.args or "opencode"
+      local State = require("ai.state")
+      local TemplateVersion = require("ai.template_version")
+      local version = State.get_template_version(tool)
+      local path = TemplateVersion.get_template_path(tool, version)
+      if vim.fn.filereadable(path) == 1 then
+        vim.cmd("edit " .. vim.fn.fnameescape(path))
+      else
+        vim.notify("Template not found: " .. path, vim.log.levels.ERROR)
+      end
+    end,
+    desc = "Edit current template version",
+    nargs = "?",
+    complete = function()
+      return { "opencode", "claude_code" }
+    end,
+  },
+
+  -- Backup Commands
+  {
+    "OpenCodeRestoreBackup",
+    function(opts)
+      local backup_num = tonumber(opts.args) or 1
+      local OpenCode = require("ai.opencode")
+      OpenCode.restore_backup(backup_num)
+    end,
+    desc = "Restore OpenCode config from backup",
+    nargs = "?",
+  },
+
+  {
+    "ClaudeCodeRestoreBackup",
+    function(opts)
+      local backup_num = tonumber(opts.args) or 1
+      local ClaudeCode = require("ai.claude_code")
+      if ClaudeCode.restore_backup then
+        ClaudeCode.restore_backup(backup_num)
+      else
+        vim.notify("restore_backup not implemented for Claude Code", vim.log.levels.WARN)
+      end
+    end,
+    desc = "Restore Claude Code config from backup",
+    nargs = "?",
   },
 }
 

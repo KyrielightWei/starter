@@ -96,8 +96,11 @@ local function read_ai_providers()
   end
 
   local providers = {}
-  for name, def in pairs(Providers) do
-    if type(def) == "table" and def.endpoint then
+  -- FIX: Use Providers.list() API instead of pairs(Providers) to avoid
+  -- iterating over module functions (list, get, register, etc.)
+  for _, name in ipairs(Providers.list()) do
+    local def = Providers.get(name)
+    if def and def.endpoint then
       providers[name] = {
         api_key_name = def.api_key_name,
         endpoint = def.endpoint,
@@ -335,19 +338,35 @@ local function validate_template(config)
   return errors, warnings
 end
 
-local function read_template_config()
-  local template_path = get_opencode_template_path()
+local function read_template_config(version)
+  version = version or "default"
   local errors = {}
   local warnings = {}
 
+  -- Try new template version path first
+  local TemplateVersion = require("ai.template_version")
+  local template_path = TemplateVersion.get_template_path("opencode", version)
+
   if vim.fn.filereadable(template_path) == 0 then
-    table.insert(warnings, "OpenCode 模板文件不存在: " .. template_path)
-    table.insert(warnings, "将使用默认配置，运行 :OpenCodeEditTemplate 创建模板")
-    return {}, errors, warnings
+    -- Fallback to legacy path
+    local legacy_path = get_opencode_template_path()
+    if vim.fn.filereadable(legacy_path) == 1 then
+      template_path = legacy_path
+    else
+      table.insert(warnings, "OpenCode 模板文件不存在: " .. template_path)
+      table.insert(warnings, "将使用默认配置，运行 :AITemplateCreate opencode default 创建模板")
+      return {}, errors, warnings
+    end
   end
 
   local content = table.concat(vim.fn.readfile(template_path), "\n")
   local clean_content = strip_jsonc_comments(content)
+
+  -- Security validation
+  local secure_ok, security_warnings = TemplateVersion.validate_security(content)
+  if not secure_ok then
+    vim.list_extend(warnings, security_warnings)
+  end
 
   local ok, config = pcall(vim.json.decode, clean_content)
   if not ok then
@@ -503,8 +522,11 @@ function M.validate_template()
   return show_validation_result(errors, warnings, true)
 end
 
-function M.generate_config()
-  local template_config, errors, warnings = read_template_config()
+function M.generate_config(version_override)
+  local State = require("ai.state")
+  local version = version_override or State.get_template_version("opencode")
+
+  local template_config, errors, warnings = read_template_config(version)
 
   if #errors > 0 then
     show_validation_result(errors, warnings, false)
@@ -530,8 +552,13 @@ function M.generate_config()
   return config, auth_config, true
 end
 
-function M.write_config()
-  local config, auth_config, ok = M.generate_config()
+function M.write_config(version_override)
+  -- Backup before writing
+  local Backup = require("ai.config_backup")
+  Backup.backup("opencode")
+
+  -- Generate config
+  local config, auth_config, ok = M.generate_config(version_override)
   if not ok then
     vim.notify("配置生成失败，请修复模板错误后重试", vim.log.levels.ERROR)
     return false
@@ -575,8 +602,25 @@ function M.write_config()
     TuiConfig.generate_tui_config()
   end
 
+  -- Show backup info
+  Backup.show_overwrite_warning("opencode")
+
   vim.notify("✅ OpenCode 配置生成成功", vim.log.levels.INFO)
   return true
+end
+
+----------------------------------------------------------------------
+-- restore_backup(backup_num): 从备份恢复配置
+-- @param backup_num number: 备份编号 (1 或 2)
+----------------------------------------------------------------------
+function M.restore_backup(backup_num)
+  local Backup = require("ai.config_backup")
+  local ok, result = Backup.restore("opencode", backup_num)
+  if ok then
+    vim.notify(result, vim.log.levels.INFO)
+  else
+    vim.notify(result, vim.log.levels.ERROR)
+  end
 end
 
 function M.edit_template()

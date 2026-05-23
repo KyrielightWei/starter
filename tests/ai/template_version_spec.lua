@@ -38,10 +38,16 @@ describe("TemplateVersion module", function()
     local test_tool = "test_tool_crud"
     local test_version = "test_version"
 
-    after_each(function()
-      -- Cleanup test artifacts
+    -- Use before_each only for cleanup - plenary's after_each runs AFTER next test's before_each
+    before_each(function()
+      -- Force cleanup before each test
       local dir = TV.get_tool_templates_dir(test_tool)
       if vim.fn.isdirectory(dir) == 1 then
+        -- Delete all contents first
+        local files = vim.fn.glob(dir .. "/*", false, true) or {}
+        for _, f in ipairs(files) do
+          vim.fn.delete(f)
+        end
         vim.fn.delete(dir, "d")
       end
     end)
@@ -60,9 +66,10 @@ describe("TemplateVersion module", function()
     end)
 
     it("create copies from source when provided", function()
-      TV.create(test_tool, "source_version")
-      local ok = TV.create(test_tool, "copy_version", "source_version")
-      assert.is_true(ok)
+      local ok1, r1 = TV.create(test_tool, "source_version")
+      assert.is_true(ok1, "source creation failed: " .. tostring(r1))
+      local ok2, r2 = TV.create(test_tool, "copy_version", "source_version")
+      assert.is_true(ok2, "copy creation failed: " .. tostring(r2))
       assert.is_true(TV.exists(test_tool, "copy_version"))
     end)
 
@@ -81,9 +88,10 @@ describe("TemplateVersion module", function()
     end)
 
     it("rename changes version name", function()
-      TV.create(test_tool, "old_name")
-      local ok, result = TV.rename(test_tool, "old_name", "new_name")
-      assert.is_true(ok)
+      local ok1 = TV.create(test_tool, "old_name")
+      assert.is_true(ok1, "old_name creation failed")
+      local ok2, result = TV.rename(test_tool, "old_name", "new_name")
+      assert.is_true(ok2, "rename failed: " .. tostring(result))
       assert.is_true(TV.exists(test_tool, "new_name"))
       assert.is_false(TV.exists(test_tool, "old_name"))
     end)
@@ -97,9 +105,10 @@ describe("TemplateVersion module", function()
     end)
 
     it("copy creates duplicate", function()
-      TV.create(test_tool, "source")
-      local ok, result = TV.copy(test_tool, "source", "target")
-      assert.is_true(ok)
+      local ok1 = TV.create(test_tool, "source")
+      assert.is_true(ok1, "source creation failed")
+      local ok2, result = TV.copy(test_tool, "source", "target")
+      assert.is_true(ok2, "copy failed: " .. tostring(result))
       assert.is_true(TV.exists(test_tool, "target"))
     end)
 

@@ -11,13 +11,13 @@
 --     default = {
 --       -- 格式1：直接写 API key（会导出到 api_key_*.txt 文件）
 --       api_key = "sk-xxx",
---       
+--
 --       -- 格式2：环境变量引用（推荐，更安全）
 --       -- api_key = "${env:BAILIAN_CODING_API_KEY}",
---       
+--
 --       -- 格式3：空字符串（需要手动配置）
 --       -- api_key = "",
---       
+--
 --       base_url = "https://coding.dashscope.aliyuncs.com/v1",
 --       base_url_claude = "",  -- Claude Code 专用 (可选)
 --     },
@@ -103,10 +103,22 @@ function M.ensure()
   if vim.fn.filereadable(path) == 0 then
     local lines = {
       "return {",
-      '  -- 全局默认配置（Model Switch 自动更新）',
+      "  -- 全局默认配置（所有工具的 fallback）",
       "  global_default = {",
       '    provider = "bailian_coding",',
       '    model = "qwen3.6-plus",',
+      "  },",
+      "",
+      "  -- 工具级别配置（覆盖全局默认）",
+      "  tool_default = {",
+      "    -- opencode = {",
+      '    --   provider = "zenmux",',
+      '    --   model = "anthropic/claude-opus-4.7",',
+      "    -- },",
+      "    -- claude_code = {",
+      '    --   provider = "zenmux",',
+      '    --   model = "anthropic/claude-sonnet-4.6",',
+      "    -- },",
       "  },",
       "",
       '  profile = "default",',
@@ -127,7 +139,7 @@ function M.ensure()
         table.insert(lines, string.format("  %s = {", name))
         table.insert(lines, "    default = {")
         table.insert(lines, '      api_key = "",')
-        table.insert(lines, string.format('      base_url = %q,', endpoint))
+        table.insert(lines, string.format("      base_url = %q,", endpoint))
         table.insert(lines, '      base_url_claude = "",  -- Claude Code 专用 (可选)')
         table.insert(lines, "    },")
         table.insert(lines, "  },")
@@ -137,13 +149,18 @@ function M.ensure()
     table.insert(lines, "}")
     vim.fn.writefile(lines, path)
   else
-    -- Migration: add global_default to existing files if missing
+    -- Migration: add global_default and tool_default to existing files if missing
     local tbl = safe_load_lua(path)
-    if tbl and not tbl.global_default then
-      tbl.global_default = {
-        provider = "bailian_coding",
-        model = "qwen3.6-plus",
-      }
+    if tbl then
+      if not tbl.global_default then
+        tbl.global_default = {
+          provider = "bailian_coding",
+          model = "qwen3.6-plus",
+        }
+      end
+      if not tbl.tool_default then
+        tbl.tool_default = {}
+      end
       M.write(tbl)
     end
   end
@@ -167,38 +184,65 @@ function M.write(tbl)
 
   -- 写入 global_default（如果存在）
   if tbl.global_default then
-    table.insert(out, "  -- 全局默认配置（Model Switch 自动更新）")
+    table.insert(out, "  -- 全局默认配置（所有工具的 fallback）")
     table.insert(out, "  global_default = {")
-    table.insert(out, string.format('    provider = %q,', tbl.global_default.provider or ""))
-    table.insert(out, string.format('    model = %q,', tbl.global_default.model or ""))
+    table.insert(out, string.format("    provider = %q,", tbl.global_default.provider or ""))
+    table.insert(out, string.format("    model = %q,", tbl.global_default.model or ""))
     table.insert(out, "  },")
     table.insert(out, "")
   end
 
+  -- 写入 tool_default（如果存在）
+  if tbl.tool_default and next(tbl.tool_default) then
+    table.insert(out, "  -- 工具级别配置（覆盖全局默认）")
+    table.insert(out, "  tool_default = {")
+    for tool_name, tool_config in pairs(tbl.tool_default) do
+      if is_safe_name(tool_name) and tool_config.provider then
+        table.insert(out, string.format("    %s = {", tool_name))
+        table.insert(out, string.format("      provider = %q,", tool_config.provider))
+        table.insert(out, string.format("      model = %q,", tool_config.model))
+        table.insert(out, "    },")
+      end
+    end
+    table.insert(out, "  },")
+    table.insert(out, "")
+  elseif tbl.tool_default then
+    -- Empty tool_default table
+    table.insert(out, "  -- 工具级别配置（覆盖全局默认）")
+    table.insert(out, "  tool_default = {},")
+    table.insert(out, "")
+  end
+
   for provider, profiles in pairs(tbl) do
-    if provider ~= "profile" and provider ~= "global_default" and is_safe_name(provider) then
+    if
+      provider ~= "profile"
+      and provider ~= "global_default"
+      and provider ~= "tool_default"
+      and is_safe_name(provider)
+    then
       table.insert(out, string.format("  %s = {", provider))
       for profile, config in pairs(profiles) do
-        if not is_safe_name(profile) then
-          goto continue_profile
+        if is_safe_name(profile) then
+          if type(config) == "table" then
+            table.insert(out, string.format("    %s = {", profile))
+            table.insert(out, string.format("      api_key = %q,", config.api_key or ""))
+            table.insert(out, string.format("      base_url = %q,", config.base_url or ""))
+            table.insert(out, string.format("      base_url_claude = %q,", config.base_url_claude or ""))
+            table.insert(out, "    },")
+          elseif type(config) == "string" then
+            -- 向后兼容旧格式
+            table.insert(
+              out,
+              string.format('    %s = { api_key = %q, base_url = "", base_url_claude = "" },', profile, config)
+            )
+          end
         end
-        if type(config) == "table" then
-          table.insert(out, string.format("    %s = {", profile))
-          table.insert(out, string.format('      api_key = %q,', config.api_key or ""))
-          table.insert(out, string.format('      base_url = %q,', config.base_url or ""))
-          table.insert(out, string.format('      base_url_claude = %q,', config.base_url_claude or ""))
-          table.insert(out, "    },")
-        elseif type(config) == "string" then
-          -- 向后兼容旧格式
-          table.insert(out, string.format('    %s = { api_key = %q, base_url = "", base_url_claude = "" },', profile, config))
-        end
-        ::continue_profile::
       end
       table.insert(out, "  },")
     end
   end
 
-  table.insert(out, string.format('  profile = %q,', tbl.profile or "default"))
+  table.insert(out, string.format("  profile = %q,", tbl.profile or "default"))
   table.insert(out, "}")
 
   vim.fn.writefile(out, keys_path())
@@ -237,7 +281,7 @@ end
 -- set_global_default(provider, model): 设置全局默认 provider 和 model
 ----------------------------------------------------------------------
 function M.set_global_default(provider, model)
-  local tbl = M.read() or { profile = "default" }
+  local tbl = M.read() or { profile = "default", tool_default = {} }
 
   tbl.global_default = {
     provider = provider,
@@ -245,6 +289,89 @@ function M.set_global_default(provider, model)
   }
 
   M.write(tbl)
+end
+
+----------------------------------------------------------------------
+-- get_tool_default(tool_name): 获取工具级别的默认配置
+-- @param tool_name string: "opencode" or "claude_code"
+-- @return provider, model: 工具级别配置，如果没有则返回 nil, nil
+----------------------------------------------------------------------
+function M.get_tool_default(tool_name)
+  local tbl = M.read()
+  if not tbl or not tbl.tool_default then
+    return nil, nil
+  end
+
+  local tool_config = tbl.tool_default[tool_name]
+  if tool_config and tool_config.provider then
+    return tool_config.provider, tool_config.model
+  end
+
+  return nil, nil
+end
+
+----------------------------------------------------------------------
+-- set_tool_default(tool_name, provider, model): 设置工具级别默认配置
+-- @param tool_name string: "opencode" or "claude_code"
+-- @param provider string: provider name
+-- @param model string: model name
+----------------------------------------------------------------------
+function M.set_tool_default(tool_name, provider, model)
+  if not is_safe_name(tool_name) then
+    vim.notify("Invalid tool name: " .. tool_name, vim.log.levels.ERROR)
+    return
+  end
+
+  local tbl = M.read() or { profile = "default" }
+
+  if not tbl.tool_default then
+    tbl.tool_default = {}
+  end
+
+  tbl.tool_default[tool_name] = {
+    provider = provider,
+    model = model,
+  }
+
+  M.write(tbl)
+end
+
+----------------------------------------------------------------------
+-- clear_tool_default(tool_name): 清除工具级别配置（回退到全局默认）
+----------------------------------------------------------------------
+function M.clear_tool_default(tool_name)
+  local tbl = M.read()
+  if not tbl or not tbl.tool_default then
+    return
+  end
+
+  tbl.tool_default[tool_name] = nil
+  M.write(tbl)
+end
+
+----------------------------------------------------------------------
+-- get_effective_default(tool_name): 获取工具的有效默认配置
+-- 优先级：tool_default > global_default > 硬编码 fallback
+-- @param tool_name string: "opencode" or "claude_code" (可选)
+-- @return provider, model
+----------------------------------------------------------------------
+function M.get_effective_default(tool_name)
+  -- Level 1: 工具级别配置
+  if tool_name then
+    local tool_provider, tool_model = M.get_tool_default(tool_name)
+    if tool_provider and tool_model then
+      return tool_provider, tool_model
+    end
+  end
+
+  -- Level 2: 全局默认
+  local global_provider, global_model = M.get_global_default()
+  if global_provider and global_model then
+    return global_provider, global_model
+  end
+
+  -- Level 3: 硬编码 fallback
+  return "bailian_coding", "qwen3.6-plus"
 end
 
 ----------------------------------------------------------------------
@@ -330,12 +457,12 @@ end
 ----------------------------------------------------------------------
 function M.get_base_url_claude(provider)
   local config = M.get_config(provider)
-  
+
   -- 如果有专门的 Claude URL，使用它
   if config.base_url_claude and config.base_url_claude ~= "" then
     return config.base_url_claude
   end
-  
+
   -- 否则回退到通用 base_url
   return M.get_base_url(provider)
 end
@@ -350,7 +477,7 @@ function M.set_key(provider, profile, key)
   end
   local tbl = M.read() or { profile = "default" }
   tbl[provider] = tbl[provider] or {}
-  
+
   if type(tbl[provider][profile]) == "table" then
     tbl[provider][profile].api_key = key
   else
@@ -360,7 +487,7 @@ function M.set_key(provider, profile, key)
       base_url_claude = "",
     }
   end
-  
+
   M.write(tbl)
 end
 

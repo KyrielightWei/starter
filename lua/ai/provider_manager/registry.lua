@@ -293,6 +293,42 @@ function M.list_models(provider_name)
 end
 
 ----------------------------------------------------------------------
+-- List models asynchronously (non-blocking UI)
+-- callback(models) - models is array, empty on failure
+----------------------------------------------------------------------
+function M.list_models_async(provider_name, callback)
+  local def = Providers.get(provider_name)
+  if not def then
+    vim.notify("Provider not found: " .. provider_name, vim.log.levels.ERROR)
+    if callback then
+      callback({})
+    end
+    return
+  end
+
+  local ok, Fetch = pcall(require, "ai.fetch_models")
+  if ok and Fetch.fetch_async then
+    Fetch.fetch_async(provider_name, function(models)
+      if models and #models > 0 then
+        if callback then
+          callback(models)
+        end
+      else
+        -- Fallback to static_models
+        if callback then
+          callback(def.static_models or {})
+        end
+      end
+    end)
+  else
+    -- Fallback: return static_models immediately
+    if callback then
+      callback(def.static_models or {})
+    end
+  end
+end
+
+----------------------------------------------------------------------
 -- Get global default provider and model
 -- Priority: Keys.global_default > first provider with key > hardcoded fallback
 ----------------------------------------------------------------------
@@ -314,6 +350,81 @@ function M.get_global_default()
 
     -- Last fallback: hardcoded
     return "bailian_coding", "qwen3.6-plus"
+  end
+
+  return provider, model
+end
+
+----------------------------------------------------------------------
+-- Get tool-specific default provider and model
+-- Returns nil, nil if not configured (should use global default)
+----------------------------------------------------------------------
+function M.get_tool_default(tool_name)
+  local Keys = require("ai.keys")
+  return Keys.get_tool_default(tool_name)
+end
+
+----------------------------------------------------------------------
+-- Set tool-specific default provider and model
+-- Only affects specified tool, doesn't change global default
+----------------------------------------------------------------------
+function M.set_tool_default(tool_name, provider, model)
+  local Keys = require("ai.keys")
+
+  -- Validate provider exists
+  local def = Providers.get(provider)
+  if not def then
+    vim.notify("Provider not found: " .. provider, vim.log.levels.ERROR)
+    return
+  end
+
+  -- Update Keys config
+  Keys.set_tool_default(tool_name, provider, model)
+
+  -- Notify State subscribers (tool-specific state would need extension)
+  -- For now, just notify about the change
+  vim.notify(string.format("★ Set %s default: %s / %s", tool_name, provider, model), vim.log.levels.INFO)
+
+  -- Trigger config sync
+  vim.schedule(function()
+    local ok, Sync = pcall(require, "ai.sync")
+    if ok then
+      Sync.sync_all({ silent = true })
+    end
+  end)
+end
+
+----------------------------------------------------------------------
+-- Clear tool-specific default (fall back to global)
+----------------------------------------------------------------------
+function M.clear_tool_default(tool_name)
+  local Keys = require("ai.keys")
+  Keys.clear_tool_default(tool_name)
+
+  vim.notify(string.format("★ Cleared %s default, now using global", tool_name), vim.log.levels.INFO)
+
+  -- Trigger config sync
+  vim.schedule(function()
+    local ok, Sync = pcall(require, "ai.sync")
+    if ok then
+      Sync.sync_all({ silent = true })
+    end
+  end)
+end
+
+----------------------------------------------------------------------
+-- Get effective default for a tool
+-- Priority: tool_default > global_default > fallback
+----------------------------------------------------------------------
+function M.get_effective_default(tool_name)
+  local Keys = require("ai.keys")
+  local provider, model = Keys.get_effective_default(tool_name)
+
+  -- Validate provider exists
+  local def = Providers.get(provider)
+  if not def then
+    -- Fallback to global if tool-specific was invalid
+    return M.get_global_default()
   end
 
   return provider, model

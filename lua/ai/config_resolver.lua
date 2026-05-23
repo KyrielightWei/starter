@@ -164,9 +164,9 @@ end
 
 function M.get_defaults()
   -- OpenCode needs full model format: provider/model
-  -- Use global default from Registry
+  -- Use tool-specific default for OpenCode, fallback to global default
   local Registry = require("ai.provider_manager.registry")
-  local provider, model = Registry.get_global_default()
+  local provider, model = Registry.get_effective_default("opencode")
 
   -- For providers like zenmux that include provider prefix in model names (e.g., "anthropic/claude-opus-4.6")
   -- the format should be: zenmux/anthropic/claude-opus-4.6
@@ -246,8 +246,10 @@ function M.build_provider_config()
   local provider_config = {}
   local auth_config = {}
 
-  for provider_name, provider_def in pairs(Providers) do
-    if type(provider_def) == "table" and provider_def.endpoint then
+  -- FIX: Use Providers.list() API instead of pairs(Providers)
+  for _, provider_name in ipairs(Providers.list()) do
+    local provider_def = Providers.get(provider_name)
+    if provider_def and provider_def.endpoint then
       local api_key = Keys.get_key(provider_name)
 
       if api_key and api_key ~= "" then

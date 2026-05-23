@@ -60,7 +60,15 @@ function M.sync_all(opts)
         ok = false
         err = "Tool not installed"
       else
-        ok, err = target.sync()
+        -- FIX: Use pcall for safe execution
+        local sync_ok, sync_result = pcall(target.sync)
+        if sync_ok then
+          ok = sync_result
+          err = nil
+        else
+          ok = false
+          err = tostring(sync_result)
+        end
       end
 
       results[name] = {
@@ -77,19 +85,20 @@ function M.sync_all(opts)
     end
   end
 
-  if opts.silent then
-    return results
-  end
+  -- FIX: Use vim.schedule for thread-safe notification
+  if not opts.silent then
+    vim.schedule(function()
+      local lines = { "Sync Results:" }
+      for name, result in pairs(results) do
+        local status = result.success and "✓" or "✗"
+        local msg = result.success and "OK" or (result.error or "Failed")
+        table.insert(lines, string.format("  %s %s: %s", status, result.name, msg))
+      end
 
-  local lines = { "Sync Results:" }
-  for name, result in pairs(results) do
-    local status = result.success and "✓" or "✗"
-    local msg = result.success and "OK" or (result.error or "Failed")
-    table.insert(lines, string.format("  %s %s: %s", status, result.name, msg))
+      local level = fail_count > 0 and vim.log.levels.WARN or vim.log.levels.INFO
+      vim.notify(table.concat(lines, "\n"), level)
+    end)
   end
-
-  local level = fail_count > 0 and vim.log.levels.WARN or vim.log.levels.INFO
-  vim.notify(table.concat(lines, "\n"), level)
 
   return results
 end
@@ -108,14 +117,19 @@ function M.sync_one(name, opts)
     return false
   end
 
-  local ok, err = target.sync()
+  -- FIX: Use pcall for safe execution
+  local sync_ok, sync_result = pcall(target.sync)
+  local ok = sync_ok and sync_result == true
+  local err = not sync_ok and tostring(sync_result) or (not sync_result and "Failed" or nil)
 
   if not opts.silent then
-    if ok then
-      vim.notify(target.name .. " config synced successfully", vim.log.levels.INFO)
-    else
-      vim.notify(target.name .. " sync failed: " .. (err or "Unknown error"), vim.log.levels.ERROR)
-    end
+    vim.schedule(function()
+      if ok then
+        vim.notify(target.name .. " config synced successfully", vim.log.levels.INFO)
+      else
+        vim.notify(target.name .. " sync failed: " .. (err or "Unknown error"), vim.log.levels.ERROR)
+      end
+    end)
   end
 
   return ok

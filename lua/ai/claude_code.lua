@@ -220,7 +220,10 @@ local function ensure_regular_file(path)
         vim.notify("Removed special file via shell: " .. path, vim.log.levels.WARN)
         return true
       else
-        vim.notify("Failed to remove non-regular file: " .. path .. " - " .. tostring(err) .. ". Please manually delete it.", vim.log.levels.ERROR)
+        vim.notify(
+          "Failed to remove non-regular file: " .. path .. " - " .. tostring(err) .. ". Please manually delete it.",
+          vim.log.levels.ERROR
+        )
         return false
       end
     end
@@ -554,9 +557,9 @@ local function get_best_claude_models(provider_def)
 end
 
 local function build_provider_settings()
-  -- Use global default from Registry
+  -- Use tool-specific default for Claude Code, fallback to global default
   local Registry = require("ai.provider_manager.registry")
-  local provider_name, model = Registry.get_global_default()
+  local provider_name, model = Registry.get_effective_default("claude_code")
 
   local provider_def = Providers.get(provider_name)
 
@@ -582,7 +585,7 @@ local function build_provider_settings()
     using_fallback = true
   end
 
-  -- Claude Code uses global default model
+  -- Claude Code uses tool-specific or global default model
   model = model or Registry.get_default_model(provider_name)
 
   -- Detect if selected model is a Claude model

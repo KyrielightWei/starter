@@ -134,6 +134,7 @@ end
 ----------------------------------------------------------------------
 -- Step 2: Model Selection Picker
 -- Beautified: icons, default marked with ⭐, clearer header
+-- Uses async fetch to avoid blocking UI
 ----------------------------------------------------------------------
 function M._select_model(provider_name)
   local ok, fzf = pcall(require, "fzf-lua")
@@ -141,93 +142,109 @@ function M._select_model(provider_name)
     return
   end
 
-  local models = Registry.list_models(provider_name)
   local icons = UIUtil.get_icons()
-
-  -- Build display items and id map
-  local items = {}
-  local id_map = {}
   local current_default = Registry.get_default_model(provider_name)
 
-  -- Sort: current default first (O(n) instead of O(n²) table.insert at position 1)
-  local default_item = nil
-  local others = {}
-  for _, m in ipairs(models) do
-    local model_id = type(m) == "table" and (m.id or m.model_id) or m
-    if model_id == current_default then
-      default_item = model_id
-    else
-      table.insert(others, model_id)
-    end
-  end
-  local sorted = default_item and { default_item } or {}
-  for _, m in ipairs(others) do
-    table.insert(sorted, m)
-  end
+  -- Show loading indicator
+  local loading_id = "model_fetch_" .. provider_name
+  vim.notify(
+    string.format("%s 正在获取 %s 模型列表...", icons.model, provider_name),
+    vim.log.levels.INFO,
+    { title = "Provider Manager", replace = loading_id }
+  )
 
-  for _, model_id in ipairs(sorted) do
-    local is_default = model_id == current_default
-    local status = Status.get_cached_status(provider_name, model_id)
-    local display = UIUtil.format_model_display(model_id, is_default, nil, status)
-    id_map[display] = model_id
-    table.insert(items, display)
-  end
+  -- FIX: Use async fetch to avoid blocking UI
+  Registry.list_models_async(provider_name, function(models)
+    vim.schedule(function()
+      -- Clear loading indicator
+      vim.notify("", vim.log.levels.INFO, { title = "Provider Manager", replace = loading_id })
 
-  -- Empty state with icon
-  if #items == 0 then
-    vim.notify(
-      string.format("%s No models available for %s. Check endpoint.", icons.model, provider_name),
-      vim.log.levels.WARN
-    )
-    return
-  end
+      -- Build display items and id map
+      local items = {}
+      local id_map = {}
 
-  fzf.fzf_exec(items, {
-    prompt = string.format("%s Select Model for %s > ", icons.model, provider_name),
-    winopts = {
-      width = 0.6,
-      height = 0.4,
-      border = "rounded",
-    },
-    actions = {
-      ["default"] = function(sel)
-        if not sel or #sel == 0 then
-          return
+      -- Sort: current default first
+      local default_item = nil
+      local others = {}
+      for _, m in ipairs(models) do
+        local model_id = type(m) == "table" and (m.id or m.model_id) or m
+        if model_id == current_default then
+          default_item = model_id
+        else
+          table.insert(others, model_id)
         end
-        local label = sel[1]
-        local model = id_map[label]
-        if not model then
-          return
-        end
+      end
+      local sorted = default_item and { default_item } or {}
+      for _, m in ipairs(others) do
+        table.insert(sorted, m)
+      end
 
-        -- Update default model via registry
-        Registry.set_default_model(provider_name, model)
-        UIUtil.notify_with_icon(
-          string.format("Set %s default: %s", provider_name, model),
-          vim.log.levels.INFO,
-          "default"
+      for _, model_id in ipairs(sorted) do
+        local is_default = model_id == current_default
+        local status = Status.get_cached_status(provider_name, model_id)
+        local display = UIUtil.format_model_display(model_id, is_default, nil, status)
+        id_map[display] = model_id
+        table.insert(items, display)
+      end
+
+      -- Empty state with icon
+      if #items == 0 then
+        vim.notify(
+          string.format("%s No models available for %s. Check endpoint.", icons.model, provider_name),
+          vim.log.levels.WARN
         )
-      end,
+        return
+      end
 
-      -- <C-e> Edit static models (no extra keymap on provider picker)
-      ["ctrl-e"] = function()
-        M._edit_static_models(provider_name)
-      end,
+      fzf.fzf_exec(items, {
+        prompt = string.format("%s Select Model for %s > ", icons.model, provider_name),
+        winopts = {
+          width = 0.6,
+          height = 0.4,
+          border = "rounded",
+        },
+        actions = {
+          ["default"] = function(sel)
+            if not sel or #sel == 0 then
+              return
+            end
+            local label = sel[1]
+            local model = id_map[label]
+            if not model then
+              return
+            end
 
-      -- <C-?> Help
-      ["ctrl-/"] = function()
-        M._show_model_picker_help(provider_name)
-      end,
-    },
-    fzf_opts = {
-      ["--header"] = string.format(
-        "%s <CR> Set Default  %s <C-e> Edit Static Models  %s <C-?> Help",
-        icons.default,
-        icons.edit,
-        icons.help
-      ),
-    },
-  })
+            -- Set global default (consistent with Model Switch <leader>ks)
+            -- This ensures OpenCode/Claude Code use the selected model
+            Registry.set_global_default(provider_name, model)
+            UIUtil.notify_with_icon(
+              string.format("★ Global default set: %s / %s", provider_name, model),
+              vim.log.levels.INFO,
+              "default"
+            )
+          end,
+
+          -- <C-e> Edit static models (no extra keymap on provider picker)
+          ["ctrl-e"] = function()
+            M._edit_static_models(provider_name)
+          end,
+
+          -- <C-?> Help
+          ["ctrl-/"] = function()
+            M._show_model_picker_help(provider_name)
+          end,
+        },
+        fzf_opts = {
+          ["--header"] = string.format(
+            "%s <CR> Set Default  %s <C-e> Edit Static Models  %s <C-?> Help",
+            icons.default,
+            icons.edit,
+            icons.help
+          ),
+        },
+      })
+    end)
+  end)
 end
 
 ----------------------------------------------------------------------

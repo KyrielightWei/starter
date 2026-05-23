@@ -1,5 +1,6 @@
 -- lua/ai/fetch_models.lua
 -- 动态模型拉取（独立模块，可复用到任何 AI 插件）
+-- 提供同步和异步两种 API
 
 local Providers = require("ai.providers")
 local Keys = require("ai.keys")
@@ -18,8 +19,145 @@ function M.clear_cache()
 end
 
 ----------------------------------------------------------------------
+-- fetch_async(provider_name, callback)
+-- 异步获取模型列表（不阻塞 UI）
+-- callback(models) - models 是模型数组，失败时为空数组
+----------------------------------------------------------------------
+function M.fetch_async(provider_name, callback)
+  local def = Providers.get(provider_name)
+  if not def or not def.endpoint then
+    if callback then
+      callback({})
+    end
+    return
+  end
+
+  -- 检查缓存
+  local cached = model_cache[provider_name]
+  if cached and cached.timestamp and os.time() - cached.timestamp < cache_ttl then
+    if callback then
+      callback(cached.models)
+    end
+    return
+  end
+
+  local endpoint = def.endpoint
+  local api_key = Keys.get_key(provider_name)
+
+  -- 检查 endpoint 是否已包含 /v1
+  local has_v1 = endpoint:match("/v1/?$")
+
+  local candidates
+  if has_v1 then
+    candidates = {
+      endpoint .. "/models",
+      endpoint .. "/api/models",
+    }
+  else
+    candidates = {
+      endpoint .. "/v1/models",
+      endpoint .. "/models",
+    }
+  end
+
+  local headers = {}
+  if api_key and api_key ~= "" then
+    headers = {
+      "Authorization: Bearer " .. api_key,
+      "Content-Type: application/json",
+    }
+  else
+    headers = { "Content-Type: application/json" }
+  end
+
+  local function try_url(idx, collected)
+    if idx > #candidates then
+      -- 所有 URL 都失败了，返回 collected（可能为空）
+      if #collected > 0 then
+        model_cache[provider_name] = {
+          models = collected,
+          timestamp = os.time(),
+          url = candidates[1],
+        }
+      end
+      if callback then
+        callback(collected)
+      end
+      return
+    end
+
+    local url = candidates[idx]
+    local cmd_parts = { "curl", "-s", "-m", "5" } -- 5秒超时
+    for _, header in ipairs(headers) do
+      if header and header ~= "" then
+        table.insert(cmd_parts, "-H")
+        table.insert(cmd_parts, header)
+      end
+    end
+    table.insert(cmd_parts, url)
+
+    vim.system(cmd_parts, { text = true }, function(result)
+      if result.code == 0 and result.stdout and result.stdout:match("%S") then
+        local ok_json, json = pcall(vim.fn.json_decode, result.stdout)
+        if ok_json and type(json) == "table" then
+          -- OpenAI 格式：{ data = { {id=...}, ... } }
+          if json.data and type(json.data) == "table" then
+            for _, v in ipairs(json.data) do
+              if v.id then
+                table.insert(collected, v)
+              end
+            end
+          -- 数组格式：[{id=...}, ...]
+          elseif type(json[1]) == "table" and json[1].id then
+            for _, v in ipairs(json) do
+              table.insert(collected, v)
+            end
+          -- 字典格式
+          else
+            for _, v in pairs(json) do
+              if type(v) == "table" and v.id then
+                table.insert(collected, v)
+              end
+            end
+          end
+        end
+      end
+
+      -- 去重
+      local seen, uniq = {}, {}
+      for _, m in ipairs(collected) do
+        local id = m.id or tostring(m)
+        if not seen[id] then
+          seen[id] = true
+          table.insert(uniq, m)
+        end
+      end
+
+      -- 成功则停止，失败则继续尝试下一个 URL
+      if #uniq > 0 then
+        model_cache[provider_name] = {
+          models = uniq,
+          timestamp = os.time(),
+          url = url,
+        }
+        if callback then
+          callback(uniq)
+        end
+      else
+        try_url(idx + 1, collected)
+      end
+    end)
+  end
+
+  -- 开始尝试第一个 URL
+  try_url(1, {})
+end
+
+----------------------------------------------------------------------
 -- fetch(provider_name)
+-- 同步获取模型列表（会阻塞 UI，最多 3 秒）
 -- 返回：models, tried_urls, succeeded_urls, failed_urls
+-- ⚠️ 已弃用：推荐使用 fetch_async() 以避免阻塞 UI
 ----------------------------------------------------------------------
 function M.fetch(provider_name)
   local def = Providers.get(provider_name)
@@ -70,10 +208,10 @@ function M.fetch(provider_name)
 
   local tried, succ, fail = {}, {}, {}
   local collected = {}
-  
+
   -- Progress notification ID (used for replace)
   local progress_id = "fetch_models_" .. provider_name
-  
+
   -- Show progress notification once before trying URLs
   vim.notify(
     string.format("⏳ 正在从 %s 拉取模型列表...", provider_name),
@@ -97,7 +235,7 @@ function M.fetch(provider_name)
     -- Use vim.system (async, non-blocking) with vim.wait to preserve sync API
     local result = nil
     local done = false
-    
+
     local ok, proc = pcall(vim.system, cmd_parts, { text = true }, function(obj)
       result = obj
       done = true

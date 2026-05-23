@@ -10,6 +10,7 @@ local M = {}
 local state = {
   provider = nil,
   model = nil,
+  template_versions = {}, -- 模版版本选择：{ tool: version }
 }
 
 -- 订阅者列表（使用表存储，支持删除后重新分配）
@@ -79,8 +80,39 @@ end
 function M.clear()
   state.provider = nil
   state.model = nil
+  state.template_versions = {}
   subscribers = {}
   next_id = 1
+end
+
+----------------------------------------------------------------------
+-- get_template_version(tool): 获取工具的模版版本
+-- @param tool string: 工具名称 (opencode, claude_code)
+-- @return string: 当前版本，默认 "default"
+----------------------------------------------------------------------
+function M.get_template_version(tool)
+  if not state.template_versions then
+    return "default"
+  end
+  return state.template_versions[tool] or "default"
+end
+
+----------------------------------------------------------------------
+-- set_template_version(tool, version): 设置工具的模版版本
+-- @param tool string: 工具名称
+-- @param version string: 版本名称
+----------------------------------------------------------------------
+function M.set_template_version(tool, version)
+  state.template_versions = state.template_versions or {}
+  state.template_versions[tool] = version
+
+  -- 通知订阅者
+  for _, callback in pairs(subscribers) do
+    local ok, err = pcall(callback, M.get())
+    if not ok then
+      vim.notify(string.format("State subscriber error: %s", err), vim.log.levels.WARN)
+    end
+  end
 end
 
 ----------------------------------------------------------------------

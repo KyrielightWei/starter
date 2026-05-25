@@ -1,0 +1,379 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // ═══════════════════════════════════════════════════════════
+  // OpenCode OMO 配置模板 v2 - 完整技能栈 🚀
+  // 包含: OMO (9 agents) + Superpower (14 skills) + GSD (60+ commands) + OpenSpec
+  // 修改后运行 :OpenCodeGenerateConfig 生成最终配置
+  //
+  // ⚠️ OpenSpec 需要先安装: npm install -g @fission-ai/openspec@latest
+  // ⚠️ GSD 是 OMO 的核心工作流 - 不属于 ECC
+  // ═══════════════════════════════════════════════════════════
+
+  "model": "bailian_coding/glm-5",
+  "small_model": "bailian_coding/qwen3.6-plus",
+  "autoupdate": false,
+
+  // ═══════════════════════════════════════════════════════════
+  // Plugin 配置 - Superpower 自动安装 📦
+  // ═══════════════════════════════════════════════════════════
+  
+  "plugin": [
+    "superpowers@git+https://github.com/obra/superpowers.git#v5.1.0"
+  ],
+
+  // ═══════════════════════════════════════════════════════════
+  // OMO (OhMyOpenCode) 代理配置 - 9 个核心代理 🤖
+  // ═══════════════════════════════════════════════════════════
+
+  "agents": {
+    // Sisyphus - 主执行代理 (最高优先级)
+    "sisyphus": {
+      "enabled": true,
+      "priority": 100,
+      "description": "主执行代理 - 编排、委托、验证、发布",
+      "capabilities": ["orchestration", "delegation", "verification"]
+    },
+
+    // Oracle - 高IQ咨询代理 (只读)
+    "oracle": {
+      "enabled": true,
+      "priority": 90,
+      "description": "只读咨询代理 - 架构决策、复杂调试",
+      "capabilities": ["architecture", "debugging", "consultation"],
+      "permission": {
+        "edit": "deny",
+        "bash": { "*": "ask", "grep *": "allow" }
+      }
+    },
+
+    // Metis - 预规划顾问
+    "metis": {
+      "enabled": true,
+      "priority": 85,
+      "description": "预规划顾问 - 需求分析、歧义识别",
+      "capabilities": ["requirements", "ambiguity-detection"]
+    },
+
+    // Momus - 计划评审
+    "momus": {
+      "enabled": true,
+      "priority": 80,
+      "description": "计划评审 - 清晰性、可验证性、完整性",
+      "capabilities": ["plan-review", "quality-gate"]
+    },
+
+    // Explore - 代码探索 (FREE - 高频使用)
+    "explore": {
+      "enabled": true,
+      "priority": 70,
+      "description": "上下文 grep - 代码结构、模式探索",
+      "capabilities": ["search", "pattern-discovery"],
+      "run_mode": "background"
+    },
+
+    // Librarian - 参考搜索 (CHEAP - 外部资源)
+    "librarian": {
+      "enabled": true,
+      "priority": 70,
+      "description": "参考 grep - 外部文档、OSS 示例",
+      "capabilities": ["external-docs", "oss-examples"],
+      "run_mode": "background"
+    },
+
+    // Build - 主编码代理
+    "build": {
+      "enabled": true,
+      "priority": 75,
+      "description": "主编码代理 - 开发、实现",
+      "capabilities": ["implementation", "coding"]
+    },
+
+    // Code Reviewer - 代码审查
+    "code-reviewer": {
+      "enabled": true,
+      "priority": 60,
+      "description": "代码审查 - 质量、安全、可维护性",
+      "capabilities": ["review", "quality"]
+    },
+
+    // Security Reviewer - 安全审查
+    "security-reviewer": {
+      "enabled": true,
+      "priority": 50,
+      "description": "安全审查 - OWASP Top 10",
+      "capabilities": ["security", "vulnerability"]
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // GSD (Get Stuff Done) 工作流命令 - OMO 核心流程 📋
+  // ⚠️ GSD 属于 OMO，不属于 ECC
+  // ═══════════════════════════════════════════════════════════
+
+  "gsd": {
+    "enabled": true,
+    "directory": ".planning/",
+    "commands": {
+      // 项目管理
+      "project": [
+        "/gsd-new-project",      // 新项目初始化
+        "/gsd-map-codebase",     // 代码库分析
+        "/gsd-progress",         // 进度跟踪
+        "/gsd-stats",            // 统计信息
+        "/gsd-health"            // 健康检查
+      ],
+
+      // Milestone 管理
+      "milestone": [
+        "/gsd-new-milestone",    // 新里程碑
+        "/gsd-complete-milestone", // 完成里程碑
+        "/gsd-milestone-summary",  // 里程碑总结
+        "/gsd-audit-milestone"   // 里程碑审计
+      ],
+
+      // Phase 规划
+      "planning": [
+        "/gsd-spec-phase",       // SPEC.md 创建
+        "/gsd-discuss-phase",    // 讨论阶段
+        "/gsd-list-phase-assumptions", // 列出假设
+        "/gsd-plan-phase",       // PLAN.md 创建
+        "/gsd-insert-phase",     // 插入阶段
+        "/gsd-remove-phase",     // 移除阶段
+        "/gsd-analyze-dependencies" // 依赖分析
+      ],
+
+      // Phase 执行
+      "execution": [
+        "/gsd-execute-phase",    // 执行阶段
+        "/gsd-verify-work",      // UAT 验证
+        "/gsd-code-review",      // 代码审查
+        "/gsd-code-review-fix",  // 审查修复
+        "/gsd-validate-phase",   // 验证阶段
+        "/gsd-secure-phase",     // 安全验证
+        "/gsd-ui-review"         // UI 审查
+      ],
+
+      // 发布流程
+      "release": [
+        "/gsd-pr-branch",        // PR 分支创建
+        "/gsd-ship",             // 发布流程
+        "/gsd-undo"              // 回滚
+      ],
+
+      // 任务管理
+      "tasks": [
+        "/gsd-add-todo",         // 添加 todo
+        "/gsd-check-todos",      // 检查 todos
+        "/gsd-add-backlog",      // 添加 backlog
+        "/gsd-review-backlog",   // 审查 backlog
+        "/gsd-note",             // 笔记
+        "/gsd-thread"            // 线程管理
+      ],
+
+      // 工作流控制
+      "workflow": [
+        "/gsd-next",             // 下一步
+        "/gsd-do",               // 自动路由
+        "/gsd-quick",            // 快速任务
+        "/gsd-fast",             // 内联任务
+        "/gsd-autonomous",       // 自主执行
+        "/gsd-manager",          // 交互管理
+        "/gsd-debug",            // 调试
+        "/gsd-pause-work",       // 暂停工作
+        "/gsd-resume-work"       // 恢复工作
+      ],
+
+      // 工作空间
+      "workspace": [
+        "/gsd-new-workspace",    // 新工作空间
+        "/gsd-list-workspaces",  // 列出工作空间
+        "/gsd-remove-workspace", // 移除工作空间
+        "/gsd-workstreams"       // 并行工作流
+      ],
+
+      // 其他
+      "misc": [
+        "/gsd-help",             // 帮助
+        "/gsd-settings",         // 设置
+        "/gsd-set-profile",      // 设置 profile
+        "/gsd-update",           // 更新
+        "/gsd-cleanup",          // 清理
+        "/gsd-forensics",        // 故后分析
+        "/gsd-spike",            // 验证实验
+        "/gsd-sketch"            // UI 原型
+      ]
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // OpenSpec (OSPC) 配置 - Spec-Driven Development 📋
+  // ⚠️ 需要先安装: npm install -g @fission-ai/openspec@latest
+  // ⚠️ 然后运行: openspec init --tools opencode --profile core
+  // ═══════════════════════════════════════════════════════════
+
+  "openspec": {
+    "cli": {
+      "package": "@fission-ai/openspec",
+      "version": "latest",
+      "install_command": "npm install -g @fission-ai/openspec@latest"
+    },
+    "init": {
+      "tools": ["opencode"],
+      "profile": "core",
+      "commands": [
+        "/opsx:propose",
+        "/opsx:explore",
+        "/opsx:apply",
+        "/opsx:sync",
+        "/opsx:archive"
+      ]
+    },
+    "directory": "openspec/",
+    "specs_dir": "openspec/specs/",
+    "changes_dir": "openspec/changes/",
+    "config_file": "openspec/config.yaml"
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // Provider 配置 - Bailian Coding 🤖
+  // ═══════════════════════════════════════════════════════════
+
+  "provider": {
+    "bailian_coding": {
+      "name": "Bailian Coding",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://coding.dashscope.aliyuncs.com/v1",
+        "apiKey": "{file:${API_KEY_PATH}}"
+      },
+      "models": {
+        "glm-5": {
+          "name": "glm-5",
+          "description": "默认模型 - 智谱GLM-5，复杂推理",
+          "limit": {
+            "context": 202752,
+            "output": 16384
+          }
+        },
+        "qwen3.6-plus": {
+          "name": "qwen3.6-plus",
+          "description": "备选模型 - 阿里Qwen3.6-Plus",
+          "limit": {
+            "context": 1000000,
+            "output": 65536
+          }
+        }
+      }
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 权限配置 - 安全优先 🛡️
+  // ═══════════════════════════════════════════════════════════
+
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      ".env*": "ask",
+      "*credentials*": "ask",
+      "*secret*": "ask",
+      "*password*": "ask",
+      "*token*": "ask"
+    },
+
+    "edit": {
+      "*": "allow",
+      "*.lock": "ask"
+    },
+
+    "bash": {
+      "*": "allow",
+
+      // Git 只读 - 允许
+      "git status*": "allow",
+      "git log*": "allow",
+      "git diff*": "allow",
+      "git show*": "allow",
+      "git branch*": "allow",
+
+      // 构建测试 - 允许
+      "npm run build*": "allow",
+      "npm run test*": "allow",
+      "stylua*": "allow",
+
+      // OpenSpec CLI - 允许
+      "openspec *": "allow",
+
+      // Git 写入 - 确认
+      "git pull*": "ask",
+      "git push*": "ask",
+      "git merge*": "ask",
+      "git reset --hard*": "ask",
+
+      // 文件删除 - 确认
+      "rm *": "ask",
+      "rm -rf *": "ask"
+    },
+
+    "external_directory": "ask",
+    "doom_loop": "ask",
+    "task": "ask",
+    "skill": "allow"
+  },
+
+  // 代理权限覆盖
+  "agent_permissions": {
+    "plan": {
+      "edit": "deny",
+      "bash": { "*": "ask", "grep *": "allow", "ls *": "allow" }
+    },
+    "oracle": {
+      "edit": "deny",
+      "bash": { "*": "ask", "grep *": "allow" }
+    },
+    "explore": {
+      "edit": "deny",
+      "bash": { "grep *": "allow", "find *": "allow", "ls *": "allow" }
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 其他配置 ⚙️
+  // ═══════════════════════════════════════════════════════════
+
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      "dist/**",
+      ".git/**",
+      "*.log",
+      ".DS_Store",
+      "coverage/**",
+      ".planning/**"
+    ]
+  },
+
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 10000
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 设置说明 📝
+  // ═══════════════════════════════════════════════════════════
+
+  // 安装步骤:
+  // 1. Superpower Plugin: 已通过 plugin 配置自动安装
+  // 2. OpenSpec CLI: npm install -g @fission-ai/openspec@latest
+  // 3. OpenSpec Init: openspec init --tools opencode --profile core
+  // 4. GSD Skills: 确保 ~/.claude/skills/gsd-* 已安装 (60+ skills)
+  //
+  // ⚠️ GSD 和 OpenSpec 使用不同目录:
+  //    GSD → .planning/
+  //    OpenSpec → openspec/
+  //    两者可共存，但建议选择一种工作流
+}

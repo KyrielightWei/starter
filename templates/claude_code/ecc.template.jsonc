@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  // ═══════════════════════════════════════════════════════════
+  // Claude Code ECC 配置模板 v2 - 完整技能栈 🚀
+  // 包含: Superpower (14 skills) + ECC (16 skills) + OpenSpec (OSPC CLI)
+  // 修改后运行 :ClaudeCodeGenerateConfig 生成最终配置
+  //
+  // ⚠️ 注意: GSD 不属于 ECC！GSD 是 OpenCode/OMO 的独立工作流
+  // ⚠️ OpenSpec 需要先安装 CLI: npm install -g @fission-ai/openspec@latest
+  // ═══════════════════════════════════════════════════════════
+
+  // 环境变量
+  "env": {
+    "XDG_STATE_HOME": "/tmp/claude-state"
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // Plugin 配置 - Superpower 自动安装 📦
+  // ═══════════════════════════════════════════════════════════
+  
+  // Superpower Plugin (自动注册 14 skills)
+  // 安装: /plugin install superpowers@claude-plugins-official
+  "extraKnownMarketplaces": {
+    "superpowers": {
+      "source": { "source": "github", "repo": "obra/superpowers" }
+    }
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers": true
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // ECC (Everything Claude Code) 技能 - 16 个核心技能 📚
+  // 来源: https://github.com/affaan-m/everything-claude-code
+  // ═══════════════════════════════════════════════════════════
+
+  // ECC 技能 (手动选择安装，不要全部安装以避免上下文膨胀)
+  // 推荐: 8-12 个技能即可满足大多数需求
+  "skills": [
+    // === 编码规范 (通用必选) ===
+    {
+      "name": "coding-standards",
+      "source": "ecc",
+      "description": "编码规范 - TypeScript/JS/React/Node.js 通用标准",
+      "category": "standards"
+    },
+
+    // === 语言/框架模式 (按需选择) ===
+    {
+      "name": "backend-patterns",
+      "source": "ecc",
+      "description": "后端模式 - Node.js/Express/Next.js API",
+      "category": "patterns"
+    },
+    {
+      "name": "frontend-patterns",
+      "source": "ecc",
+      "description": "前端模式 - React/Next.js 状态管理、性能优化",
+      "category": "patterns"
+    },
+    {
+      "name": "golang-patterns",
+      "source": "ecc",
+      "description": "Go 模式 - 惯用模式、最佳实践",
+      "category": "patterns"
+    },
+    {
+      "name": "golang-testing",
+      "source": "ecc",
+      "description": "Go 测试 - 表格驱动、基准测试、模糊测试",
+      "category": "testing"
+    },
+
+    // === 数据库 (按需选择) ===
+    {
+      "name": "postgres-patterns",
+      "source": "ecc",
+      "description": "PostgreSQL 模式 - 查询优化、索引、安全",
+      "category": "database"
+    },
+    {
+      "name": "clickhouse-io",
+      "source": "ecc",
+      "description": "ClickHouse 模式 - 分析查询优化",
+      "category": "database"
+    },
+
+    // === 测试与质量 (推荐必选) ===
+    {
+      "name": "tdd-workflow",
+      "source": "ecc",
+      "description": "TDD 工作流 - 强制 80%+ 覆盖率",
+      "category": "testing"
+    },
+    {
+      "name": "security-review",
+      "source": "ecc",
+      "description": "安全审查 - 认证/输入/密钥/API 安全检查清单",
+      "category": "security"
+    },
+    {
+      "name": "verification-loop",
+      "source": "ecc",
+      "description": "验证循环 - 综合验证系统",
+      "category": "verification"
+    },
+
+    // === 评估 ===
+    {
+      "name": "eval-harness",
+      "source": "ecc",
+      "description": "评估框架 - EDD (Eval-Driven Development)",
+      "category": "evaluation"
+    },
+
+    // === 学习与进化 (推荐) ===
+    {
+      "name": "continuous-learning-v2",
+      "source": "ecc",
+      "description": "持续学习 v2 - 基于直觉的学习系统",
+      "category": "learning"
+    },
+
+    // === 上下文管理 (推荐) ===
+    {
+      "name": "iterative-retrieval",
+      "source": "ecc",
+      "description": "渐进式上下文检索 - 解决子代理上下文问题",
+      "category": "context"
+    },
+    {
+      "name": "strategic-compact",
+      "source": "ecc",
+      "description": "策略压缩 - 逻辑间隔手动压缩",
+      "category": "context"
+    }
+  ],
+
+  // ═══════════════════════════════════════════════════════════
+  // OpenSpec (OSPC) 配置 - Spec-Driven Development 📋
+  // ⚠️ 需要先安装: npm install -g @fission-ai/openspec@latest
+  // ⚠️ 然后运行: openspec init --tools claude --profile core
+  // ═══════════════════════════════════════════════════════════
+  
+  // OpenSpec Slash Commands (由 openspec init 自动生成)
+  // /opsx:propose    - 创建变更提案
+  // /opsx:explore    - 探索现有规范
+  // /opsx:apply      - 应用变更
+  // /opsx:archive    - 归档完成变更
+  // /opsx:sync       - 同步规范
+  //
+  // 目录结构 (由 openspec init 创建):
+  // openspec/
+  // ├── specs/           # 规范即真相 (按域组织)
+  // ├── changes/         # 活跃变更
+  // └── config.yaml      # 项目配置
+
+  "openspec": {
+    "cli": {
+      "package": "@fission-ai/openspec",
+      "version": "latest",
+      "install_command": "npm install -g @fission-ai/openspec@latest"
+    },
+    "init": {
+      "tools": ["claude"],
+      "profile": "core",  // core | expanded
+      "commands": [
+        // Core profile commands
+        "/opsx:propose",
+        "/opsx:explore",
+        "/opsx:apply",
+        "/opsx:sync",
+        "/opsx:archive"
+      ]
+    },
+    "directory": "openspec/",
+    "specs_dir": "openspec/specs/",
+    "changes_dir": "openspec/changes/",
+    "config_file": "openspec/config.yaml"
+  },
+
+  // ECC Rules (需手动安装 - 插件不支持分发 rules)
+  // 安装: cp -r everything-claude-code/rules/* ~/.claude/rules/common/
+  // 这些规则与 OpenSpec 规范类似，但由 ECC 提供
+  "rules": {
+    "common": [
+      "coding-style.md",   // 不可变性、文件组织
+      "security.md",       // 强制安全检查
+      "testing.md",        // TDD、80%+ 覆盖率
+      "code-review.md",    // 审查标准
+      "git-workflow.md",   // 提交格式、PR 流程
+      "development-workflow.md",  // 开发流程
+      "performance.md",    // 模型选择、上下文管理
+      "agents.md"          // 何时委托子代理
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 权限配置 🛡️
+  // ═══════════════════════════════════════════════════════════
+  "permissions": {
+    "allow": [
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(npm run build*)",
+      "Bash(npm run test*)",
+      "Bash(stylua*)",
+      "Bash(grep*)",
+      "Bash(find*)",
+      "Bash(cat*)",
+      "Bash(ls*)",
+      "Bash(openspec *)"   // OpenSpec CLI
+    ],
+
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(sudo rm -rf *)"
+    ],
+
+    "ask": [
+      "Bash(rm *)",
+      "Bash(git push*)",
+      "Bash(git pull*)",
+      "Bash(git merge*)",
+      "Bash(git reset --hard*)",
+      "Bash(sudo *)",
+      "Read(*.env)",
+      "Read(*credentials*)",
+      "Read(*secret*)"
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 状态栏配置 📊
+  // ═══════════════════════════════════════════════════════════
+  "statusLine": {
+    "type": "command",
+    "command": "npx -y ccstatusline@latest --widgets model,cost,tokens,context,thinking,time",
+    "padding": 0
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // MCP 服务器配置 🔌
+  // ═══════════════════════════════════════════════════════════
+  "mcpServers": {
+    // Context7 - 文档查找 (Superpower 推荐使用)
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"],
+      "enabled": true
+    },
+
+    // Memory - 知识图谱 (ECC continuous-learning 需要)
+    "memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/memory-mcp"],
+      "enabled": true
+    },
+
+    // Sequential Thinking - 结构化思考 (评估时有用)
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/sequential-thinking-mcp"],
+      "enabled": true
+    }
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 模型配置 🤖
+  // ═══════════════════════════════════════════════════════════
+  // 扩展思考 (ECC performance.md 推荐)
+  "thinking": {
+    "enabled": true,
+    "budget": 31999
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 其他配置 ⚙️
+  // ═══════════════════════════════════════════════════════════
+
+  "sandbox": {
+    "enabled": true
+  },
+
+  // Hook 配置 - ECC 风格
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'ECC: Verifying coding standards'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "stylua --check ${file} 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'ECC + Superpower + OpenSpec loaded'"
+          }
+        ]
+      }
+    ]
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // 设置说明 📝
+  // ═══════════════════════════════════════════════════════════
+  
+  // 安装步骤:
+  // 1. Superpower Plugin: /plugin install superpowers@claude-plugins-official
+  // 2. OpenSpec CLI: npm install -g @fission-ai/openspec@latest
+  // 3. OpenSpec Init: openspec init --tools claude --profile core
+  // 4. ECC Rules: cp -r everything-claude-code/rules/* ~/.claude/rules/common/
+  // 5. ECC Skills: 选择需要的技能 (推荐 8-12 个)
+  //
+  // ⚠️ GSD 工作流不在此模板中 - GSD 属于 OpenCode/OMO 独立系统
+}

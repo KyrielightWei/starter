@@ -725,3 +725,447 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 <!-- GSD:profile-end -->
+
+
+<!-- OB_TOOL_ENV_START -->
+
+---
+
+## OB Tool Environment
+
+Source: `/home/weixiaoxian.wxx/bin/ob_ai_tool_env`
+Updated: 2026-05-21 16:20
+
+All AI tools (Claude, OpenCode, Qoder) reference these files via AGENTS.md.
+
+### Commands → Skills
+
+Commands linked to `.claude/commands/` and converted to skills:
+
+- `/ob-flow-review` — Generate an OB-style merge review and start farm tests based on current git commits
+
+### OB Code Review Skills
+
+Source: `/data/1/weixiaoxian.wxx/dev_tool/oceanbase-skills/packages/oceanbase-develop`
+
+Linked to: `.claude/skills/`
+
+OceanBase 代码审查专项 skills:
+- `ob-code-review` — OceanBase 代码审查协调器。提供交互式选择界面，协调调用六个专项审查agents（含可选的Schema/DDL审查）进行完整的OceanBase代码规范审查。
+- `ob-code-style-reviewer` — OceanBase 代码风格审查专家。专注于检查命名规范、注释要求、格式统一和代码可读性问题。
+- `ob-concurrency-reviewer` — OceanBase 并发安全审查专家。专注于检查多线程安全、锁使用和竞态条件问题。
+- `ob-error-handling-reviewer` — OceanBase 错误处理审查专家。专注于检查错误码处理、错误传播和 OB_FAIL 模式使用。
+- `ob-memory-safety-reviewer` — OceanBase 内存安全审查专家。专注于检查内存管理、边界检查和资源泄漏问题。
+- `ob-schema-review` — OceanBase Schema 和 DDL MR 审查协调器。拉取 MR diff、做静态预检、按变更文件动态分桶，并聚焦增量代码风险输出高信噪比 review。可选读取语雀背景（需用户明确要求）。可选读取 Dima 工作项上下文（需用户触发或指定）。适用于 schema review、DDL review、MR review 和 OceanBase Schema 相关变更审查。
+- `ob-security-reviewer` — OceanBase 安全审查专家。专注于检查敏感信息泄露、注入风险和输入验证问题。
+- `ob-vector-memory-leak-reviewer` — OceanBase 向量索引内存泄漏审查专家。专注于检查租户销毁、并发安全、allocator 生命周期和内存泄漏问题。
+
+### Rules
+
+Linked to: `.claude/rules/`
+
+- [OB Build & Test Rules](.claude/rules/ob-build-test.md)
+- [OB Hotspot Aggregation Rules](.claude/rules/ob-hotspot-aggregation.md)
+
+---
+
+#### Embedded Rules
+
+For tools without rule file support:
+
+---
+
+##### OB Build & Test Rules
+
+
+Project-level build and test workflow rules for OceanBase projects.
+
+##### Build Rules
+
+###### Standard Build Command
+Always use the following command to compile the project with debug logging enabled:
+```bash
+./build.sh release --init -DENABLE_DEBUG_LOG=ON
+```
+
+###### Output Directory
+All build artifacts are generated under `build_release/`. Do NOT build in other directories unless explicitly requested.
+
+###### Compile Targets with `ob-make`
+Use `ob-make` instead of raw `make` — it leverages the compilation cache for faster rebuilds.
+
+To compile a specific test case, navigate to the corresponding directory under `build_release/` that mirrors the source file path, then run `ob-make`:
+
+```bash
+# For test file unittest/storage/tx/test_hotspot_free_cbs_deadlock.cpp
+# Navigate to corresponding build directory and run ob-make
+cd build_release/unittest/storage/tx
+ob-make
+```
+
+**Key Points**:
+1. Use the relative path under `build_release/` that matches the source file location.
+2. **DO NOT specify case name after `ob-make`** — `ob-make` compiles all targets in the current directory. Specifying a case name like `ob-make test_xxx` is incorrect and may cause unexpected behavior.
+
+###### Incremental Rebuilds
+After modifying source files, **do NOT re-run `./build.sh`** unless:
+- CMakeLists.txt changes
+- Build flags need updating
+- `--init` artifacts are corrupted
+
+Instead, just run `ob-make` in `build_release/` to leverage the cache.
+
+###### When CMakeLists.txt Changes
+
+If you modify CMakeLists.txt, you must regenerate build system:
+
+```bash
+# Re-run build.sh (this will regenerate CMake files)
+./build.sh release -DENABLE_DEBUG_LOG=ON
+```
+
+**Note**: Do NOT use `cmake .` directly. Always use `build.sh` to regenerate build files.
+
+##### Test Rules
+
+###### Adding New Test Files
+
+When adding a new test file, you must register it in CMakeLists.txt:
+
+**For unit tests** (`unittest/storage/tx/CMakeLists.txt`):
+```cmake
+# Add this line at the end
+storage_unittest(test_your_new_test_name)
+```
+
+**For integration tests** (`unittest/storage/tx/it/CMakeLists.txt`):
+```cmake
+# Add this line
+tx_it_test(test_your_integration_test_name)
+```
+
+**Important**: After modifying CMakeLists.txt, regenerate CMake cache before compiling.
+
+###### Test File Header Template
+
+OB test files require specific headers and macros:
+
+```cpp
+/**
+ * Copyright (c) 2021 OceanBase
+ * OceanBase CE is licensed under Mulan PubL v2.
+ * ... (full license header)
+ */
+
+#include <gtest/gtest.h>
+#define USING_LOG_PREFIX TRANS  // Set appropriate log prefix
+#define private public          // Allow testing private members
+#define protected public        // Allow testing protected members
+
+#include "storage/tx/ob_tx_hotspot_define.h"  // Your target header
+// ... other includes
+
+namespace oceanbase
+{
+using namespace ::testing;
+using namespace transaction;
+
+class YourTestClass : public ::testing::Test
+{
+public:
+  virtual void SetUp() override
+  {
+    // Initialize OceanBase cluster version (required for many components)
+    oceanbase::ObClusterVersion::get_instance().update_data_version(DATA_CURRENT_VERSION);
+  }
+  virtual void TearDown() override {}
+};
+
+TEST_F(YourTestClass, test_case_name)
+{
+  // Your test code
+}
+
+} // namespace oceanbase
+
+int main(int argc, char **argv)
+{
+  system("rm -rf test_your_test.log*");
+  ObLogger &logger = ObLogger::get_logger();
+  logger.set_file_name("test_your_test.log", true, false, ...);
+  logger.set_log_level(OB_LOG_LEVEL_DEBUG);
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
+```
+
+###### Required Headers for Transaction Tests
+
+| Component | Required Include | Additional Setup |
+|-----------|------------------|------------------|
+| ObTxHotspotRedoCache | `storage/tx/ob_tx_hotspot_define.h` | `TransModulePageAllocator` |
+| ObClusterVersion | `share/ob_cluster_version.h` (via utility.h) | `update_data_version(DATA_CURRENT_VERSION)` |
+| Logging | `lib/utility/utility.h` | `USING_LOG_PREFIX` macro |
+| Test framework | `<gtest/gtest.h>` | First include |
+
+###### Compile and Run Single Test Cases
+
+Test cases are located under `unittest/` and `mittest/` directories within `build_release/`.
+
+To compile and run a specific test:
+1. Navigate to the corresponding test directory under `build_release/` that mirrors the source file's path.
+2. Run `ob-make` in that directory to compile the test case.
+3. Execute the compiled test binary directly.
+
+**Example**:
+```bash
+# For test file unittest/storage/tx/test_hotspot_free_cbs_deadlock.cpp
+cd build_release/unittest/storage/tx
+ob-make
+
+# Run the test
+./test_hotspot_free_cbs_deadlock
+```
+
+###### Test Execution
+- Run test binaries from their build directory.
+- If a test fails, capture the output and report the failure context.
+- Do NOT run the full test suite unless explicitly requested — it is time-consuming.
+
+###### Test Discovery
+If you need to find relevant test cases for a modified file:
+- Check `unittest/` and `mittest/` directories for files named similarly to the source file.
+- Look for `*_test.cpp` or `*_unittest.cpp` patterns adjacent to or corresponding to the changed source files.
+
+##### Common Compilation Issues
+
+###### Issue: Undefined reference to mock classes
+**Cause**: Test file not properly linked with mock libraries.
+**Solution**: Use appropriate test function in CMakeLists.txt:
+- `storage_unittest()` for basic tests
+- `tx_unittest()` for tests needing `mock_tx_ctx` and `mock_tx_log_adapter`
+- `tx_it_test()` for integration tests needing `tx_node` and `oceanbase`
+
+###### Issue: Private member access fails
+**Cause**: Missing `#define private public` before including headers.
+**Solution**: Add macros before target header includes:
+```cpp
+#define private public
+#define protected public
+#include "storage/tx/ob_tx_target_header.h"
+```
+
+###### Issue: ObClusterVersion not initialized
+**Cause**: Many OB components require cluster version to be set.
+**Solution**: Add in SetUp():
+```cpp
+oceanbase::ObClusterVersion::get_instance().update_data_version(DATA_CURRENT_VERSION);
+```
+
+###### Issue: TransModulePageAllocator required
+**Cause**: `ObTxHotspotRedoCache` constructor needs allocator.
+**Solution**:
+```cpp
+TransModulePageAllocator allocator;
+ObTxHotspotRedoCache cache(allocator);
+```
+
+###### Issue: ATOMIC_STORE for is_inited_
+**Cause**: Cache not marked as initialized.
+**Solution**:
+```cpp
+ATOMIC_STORE(&cache.is_inited_, 1);
+```
+
+###### Issue: Lock required for cache operations
+**Cause**: Cache operations need `hotspot_lock_` held.
+**Solution**:
+```cpp
+SpinWLockGuard guard(cache.hotspot_lock_);
+```
+
+###### Issue: hotspot_cache_ needs entries before operations
+**Cause**: Operations like `handle_abort_response_()` require cache entries.
+**Solution**:
+```cpp
+ObTxRedoExtractArg arg;
+cache.hotspot_cache_.push_back(arg);
+```
+
+###### Issue: CMake can't find new test file
+**Cause**: CMakeLists.txt changed but build system not regenerated.
+**Solution**:
+```bash
+# Re-run build.sh to regenerate build files
+./build.sh release -DENABLE_DEBUG_LOG=ON
+
+# Then compile in the specific test directory
+cd build_release/unittest/storage/tx
+ob-make
+```
+
+##### Constraints
+
+- Never use plain `make` — always use `ob-make`.
+- **Never specify case name after `ob-make`** — e.g., `ob-make test_xxx` is WRONG. Just run `ob-make` without arguments in the target directory.
+- To compile a specific test, navigate to the corresponding directory under `build_release/` (e.g., `build_release/unittest/storage/tx`) and run `ob-make` there.
+- Never re-run `./build.sh` unless necessary — check if incremental build via `ob-make` is sufficient first.
+- Never use `cmake .` directly — always use `build.sh` to regenerate build files when CMakeLists.txt changes.
+- Always compile and run relevant tests before declaring code changes as ready.
+- If `build_release/` does not exist, the initial `./build.sh release --init` has not been run yet — inform the user.
+- Always add test file to CMakeLists.txt before compiling.
+- Always re-run `build.sh` after modifying CMakeLists.txt to regenerate build files.
+
+  ✓  Embedded: ob-build-test
+---
+
+##### OB Hotspot Aggregation Rules
+
+
+Coding guidelines and debugging tips for hotspot transaction aggregation module.
+
+##### Module Overview
+
+Hotspot aggregation allows a primary transaction to aggregate redo logs from multiple secondary transactions across different log streams, enabling efficient cross-LS transaction coordination.
+
+**Key files**:
+- `src/storage/tx/ob_tx_hotspot_define.h/cpp`: Hotspot redo cache management
+- `src/storage/tx/ob_tx_hotspot_helper.h/cpp`: Aggregation flow control and state machine
+
+##### Key Concepts
+
+###### CB (Log Callback) Lists
+
+| List | Purpose | Release Mechanism |
+|------|---------|-------------------|
+| `idle_hotspot_cbs_` | Available CBs waiting for use | Normal return after use |
+| `free_hotspot_cbs_` | CBs that failed submit (no callback attached) | **No automatic release** |
+| `busy_hotspot_cbs_` | CBs submitted to clog pipeline | Released via clog callback |
+
+**Important**: `free_hotspot_cbs_` contains orphaned CBs that failed during submit. They have no clog callback attached and cannot be released automatically. Must be handled explicitly in abort/cleanup paths.
+
+###### State Machine: TxRedoFlushStatus
+
+```
+NORMAL_START (10)
+      ↓
+PRIMARY_PREPARING (110)
+      ↓ dispatch
+PRIMARY_COLLECTING (120)    ← Leader switch interrupts here
+      ↓ success
+PRIMARY_AGGR_SUCCEEDED (150)
+      ↓ OR force abort
+PRIMARY_AGGR_FAILED (160)   ← Terminal state, no retry
+```
+
+**Terminal states**: `PRIMARY_AGGR_SUCCEEDED` (150) and `PRIMARY_AGGR_FAILED` (160)
+
+###### `cbs_is_working_()` Function
+
+```cpp
+bool cbs_is_working_()
+{
+  return busy_hotspot_cbs_.get_size() > 0 || free_hotspot_cbs_.get_size() > 0;
+}
+```
+
+Returns true if any CB is "in use". Used in cleanup/abort paths to check if CBs can be released.
+
+##### Common Bugs and Patterns
+
+###### Pattern 1: Free CBs Deadlock
+
+**Bug**: When `handle_abort_response_()` checks `cbs_is_working_()`, it treats `free` and `busy` the same, but free CBs have no release path.
+
+**Fix**: In abort path, explicitly move free CBs to idle:
+```cpp
+if (cbs_is_working_()) {
+  ret = OB_EAGAIN;
+  // Attempt to release free CBs to idle
+  int tmp_ret = release_free_cbs_to_idle_();
+}
+```
+
+###### Pattern 2: Leader Switch During Aggregation
+
+When leader switch occurs during `PRIMARY_COLLECTING`:
+1. Submit fails with `OB_NOT_MASTER (-4038)`
+2. CBs go to `free_hotspot_cbs_` (no callback)
+3. `switch_to_follower_forcedly` triggers abort
+4. State set to `PRIMARY_AGGR_FAILED`
+5. Cleanup path enters infinite retry if free CBs not handled
+
+**Required handling**: Ensure abort path can release free CBs.
+
+###### Pattern 3: OB_TMP_FAIL in Dispatch Loop
+
+```cpp
+for (int i = 0; OB_SUCC(ret) && i < cb_view.free_cb_count; i++) {
+  tmp_ret = OB_SUCCESS;
+  if (OB_TMP_FAIL(submit_redo_log_generated_by_others())) {
+    // OB_TMP_FAIL only sets tmp_ret, NOT ret!
+    // ret stays SUCCESS, loop continues
+  }
+}
+```
+
+**Implication**: Submit failures don't break the loop. CBs accumulate in `free_hotspot_cbs_`.
+
+##### Debugging Tips
+
+###### Check CB List Sizes
+
+```cpp
+TRANS_LOG(INFO, "hotspot cb status",
+          K(busy_hotspot_cbs_.get_size()),
+          K(free_hotspot_cbs_.get_size()),
+          K(idle_hotspot_cbs_.get_size()));
+```
+
+###### Key Logs to Search
+
+| Pattern | Meaning |
+|---------|---------|
+| `"wait hotspot log cb to be zero"` | Cleanup blocked by CBs |
+| `"busy hotspot log cbs still in clog pipeline"` | Waiting for callbacks |
+| `"released orphaned free hotspot cbs"` | Free CBs moved to idle |
+| `"PRIMARY_AGGR_FAILED"` | Terminal abort state |
+
+###### Common Error Codes
+
+| Code | Name | Meaning |
+|------|------|---------|
+| -4038 | OB_NOT_MASTER | Leader switch occurred |
+| -4023 | OB_EAGAIN | Retry needed / state not ready |
+| -6268 | OB_TX_NOLOGCB | No available log callback |
+
+##### Test Patterns
+
+###### Test CB Working Logic
+
+```cpp
+// Test cbs_is_working_() returns false when all lists empty
+EXPECT_FALSE(cache.cbs_is_working_());
+
+// Test free>0 causes cbs_is_working_() true
+// This is the condition causing deadlock in abort path
+```
+
+###### Test State Transitions
+
+```cpp
+// COLLECTING -> AGGR_FAILED is valid (force abort)
+EXPECT_EQ(OB_SUCCESS, is_valid_transition(PRIMARY_COLLECTING, PRIMARY_AGGR_FAILED));
+
+// AGGR_FAILED is terminal - no further transitions
+EXPECT_EQ(OB_STATE_NOT_MATCH, is_valid_transition(PRIMARY_AGGR_FAILED, PRIMARY_COLLECTING));
+```
+
+##### Constraints
+
+- Always handle `free_hotspot_cbs_` in abort/cleanup paths
+- Never assume free CBs will be released by clog callback
+- Check `redo_flush_status_` (actual state), not `redo_status` (parameter)
+- Terminal states block all further aggregation operations
+  ✓  Embedded: ob-hotspot-aggregation
+<!-- OB_TOOL_ENV_END -->

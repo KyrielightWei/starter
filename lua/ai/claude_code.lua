@@ -446,11 +446,40 @@ local function find_best_model_for_type(provider_def, target_type, version)
 end
 
 ----------------------------------------------------------------------
+-- Helper: Check if provider requires prefix in model names
+-- Some proxies like glink require the full model name format (e.g., glink/claude-opus-4-7)
+----------------------------------------------------------------------
+local function provider_requires_prefix(provider_name, provider_def)
+  -- Check if static_models all have a "/" prefix pattern
+  if provider_def and provider_def.static_models then
+    for _, model in ipairs(provider_def.static_models) do
+      if model:match("^" .. provider_name .. "/") then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+----------------------------------------------------------------------
+-- Helper: Build model name with provider prefix if required
+----------------------------------------------------------------------
+local function build_model_name(provider_name, provider_def, model_id)
+  if provider_requires_prefix(provider_name, provider_def) then
+    return provider_name .. "/" .. model_id
+  end
+  return model_id
+end
+
+----------------------------------------------------------------------
 -- Helper: Resolve all Claude model env vars from user's selected model
 -- Returns: { opus_model, sonnet_model, haiku_model, small_fast_model }
 ----------------------------------------------------------------------
-local function resolve_claude_models(provider_def, selected_model)
+local function resolve_claude_models(provider_name, provider_def, selected_model)
   local selected_type, selected_version = detect_model_type_and_version(selected_model)
+
+  -- Determine if we need to keep the provider prefix
+  local needs_prefix = provider_requires_prefix(provider_name, provider_def)
 
   -- Normalize selected model ID
   local selected_id = selected_model
@@ -459,29 +488,50 @@ local function resolve_claude_models(provider_def, selected_model)
   end
   selected_id = selected_id:gsub("%.", "-")
 
+  -- Build full model name if prefix is required
+  local full_selected = needs_prefix and (provider_name .. "/" .. selected_id) or selected_id
+
   -- Resolve each model based on selected type
+  -- For models not in static_models, we build them using standard format
   local opus_model, sonnet_model, haiku_model
+
+  -- Helper to get model from static_models or build one
+  local function get_model_for_type(target_type)
+    -- First try to find in static_models
+    if provider_def and provider_def.static_models then
+      for _, model in ipairs(provider_def.static_models) do
+        local m_type, _ = detect_model_type_and_version(model)
+        if m_type == target_type then
+          -- Found in static_models, use it directly (with prefix if present)
+          return model
+        end
+      end
+    end
+    -- Not found, build one
+    local base_id = build_model_id(target_type, selected_version)
+    return needs_prefix and (provider_name .. "/" .. base_id) or base_id
+  end
 
   if selected_type == "opus" then
     -- User selected opus → use it, find matching sonnet/haiku
-    opus_model = selected_id
-    sonnet_model = find_best_model_for_type(provider_def, "sonnet", selected_version)
-    haiku_model = find_best_model_for_type(provider_def, "haiku", selected_version)
+    opus_model = full_selected
+    sonnet_model = get_model_for_type("sonnet")
+    haiku_model = get_model_for_type("haiku")
   elseif selected_type == "sonnet" then
     -- User selected sonnet → use it, find matching opus/haiku
-    opus_model = find_best_model_for_type(provider_def, "opus", selected_version)
-    sonnet_model = selected_id
-    haiku_model = find_best_model_for_type(provider_def, "haiku", selected_version)
+    opus_model = get_model_for_type("opus")
+    sonnet_model = full_selected
+    haiku_model = get_model_for_type("haiku")
   elseif selected_type == "haiku" then
     -- User selected haiku → use it, find matching opus/sonnet
-    opus_model = find_best_model_for_type(provider_def, "opus", selected_version)
-    sonnet_model = find_best_model_for_type(provider_def, "sonnet", selected_version)
-    haiku_model = selected_id
+    opus_model = get_model_for_type("opus")
+    sonnet_model = get_model_for_type("sonnet")
+    haiku_model = full_selected
   else
     -- Unknown type → use selected for all (fallback behavior)
-    opus_model = selected_id
-    sonnet_model = selected_id
-    haiku_model = selected_id
+    opus_model = full_selected
+    sonnet_model = full_selected
+    haiku_model = full_selected
   end
 
   -- Small fast model = haiku (fastest)
@@ -624,7 +674,7 @@ local function build_provider_settings()
   -- 3. Provider uses custom model names (via base_url_claude) → use selected model for all
   if is_claude_model then
     -- User selected a Claude model → smart mapping
-    local models = resolve_claude_models(provider_def, model)
+    local models = resolve_claude_models(provider_name, provider_def, model)
     env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = models.opus_model
     env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = models.sonnet_model
     env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = models.haiku_model

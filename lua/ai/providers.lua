@@ -228,4 +228,27 @@ M.register("zenmux", {
     },
   },
 })
+
+----------------------------------------------------------------------
+-- Glink Provider - Claude Opus 4.x 本地代理
+-- 使用本地代理服务器访问 Anthropic Claude API
+-- 模型名称格式: glink/<model-id>
+----------------------------------------------------------------------
+M.register("glink", {
+  api_key_name = "ANTHROPIC_AUTH_TOKEN",
+  endpoint = "http://127.0.0.1:9129",
+  model = "glink/claude-opus-4-7", -- 默认使用最强模型
+  static_models = { "glink/claude-opus-4-7", "glink/claude-opus-4-6" },
+  model_info = {
+    ["glink/claude-opus-4-7"] = {
+      limit = { context = 200000, output = 32000 },
+      description = "Claude Opus 4.7，Anthropic 最新旗舰推理模型，顶级代码能力",
+    },
+    ["glink/claude-opus-4-6"] = {
+      limit = { context = 200000, output = 32000 },
+      description = "Claude Opus 4.6，Anthropic 上一代旗舰模型，强大推理能力",
+    },
+  },
+})
+
 return M

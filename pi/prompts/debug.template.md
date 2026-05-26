@@ -1,37 +1,81 @@
 ---
-description: Systematic debugging - hypothesis-driven, bisect-based
-argument-hint: "<symptom or error message>"
+description: Debug the issue by following systematic debugging workflow
+argument-hint: "<issue-description>"
 ---
 
 <!--
 ╔════════════════════════════════════════════════════════════════════════╗
 ║  Prompt Template - Debug                                               ║
 ║                                                                        ║
-║  安装: cp pi/prompts/debug.template.md ~/.pi/agent/prompts/debug.md    ║
-║  调用: /debug <symptom>                                                ║
+║  安装: 复制到 ~/.pi/agent/prompts/debug.md                              ║
+║  调用: /debug <issue>                                                  ║
 ╚════════════════════════════════════════════════════════════════════════╝
 -->
 
-Debug systematically: **$@**
+Debug this issue: $@
 
-## Method
+## Systematic Debugging Process
 
-1. **State the symptom precisely**. What is the input, the observed output, the expected output? If any is unclear, ask before guessing.
-2. **Form hypotheses** (at least 2). Rank by likelihood × cheapness-to-test.
-3. **Design the cheapest discriminating experiment**. Often: add a single log, run with a known input, bisect git history.
-4. **Run the experiment**, **read the output verbatim**, update beliefs.
-5. **Repeat** until a single hypothesis stands. Do not implement a fix during this loop.
-6. **Once root cause is identified**, propose the smallest fix that addresses it. Explain why your fix maps to the cause.
-7. **Add a regression test** before applying the fix. Confirm it fails. Apply fix. Confirm it passes.
+### 1. Collect Information
 
-## Anti-patterns to avoid
+- What is the expected behavior?
+- What is the actual behavior?
+- What are the error messages/logs?
+- When did the problem start?
+- What changed recently?
 
-- Speculating without running the experiment ("it might be...")
-- Changing multiple things at once ("let me also clean up X")
-- Adding defensive code "just in case" without proving the case exists
-- Stopping at the first plausible cause when a deeper cause is upstream
-- Skipping the regression test ("it's just a one-line fix")
+### 2. Determine Scope
 
-## If stuck
+- Which module?
+- Which function?
+- Which file?
+- Which call path?
 
-State explicitly: "I have no high-confidence hypothesis." List what you ruled out. Ask for help — do not guess.
+### 3. Simplify
+
+- Create minimal reproduction
+- Remove unrelated code
+- Isolate the environment
+
+### 4. Hypothesize and Verify
+
+For each hypothesis:
+- State the hypothesis clearly
+- Design verification method
+- Execute and record results
+
+### 5. Identify Root Cause
+
+Confirm the root cause with evidence:
+- Code logic error
+- Data issue
+- Configuration issue
+- Environment issue
+
+### 6. Propose Fix
+
+Based on root cause:
+- What to modify?
+- Why this modification?
+- Any side effects?
+- How to verify the fix?
+
+## Output Format
+
+After debugging:
+
+```markdown
+## Debugging Results
+
+### Issue
+[Issue description]
+
+### Root Cause
+[Root cause with evidence]
+
+### Fix
+[Fix proposal]
+
+### Verification
+[Steps to verify the fix works]
+```

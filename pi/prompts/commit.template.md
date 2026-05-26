@@ -1,42 +1,91 @@
 ---
-description: Generate a conventional commit message from staged changes
-argument-hint: "[scope-hint]"
+description: Create a well-structured git commit with conventional commit format
+argument-hint: "[message]"
 ---
 
 <!--
 ╔════════════════════════════════════════════════════════════════════════╗
 ║  Prompt Template - Commit                                              ║
 ║                                                                        ║
-║  安装: cp pi/prompts/commit.template.md ~/.pi/agent/prompts/commit.md  ║
-║  调用: /commit [scope-hint]                                            ║
+║  安装: 复制到 ~/.pi/agent/prompts/commit.md                             ║
+║  调用: /commit [message]                                               ║
 ╚════════════════════════════════════════════════════════════════════════╝
 -->
 
-Generate a conventional commit message for the **currently staged** changes.
+Create a commit for the staged changes.
 
-## Steps
+$@
 
-1. Run `git diff --cached --stat` then `git diff --cached`. Read carefully.
-2. If nothing is staged, stop and tell me — do not stage on your behalf.
-3. Detect the change nature:
-   - `feat`: new user-visible behavior
-   - `fix`: corrects wrong behavior
-   - `refactor`: no behavior change, only structure
-   - `docs` / `test` / `chore` / `perf` / `ci`: literal
-4. Pick a scope (one short noun for the affected module). Hint from user: **$1**
-5. Draft message:
-   ```
-   <type>(<scope>): <imperative summary, <72 chars>
+## Process
 
-   [Optional body: WHY, not WHAT. WHAT is in the diff.]
-   [Optional footer: Refs #123, BREAKING CHANGE: ...]
-   ```
-6. Show me the draft. **Do not commit** unless I confirm.
+### 1. Review Changes
 
-## Rules
+```bash
+git diff --cached --stat
+git diff --cached
+```
 
-- Imperative mood (`add`, not `added`)
-- No trailing period in the subject line
-- Body explains motivation, not file-by-file enumeration
-- Mark breaking changes explicitly in footer or with `!`: `feat(api)!: drop v1 endpoint`
-- Do not invent issue numbers or co-author tags
+### 2. Craft Commit Message
+
+Use conventional commit format:
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code refactor (no feature/fix)
+- `docs`: Documentation
+- `style`: Formatting (no code change)
+- `test`: Adding tests
+- `chore`: Maintenance
+
+**Scopes:**
+- Module name
+- Component name
+- Feature area
+
+### 3. Commit
+
+```bash
+git commit -m "type(scope): description"
+```
+
+## Guidelines
+
+- Atomic commit (one logical change)
+- Clear, descriptive message
+- Reference issues/PRs if applicable
+- No secrets or credentials
+
+## Example Messages
+
+```
+feat(ai): add model switching command
+
+Add /model command to switch between providers and models.
+Supports Ctrl+P cycling through scoped models.
+
+fix(state): correct state restoration on branch switch
+
+State was not correctly restored when switching branches
+in /tree view. Now properly reconstructs from session.
+
+refactor(providers): simplify provider registration
+
+Extract common logic into helper function. No behavior change.
+
+docs(README): update installation instructions
+
+Add note about --ignore-scripts flag.
+
+test(state): add unit tests for state manager
+
+Cover get, set, subscribe, and branch restoration.
+```

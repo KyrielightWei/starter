@@ -38,10 +38,10 @@ mkdir -p "$HOME/.config/mcp"
 cp "$SCRIPT_DIR/mcp.template.jsonc" "$HOME/.config/mcp/mcp.json"
 
 # ═════════════════════════════════════════════════════════════════════════
-# 复制扩展 (10 个)
+# 复制扩展 (13 个)
 # ═════════════════════════════════════════════════════════════════════════
 
-echo "🔌 复制扩展..."
+echo "🔌 复制扩展 (13 个)..."
 
 for f in "$SCRIPT_DIR"/extensions/*.template.ts; do
   if [ -f "$f" ]; then

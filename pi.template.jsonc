@@ -3,7 +3,7 @@
 
   // ═════════════════════════════════════════════════════════════════════════
   // Pi Settings 模板 - Bailian Coding Provider 🎨
-  // 修改后复制到 ~/.pi/agent/settings.json
+  // 当前配置复制到 ~/.pi/agent/settings.json
   // 或在 pi 中运行 /settings 调整常用选项
   // ═════════════════════════════════════════════════════════════════════════
 
@@ -22,15 +22,6 @@
   // off, minimal, low, medium, high, xhigh
   "defaultThinkingLevel": "medium",
 
-  // 自定义思考预算 (token)
-  "thinkingBudgets": {
-    "minimal": 1024,
-    "low": 4096,
-    "medium": 10240,
-    "high": 32768,
-    "xhigh": 65536
-  },
-
   // 隐藏思考块
   "hideThinkingBlock": false,
 
@@ -39,19 +30,7 @@
   // ───────────────────────────────────────────────────────────────────────
 
   // 主题名称 (自定义主题在 ~/.pi/agent/themes/ 目录)
-  "theme": "flexoki-dark",  // Flexoki 专注阅读主题
-
-  // 隐藏启动头部
-  "quietStartup": false,
-
-  // 双击 Escape 动作: tree, fork, none
-  "doubleEscapeAction": "tree",
-
-  // 编辑器水平填充 (0-3)
-  "editorPaddingX": 0,
-
-  // 自动完成最大显示项 (3-20)
-  "autocompleteMaxVisible": 5,
+  "theme": "flexoki-dark",
 
   // ───────────────────────────────────────────────────────────────────────
   // Compaction (上下文压缩) 📦
@@ -72,31 +51,24 @@
     "maxRetries": 3,
     "baseDelayMs": 2000,
     "provider": {
+      "timeoutMs": 3600000,  // 1小时超时 (当前配置)
       "maxRetryDelayMs": 60000
     }
   },
 
   // ───────────────────────────────────────────────────────────────────────
-  // Terminal & Images 🖼️
+  // Terminal 🖥️
   // ───────────────────────────────────────────────────────────────────────
 
   "terminal": {
-    "showImages": true,
-    "imageWidthCells": 60,
     "showTerminalProgress": true
   },
 
-  "images": {
-    "autoResize": true,
-    "blockImages": false
-  },
-
   // ───────────────────────────────────────────────────────────────────────
-  // Model Cycling (Ctrl+P) 🔃
+  // Transport 🚚
   // ───────────────────────────────────────────────────────────────────────
 
-  // 可循环的模型 (支持 glob)
-  "enabledModels": ["glm-5", "qwen3.*", "kimi-k2*"],
+  "transport": "sse",
 
   // ───────────────────────────────────────────────────────────────────────
   // Branch / Tree (会话分支)
@@ -107,64 +79,83 @@
     "skipPrompt": false
   },
 
-  // /tree 默认过滤模式: default | no-tools | user-only | labeled-only | all
-  "treeFilterMode": "default",
-
   // ───────────────────────────────────────────────────────────────────────
   // Message Delivery
   // ───────────────────────────────────────────────────────────────────────
 
-  // steeringMode / followUpMode: "all" 或 "one-at-a-time"
   "steeringMode": "one-at-a-time",
   "followUpMode": "one-at-a-time",
 
   // ───────────────────────────────────────────────────────────────────────
-  // Resources (扩展、技能、Prompt) 📚
+  // Packages (已安装) 📦
   // ───────────────────────────────────────────────────────────────────────
 
-  // 跨工具复用 skill (Claude Code / Codex 的 skill 目录)
-  // 路径在 ~/.pi/agent/settings.json 中相对 ~/.pi/agent 解析；~ 和绝对路径都支持
-  "skills": [
-    "~/.claude/skills",
-    "~/.codex/skills"
-  ],
-
-  // Pi 包 (npm 或 git)
   "packages": [
-    // Flexoki 专注阅读/代码主题
-    "npm:flexoki-pi-theme",
-    
     // Superpowers - 跨工具通用工程方法论 (brainstorming/TDD/debugging/...)
     "git:github.com/obra/superpowers",
 
-    // pi-mcp-adapter - MCP 支持（社区方案，单 proxy tool 避免 context bloat）
-    // 安装后可用 /mcp 命令；配置文件 ~/.config/mcp/mcp.json 或 .mcp.json
-    "npm:pi-mcp-adapter",
-
-    // Anthropic 官方 skill 包 - 文档处理 (docx/pdf/pptx/xlsx)、web 开发
-    "git:github.com/anthropics/skills",
-
-    // Pi 维护者的 skill 包 - web search / 浏览器 / Google APIs / transcription
-    "git:github.com/badlogic/pi-skills"
+    // Flexoki 专注阅读/代码主题
+    "npm:flexoki-pi-theme"
   ],
 
+  // ═════════════════════════════════════════════════════════════════════════
+  // 可选配置 (未启用，仅供参考)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // 自定义思考预算 (token)
+  // "thinkingBudgets": {
+  //   "minimal": 1024,
+  //   "low": 4096,
+  //   "medium": 10240,
+  //   "high": 32768,
+  //   "xhigh": 65536
+  // },
+
+  // 隐藏启动头部
+  // "quietStartup": false,
+
+  // 双击 Escape 动作: tree, fork, none
+  // "doubleEscapeAction": "tree",
+
+  // 编辑器水平填充 (0-3)
+  // "editorPaddingX": 0,
+
+  // 自动完成最大显示项 (3-20)
+  // "autocompleteMaxVisible": 5,
+
+  // 图片显示
+  // "terminal": {
+  //   "showImages": true,
+  //   "imageWidthCells": 60
+  // },
+  // "images": {
+  //   "autoResize": true,
+  //   "blockImages": false
+  // },
+
+  // 可循环的模型 (支持 glob)
+  // "enabledModels": ["glm-5", "qwen3.*", "kimi-k2*"],
+
+  // /tree 默认过滤模式
+  // "treeFilterMode": "default",
+
+  // 跨工具复用 skill (Claude Code / Codex 的 skill 目录)
+  // "skills": [
+  //   "~/.claude/skills",
+  //   "~/.codex/skills"
+  // ],
+
   // 启用技能命令 (/skill:name)
-  "enableSkillCommands": true,
+  // "enableSkillCommands": true,
 
-  // ───────────────────────────────────────────────────────────────────────
-  // Telemetry 📊
-  // ───────────────────────────────────────────────────────────────────────
+  // 可选 Packages (未安装)
+  // "npm:pi-mcp-adapter",           // MCP 支持
+  // "git:github.com/anthropics/skills", // Anthropic 官方 skill
+  // "git:github.com/badlogic/pi-skills", // Pi 维护者 skill
 
-  // 安装/更新遥测 (仅版本 ping)
-  // 禁用版本检查: PI_SKIP_VERSION_CHECK=1
-  // 禁用所有网络: PI_OFFLINE=1 或 --offline
-  "enableInstallTelemetry": true,
-
-  // ───────────────────────────────────────────────────────────────────────
-  // Warnings ⚠️
-  // ───────────────────────────────────────────────────────────────────────
-
-  "warnings": {
-    "anthropicExtraUsage": true
-  }
+  // 遥测和警告
+  // "enableInstallTelemetry": true,
+  // "warnings": {
+  //   "anthropicExtraUsage": true
+  // }
 }

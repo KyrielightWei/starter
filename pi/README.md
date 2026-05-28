@@ -21,7 +21,7 @@ pi/
 ├── restore.sh                      # 一键恢复脚本
 ├── optimize-existing.sh            # 优化现有配置脚本
 │
-├── extensions/                     # 扩展模板 (10 个，来自 Pi 官方 examples)
+├── extensions/                     # 扩展模板 (13 个)
 │   ├── statusbar.template.ts       # 三行状态栏（token/cache/context/git branch/cost）
 │   ├── todo.template.ts            # 会话内 TODO 管理
 │   ├── permission-gate.template.ts # 拦 rm -rf / sudo / chmod 777（弹出确认）
@@ -31,7 +31,10 @@ pi/
 │   ├── notify.template.ts          # OSC 终端通知（agent 等待用户输入）
 │   ├── handoff.template.ts         # lossless 跨 session 上下文转移
 │   ├── working-indicator.template.ts# 工作进度指示器
-│   └── enhanced-exit.template.ts   # 增强退出确认
+│   ├── enhanced-exit.template.ts   # 增强退出确认
+│   ├── claude-rules.template.ts    # 扫描 .claude/rules/ 规则文件
+│   ├── confirm-destructive.template.ts # 确认破坏性操作
+│   └── model-status.template.ts    # 模型状态显示
 │
 ├── skills/                         # 技能模板 (5 个本地 + superpowers 提供)
 │   └── openspec/SKILL.md           # SDD（spec-driven development）工作流

@@ -1,315 +1,216 @@
-# Pi 配置模板完整版
+# Pi 配置模板
 
-本目录包含 **Pi coding agent 的完整配置模板**，用于在新机器上快速恢复全部配置。
+本目录提供 Pi coding agent (`@earendil-works/pi-coding-agent`) 的完整配置模板：默认 settings、provider、快捷键、主题、扩展、自定义 skill、prompt 库、MCP server 列表，以及一键安装脚本。
+
+> Pi 是 [@earendil-works](https://github.com/earendil-works) 出品的极简终端 coding harness。文档：`/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs/`
 
 ## 📁 目录结构
 
 ```
 pi/
-├── README.md                      # 本文件
-├── CLI.md                         # CLI 命令行参考
-├── PACKAGES.md                    # 包管理文档
+├── README.md                       # 本文件
+├── CLI.md                          # CLI 命令行参考
+├── PACKAGES.md                     # 包管理文档
+├── AGENTS.template.md              # 全局工作流约定（→ ~/.pi/agent/AGENTS.md）
+├── models.template.jsonc           # Provider/Model 配置（bailian/ollama，其他注释）
+├── keybindings.template.jsonc      # 快捷键（Emacs 风格 + Pi 命名空间）
+├── theme.template.jsonc            # Kanagawa Wave 主题
+├── mcp.template.jsonc              # MCP server 列表（→ ~/.config/mcp/mcp.json，跨工具共享）
+├── restore.sh                      # 一键恢复脚本
+├── optimize-existing.sh            # 优化现有配置脚本
 │
-├── settings.template.jsonc        # 完整 settings.json 模板
-├── models.template.jsonc          # Provider/Model 配置
-├── keybindings.template.jsonc     # 快捷键配置
-├── theme.template.json            # Kanagawa 主题
-├── AGENTS.template.md             # Agent 指令模板
+├── extensions/                     # 扩展模板 (10 个)
+│   ├── statusbar.template.ts       # 三行状态栏（token/cache/context/git branch/cost）
+│   ├── todo.template.ts            # 会话内 TODO 管理
+│   ├── permission-gate.template.ts # 安全防线（危险命令+路径保护，合并版）
+│   ├── git-checkpoint.template.ts  # 每个 turn 自动 git stash，/fork 可回滚
+│   ├── dirty-repo-guard.template.ts# 工作区脏时禁止切 session
+│   ├── notify.template.ts          # OSC 终端通知（agent 等待用户输入）
+│   ├── handoff.template.ts         # lossless 跨 session 上下文转移
+│   ├── working-indicator.template.ts# 工作进度指示器
+│   └── enhanced-exit.template.ts   # 增强退出确认
 │
-├── extensions/                    # 扩展模板
-│   ├── statusbar.template.ts      # 三行状态栏
-│   ├── todo.template.ts           # TODO 管理
-│   ├── permission-gate.template.ts # 权限门控
-│   ├── git-checkpoint.template.ts # Git checkpoint
-│   ├── working-indicator.template.ts # 工作指示器
-│   └── enhanced-exit.template.ts  # 增强退出
-│
-├── skills/                        # 技能模板
-│   ├── openspec/SKILL.md          # Spec-driven development
-│   ├── brainstorming/SKILL.md     # 需求探索
-│   ├── systematic-debugging/SKILL.md # 系统化调试
-│   ├── test-driven-development/SKILL.md # TDD
-│   ├── using-git-worktrees/SKILL.md # Git worktree
+├── skills/                         # 技能模板 (5 个本地 + superpowers 提供)
+│   └── openspec/SKILL.md           # SDD（spec-driven development）工作流
+│   └── systematic-debugging/SKILL.md # 系统化调试流程
+│   └── test-driven-development/SKILL.md # TDD 循环
+│   └── using-git-worktrees/SKILL.md # Git worktree 工作流
 │   └── verification-before-completion/SKILL.md # 完成前验证
 │
-└── prompts/                       # Prompt 模板
-    ├── review.template.md         # 代码审查
-    ├── refactor.template.md       # 重构
-    ├── debug.template.md          # 调试
-    ├── implement.template.md      # TDD 实现
-    ├── explain.template.md        # 解释代码
-    ├── commit.template.md         # 提交
-    └── plan.template.md           # 计划
+└── prompts/                        # /command 模板 (12 个)
+    ├── review.template.md          # 代码审查
+    ├── refactor.template.md        # 重构
+    ├── test.template.md            # 测试生成
+    ├── commit.template.md          # 提交消息
+    ├── pr.template.md              # PR 创建
+    ├── debug.template.md           # 调试
+    ├── security.template.md        # 安全检查
+    ├── docs.template.md            # 文档生成
+    ├── explain.template.md         # 代码解释
+    ├── perf.template.md            # 性能分析
+    ├── implement.template.md       # TDD 实现
+    └── plan.template.md            # 计划
 ```
 
-根目录还有:
-- `pi.template.jsonc` - 主配置模板 (历史兼容，建议使用 settings.template.jsonc)
+根目录还有 `pi.template.jsonc`（主 settings，→ `~/.pi/agent/settings.json`）。
 
 ---
 
-## 🚀 快速恢复配置
-
-### 1. 创建目录结构
+## 🚀 一键安装
 
 ```bash
-mkdir -p ~/.pi/agent/{themes,extensions,skills,prompts,sessions}
-mkdir -p ~/.pi/agent/skills/{openspec,brainstorming,systematic-debugging,test-driven-development,using-git-worktrees,verification-before-completion}
+./scripts/install-pi-dev.sh
 ```
 
-### 2. 复制核心配置
-
-```bash
-# 主配置 (完整版)
-cp pi/settings.template.jsonc ~/.pi/agent/settings.json
-
-# Provider/Model 配置
-cp pi/models.template.jsonc ~/.pi/agent/models.json
-
-# 快捷键配置
-cp pi/keybindings.template.jsonc ~/.pi/agent/keybindings.json
-
-# 主题
-cp pi/theme.template.json ~/.pi/agent/themes/kanagawa.json
-
-# Agent 指令 (全局)
-cp pi/AGENTS.template.md ~/.pi/agent/AGENTS.md
-```
-
-### 3. 安装扩展
-
-```bash
-# 复制所有扩展 (去掉 .template 后缀)
-for f in pi/extensions/*.template.ts; do
-  name=$(basename "$f" .template.ts)
-  cp "$f" ~/.pi/agent/extensions/"$name".ts
-done
-```
-
-扩展列表：
-| 扩展 | 功能 |
-|------|------|
-| `statusbar.ts` | 三行状态栏 (Token/Context/Model) |
-| `todo.ts` | TODO 管理工具 |
-| `permission-gate.ts` | 危险命令确认 |
-| `git-checkpoint.ts` | Git stash checkpoint |
-| `working-indicator.ts` | 工作进度指示器 |
-| `enhanced-exit.ts` | 增强退出确认 |
-
-### 4. 安装技能
-
-```bash
-# 复制所有技能
-for dir in pi/skills/*/; do
-  name=$(basename "$dir")
-  mkdir -p ~/.pi/agent/skills/$name
-  cp "$dir/SKILL.md" ~/.pi/agent/skills/$name/SKILL.md
-done
-```
-
-技能列表：
-| 技能 | 功能 |
-|------|------|
-| `openspec` | Spec-driven development 工作流 |
-| `brainstorming` | 需求探索流程 |
-| `systematic-debugging` | 系统化调试流程 |
-| `test-driven-development` | TDD 循环 |
-| `using-git-worktrees` | Git worktree 工作流 |
-| `verification-before-completion` | 完成前验证 |
-
-### 5. 安装 Prompt 模板
-
-```bash
-# 复制所有 prompt 模板 (去掉 .template 后缀)
-for f in pi/prompts/*.template.md; do
-  name=$(basename "$f" .template.md)
-  cp "$f" ~/.pi/agent/prompts/$name.md
-done
-```
-
-Prompt 模板列表：
-| 模板 | 功能 |
-|------|------|
-| `review.md` | 代码审查 `/review` |
-| `refactor.md` | 重构 `/refactor` |
-| `debug.md` | 调试 `/debug` |
-| `implement.md` | TDD 实现 `/implement` |
-| `explain.md` | 解释代码 `/explain` |
-| `commit.md` | 提交 `/commit` |
-| `plan.md` | 计划 `/plan` |
-
-### 6. 设置 API Key
-
-```bash
-# 方法 1: 环境变量 (推荐)
-export OPENAI_API_KEY="your-api-key"
-export ANTHROPIC_API_KEY="your-api-key"
-
-# 方法 2: 在 models.json 中配置
-# apiKey 字段支持:
-#   - 环境变量: "VAR_NAME"
-#   - Shell 命令: "!command" (如 1Password: "!op read 'op://vault/item'")
-#   - 直接值: "sk-..." (不要提交到版本控制)
-```
-
-### 7. 安装 Pi 包 (可选)
-
-```bash
-# 安装 superpowers 技能包
-pi install git:github.com/obra/superpowers
-
-# 其他推荐包
-pi install npm:@earendil-works/pi-mcp  # MCP 集成
-```
-
-### 8. 验证配置
-
-```bash
-# 启动 pi
-pi
-
-# 在 pi 中验证:
-/settings    # 查看设置
-/model       # 查看可用模型
-/hotkeys     # 查看快捷键
-/statusbar   # 切换状态栏
-/todos       # 查看 TODO
-/brainstorming  # 使用技能
-/review      # 使用 prompt 模板
-```
+脚本会：
+1. 创建 `~/.pi/agent/` 目录结构和 `~/.config/mcp/`
+2. 拷贝所有模板（已存在文件备份为 `*.bak.<timestamp>`）
+3. 通过 `pi install` 装 community packages：
+   - `git:github.com/obra/superpowers` — 14 个工程方法论 skill
+   - `npm:pi-mcp-adapter` — MCP 支持
+   - `git:github.com/anthropics/skills` — 文档处理
+   - `git:github.com/badlogic/pi-skills` — web search / 浏览器 / Google API
 
 ---
 
-## 📋 配置详解
+## 🔑 配 API key
 
-### settings.json (主配置)
+`models.json` 默认 provider 是百炼编码版。设置环境变量：
 
-完整配置项列表：
+```bash
+export BAILIAN_CODING_API_KEY="sk-..."
 
-| 类别 | 配置项 | 说明 |
-|------|--------|------|
-| **Model** | `defaultProvider` | 默认 Provider |
-| | `defaultModel` | 默认 Model |
-| | `defaultThinkingLevel` | 思考级别 (off/minimal/low/medium/high/xhigh) |
-| **UI** | `theme` | 主题名称 |
-| | `quietStartup` | 隐藏启动 header |
-| **Compaction** | `compaction.enabled` | 自动压缩 |
-| | `compaction.reserveTokens` | LLM 响应预留 |
-| **Retry** | `retry.maxRetries` | 最大重试次数 |
-| **Terminal** | `terminal.showImages` | 显示图片 |
-| **Packages** | `packages[]` | Pi 包列表 |
+# MCP 用到的（按需）
+export GITHUB_PERSONAL_ACCESS_TOKEN="ghp_..."
+export DATABASE_URL="postgres://..."
+```
 
-详见 `settings.template.jsonc`。
+也可在 `models.json` 里直接写值（不推荐入 git）或 `!command` 形式从外部读取。
 
-### models.json (Provider 配置)
+---
 
-Provider 配置结构：
+## 🎯 设计要点
 
+### 跨工具 skill 复用
+
+`pi.template.jsonc` 配置了：
+```json
+"skills": ["~/.claude/skills", "~/.codex/skills"]
+```
+Pi 会直接读取这两个目录下的 skill，无需复制。Claude Code / Codex CLI 写的 skill 立即对 Pi 可用，反之亦然。
+
+**Superpowers 包提供的 Skills (14 个)**：
+- brainstorming, systematic-debugging, test-driven-development
+- using-git-worktrees, verification-before-completion
+- dispatching-parallel-agents, subagent-driven-development
+- executing-plans, writing-plans, writing-skills
+- requesting-code-review, receiving-code-review
+- finishing-a-development-branch, using-superpowers
+
+### MCP 支持（社区方案）
+
+Pi 官方故意不内置 MCP（[原因见 Mario 博文](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/)），通过 [`pi-mcp-adapter`](https://github.com/nicobailon/pi-mcp-adapter) 接入。
+
+特性：
+- **Lazy 启动** — server 首次 tool call 才连接
+- **单 proxy tool** — `mcp({...})` 接管所有 server（仅 ~200 tokens，替代直接注入 10k+ tokens 的 tool 定义）
+- **按需 directTools** — 高频工具可提升为顶级 pi tool
+- **metadata 缓存** — `/mcp` 搜索/列表无需活连接
+- **跨工具配置导入** — `/mcp setup` 可吸收 cursor/claude-code/codex 的 mcp 配置
+- **OAuth 自动化** — `autoAuth: true` 时按需走 OAuth
+
+常用：
+```
+/mcp                                          # 状态面板
+/mcp setup                                    # 首次向导
+mcp({ search: "screenshot navigate" })        # 找工具
+mcp({ describe: "chrome_devtools_navigate" }) # 看签名
+mcp({ tool: "chrome_devtools_navigate",       # 调用
+       args: '{"url": "..."}' })
+```
+
+### 安全 extension 防线
+
+Pi 没有 OpenCode/Claude Code 那种 JSON permission DSL，安全靠 extension：
+
+| Extension | 职责 |
+|---|---|
+| `permission-gate` | 拦截危险命令 (rm -rf / sudo / chmod 777) + 敏感文件保护 + 系统路径保护 |
+| `git-checkpoint` | 每个 turn 自动 `git stash`，可在 `/fork` 时回滚代码状态 |
+| `dirty-repo-guard` | 工作区有未提交改动时阻止 `/clear`、`/new`、`/switch` |
+
+**注意**: `permission-gate.template.ts` 已整合路径保护功能，无需单独安装 `protected-paths`。
+
+### 状态栏
+
+`extensions/statusbar.template.ts` 提供三行状态栏：
+1. **第一行**：模式（⚡Running / ✓Idle）+ 累计 input/output/cost/cache 命中率 + 速度 + turn 数 + 会话时长
+2. **第二行**：当前 git branch + cwd + provider/model + context window 大小
+3. **第三行**：context 进度条（>60% 黄色，>85% 红色）
+
+切换：`/statusbar`
+
+---
+
+## 🧩 添加新内容
+
+### 新 Provider
+编辑 `pi/models.template.jsonc`：
 ```json
 {
   "providers": {
-    "<provider-name>": {
-      "name": "显示名称",
-      "baseUrl": "API endpoint",
-      "api": "openai-completions | anthropic | google",
-      "apiKey": "VAR_NAME | !command | direct-value",
-      "compat": {
-        "supportsDeveloperRole": false,
-        "supportsReasoningEffort": false
-      },
-      "models": [
-        { "id": "model-id", "name": "显示名称", "contextWindow": 200000 }
-      ]
+    "my-provider": {
+      "baseUrl": "https://api.example.com/v1",
+      "api": "openai-completions",
+      "apiKey": "MY_API_KEY",
+      "models": [{ "id": "model-1", "name": "Model 1" }]
     }
   }
 }
 ```
+重装：`./scripts/install-pi-dev.sh`
 
-### 快捷键配置
+### 新 Extension
+1. 在 `pi/extensions/` 新建 `<name>.template.ts`（参考 Pi 官方 `examples/extensions/` 70+ 模板）
+2. `./scripts/install-pi-dev.sh` 重装
+3. 在 pi 内 `/reload`
 
-完整快捷键映射，详见 `keybindings.template.jsonc`。
+### 新 Skill
+项目独有的 skill 放 `pi/skills/<name>/SKILL.md`，跑 install 脚本。
+通用 skill 优先用 community package（`pi install ...`），不要重复造。
 
-常用：
-| 键 | 功能 |
-|-----|------|
-| `Ctrl+L` | 模型选择器 |
-| `Ctrl+P` | 循环模型 |
-| `Shift+Tab` | 循环思考级别 |
-| `Ctrl+O` | 折叠工具输出 |
-| `Ctrl+T` | 折叠思考块 |
+### 新 Prompt
+在 `pi/prompts/` 加 `<name>.template.md`，frontmatter：
+```yaml
+---
+description: One-line description shown in autocomplete
+argument-hint: "<required-arg>"   # 或 "[optional-arg]"
+---
+```
+重装后 `/name` 可用。
 
 ---
 
-## 📚 文档参考
+## 🆚 与其他工具的关系
 
-| 文档 | 内容 |
-|------|------|
-| `CLI.md` | CLI 命令行完整参考 |
-| `PACKAGES.md` | 包安装和管理 |
+| 工具 | 配置位置 | 本仓库模板 |
+|---|---|---|
+| OpenCode | `~/.config/opencode/` | `opencode.template.jsonc` |
+| Claude Code | `~/.claude/` | `claude_code.template.jsonc` |
+| Pi | `~/.pi/agent/` | `pi.template.jsonc` + `pi/` |
+| MCP（共享） | `~/.config/mcp/mcp.json` | `pi/mcp.template.jsonc` |
+
+`lua/ai/` 模块统一管理前两者；Pi 独立用本目录 + community packages。
 
 ---
 
 ## 🔗 相关链接
 
-- Pi 主文档: `/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/README.md`
-- 扩展文档: `/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs/extensions.md`
-- 主题文档: `/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs/themes.md`
-- Settings 文档: `/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs/settings.md`
-
----
-
-## 📝 与本项目其他模板的关系
-
-| 工具 | 模板文件 | 配置目录 |
-|------|----------|----------|
-| OpenCode | `opencode.template.jsonc` + `templates/opencode/` | `~/.config/opencode/` |
-| Claude Code | `claude_code.template.jsonc` + `templates/claude_code/` | `~/.claude/` |
-| Pi | `pi/settings.template.jsonc` + `pi/` | `~/.pi/agent/` |
-
-本项目统一管理三个 AI 工具的配置模板，便于跨机器同步。
-
----
-
-## 🔄 一键恢复脚本
-
-创建恢复脚本 `restore-pi-config.sh`：
-
-```bash
-#!/bin/bash
-# 从模板恢复 Pi 配置
-
-PI_DIR=~/.pi/agent
-TEMPLATE_DIR=/root/tool/starter/pi
-
-# 创建目录
-mkdir -p "$PI_DIR"/{themes,extensions,skills,prompts,sessions}
-mkdir -p "$PI_DIR"/skills/{openspec,brainstorming,systematic-debugging,test-driven-development,using-git-worktrees,verification-before-completion}
-
-# 复制核心配置
-cp "$TEMPLATE_DIR/settings.template.jsonc" "$PI_DIR/settings.json"
-cp "$TEMPLATE_DIR/models.template.jsonc" "$PI_DIR/models.json"
-cp "$TEMPLATE_DIR/keybindings.template.jsonc" "$PI_DIR/keybindings.json"
-cp "$TEMPLATE_DIR/theme.template.json" "$PI_DIR/themes/kanagawa.json"
-cp "$TEMPLATE_DIR/AGENTS.template.md" "$PI_DIR/AGENTS.md"
-
-# 复制扩展
-for f in "$TEMPLATE_DIR/extensions/*.template.ts"; do
-  name=$(basename "$f" .template.ts)
-  cp "$f" "$PI_DIR/extensions/$name.ts"
-done
-
-# 复制技能
-for dir in "$TEMPLATE_DIR/skills/*/"; do
-  name=$(basename "$dir")
-  mkdir -p "$PI_DIR/skills/$name"
-  cp "$dir/SKILL.md" "$PI_DIR/skills/$name/SKILL.md"
-done
-
-# 复制 prompts
-for f in "$TEMPLATE_DIR/prompts/*.template.md"; do
-  name=$(basename "$f" .template.md)
-  cp "$f" "$PI_DIR/prompts/$name.md"
-done
-
-echo "✓ Pi 配置已恢复"
-echo "运行 'pi' 验证配置"
-```
+- Pi 官方文档：`/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/docs/`
+- Pi 官方示例：`/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/examples/extensions/`
+- Pi 发布博文：[mariozechner.at/posts/2025-11-30-pi-coding-agent](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/)
+- Skills 标准：[agentskills.io/specification](https://agentskills.io/specification)
+- Superpowers：[github.com/obra/superpowers](https://github.com/obra/superpowers)
+- pi-mcp-adapter：[github.com/nicobailon/pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter)
+- Anthropic Skills：[github.com/anthropics/skills](https://github.com/anthropics/skills)
+- Pi Skills（badlogic）：[github.com/badlogic/pi-skills](https://github.com/badlogic/pi-skills)

@@ -91,11 +91,16 @@
   // ───────────────────────────────────────────────────────────────────────
 
   "packages": [
-    // Superpowers - 跨工具通用工程方法论 (brainstorming/TDD/debugging/...)
-    "git:github.com/obra/superpowers",
-
-    // Flexoki 专注阅读/代码主题
-    "npm:flexoki-pi-theme"
+    "git:github.com/obra/superpowers",      // 14 skills (brainstorming/TDD/debugging/...)
+    "npm:flexoki-pi-theme",               // Flexoki 专注阅读主题
+    "npm:pi-markdown-preview",             // Markdown + LaTeX 渲染
+    "npm:pi-subagents",                    // 子代理委托
+    "npm:pi-mcp-adapter",                  // MCP 协议支持
+    "npm:pi-web-access",                   // Web 搜索 / URL fetch
+    "npm:pi-ask-user",                     // 交互式询问 UI
+    "git:github.com/anthropics/skills",    // 17 官方 skills (docx/pdf/...)
+    "git:github.com/badlogic/pi-skills",   // 10 skills (search/...)
+    "npm:@fission-ai/openspec"             // SDD 工作流
   ],
 
   // ═════════════════════════════════════════════════════════════════════════

@@ -39,7 +39,7 @@
   // ───────────────────────────────────────────────────────────────────────
 
   // 主题名称 (自定义主题在 ~/.pi/agent/themes/ 目录)
-  "theme": "kanagawa",
+  "theme": "flexoki-dark",  // Flexoki 专注阅读主题
 
   // 隐藏启动头部
   "quietStartup": false,
@@ -131,6 +131,9 @@
 
   // Pi 包 (npm 或 git)
   "packages": [
+    // Flexoki 专注阅读/代码主题
+    "npm:flexoki-pi-theme",
+    
     // Superpowers - 跨工具通用工程方法论 (brainstorming/TDD/debugging/...)
     "git:github.com/obra/superpowers",
 

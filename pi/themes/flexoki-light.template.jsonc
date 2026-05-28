@@ -1,27 +1,27 @@
 {
   "$schema": "https://raw.githubusercontent.com/badlogic/pi-mono/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
-  "name": "flexoki-dark",
+  "name": "flexoki-light",
   "vars": {
-    "black": "#100F0F",
-    "bg2": "#282726",
-    "ui": "#343331",
-    "uiHover": "#403E3C",
-    "uiActive": "#575653",
-    "txFaint": "#575653",
-    "txMuted": "#878580",
-    "tx": "#CECDC3",
-    "re": "#D14D41",
-    "or": "#DA702C",
-    "ye": "#D0A215",
-    "gr": "#879A39",
-    "cy": "#3AA99F",
-    "bl": "#4385BE",
-    "pu": "#8B7EC8",
-    "ma": "#CE5D97"
+    "paper": "#FFFCF0",
+    "bg2": "#F2F0E5",
+    "ui": "#E6E4D9",
+    "uiHover": "#DAD8CE",
+    "uiActive": "#CECDC3",
+    "txFaint": "#CECDC3",
+    "txMuted": "#9F9D96",
+    "tx": "#878580",
+    "re": "#AF3029",
+    "or": "#BC5215",
+    "ye": "#AD8301",
+    "gr": "#66800B",
+    "cy": "#24837B",
+    "bl": "#205EA6",
+    "pu": "#5E409D",
+    "ma": "#A02F6F"
   },
   "colors": {
     "accent": "cy",
-    "border": "ui",
+    "border": "uiActive",
     "borderAccent": "cy",
     "borderMuted": "txFaint",
     "success": "gr",
@@ -33,14 +33,14 @@
     "thinkingText": "txMuted",
 
     "selectedBg": "uiHover",
-    "userMessageBg": "ui",
+    "userMessageBg": "bg2",
     "userMessageText": "",
     "customMessageBg": "bg2",
     "customMessageText": "",
     "customMessageLabel": "pu",
     "toolPendingBg": "bg2",
-    "toolSuccessBg": "#313D07",
-    "toolErrorBg": "#551B18",
+    "toolSuccessBg": "#EDEECF",
+    "toolErrorBg": "#FFE1D5",
     "toolTitle": "",
     "toolOutput": "txMuted",
 
@@ -79,8 +79,8 @@
     "bashMode": "gr"
   },
   "export": {
-    "pageBg": "#100F0F",
-    "cardBg": "#282726",
-    "infoBg": "#3A2D04"
+    "pageBg": "#FFFCF0",
+    "cardBg": "#F2F0E5",
+    "infoBg": "#FAEEC6"
   }
 }

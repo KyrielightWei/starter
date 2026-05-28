@@ -30,7 +30,7 @@ cp "$SCRIPT_DIR/../pi.template.jsonc" "$PI_DIR/settings.json"
 
 cp "$SCRIPT_DIR/models.template.jsonc" "$PI_DIR/models.json"
 cp "$SCRIPT_DIR/keybindings.template.jsonc" "$PI_DIR/keybindings.json"
-cp "$SCRIPT_DIR/theme.template.jsonc" "$PI_DIR/themes/kanagawa.json"
+cp "$SCRIPT_DIR/theme.template.jsonc" "$PI_DIR/themes/flexoki-dark.json"
 cp "$SCRIPT_DIR/AGENTS.template.md" "$PI_DIR/AGENTS.md"
 
 # MCP 配置 (跨工具共享)

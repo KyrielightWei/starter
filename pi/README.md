@@ -14,7 +14,9 @@ pi/
 ├── AGENTS.template.md              # 全局工作流约定（→ ~/.pi/agent/AGENTS.md）
 ├── models.template.jsonc           # Provider/Model 配置（bailian/ollama，其他注释）
 ├── keybindings.template.jsonc      # 快捷键（Emacs 风格 + Pi 命名空间）
-├── theme.template.jsonc            # Kanagawa Wave 主题
+├── theme.template.jsonc            # Flexoki Dark 主题 (专注阅读/代码)
+├── themes/                         # 可选主题
+│   └── flexoki-light.template.jsonc # Flexoki Light 主题
 ├── mcp.template.jsonc              # MCP server 列表（→ ~/.config/mcp/mcp.json，跨工具共享）
 ├── restore.sh                      # 一键恢复脚本
 ├── optimize-existing.sh            # 优化现有配置脚本

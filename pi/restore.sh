@@ -17,7 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "📁 创建目录结构..."
 
 mkdir -p "$PI_DIR"/{themes,extensions,skills,prompts,sessions}
-mkdir -p "$PI_DIR"/skills/{openspec,systematic-debugging,test-driven-development,using-git-worktrees,verification-before-completion}
+mkdir -p "$PI_DIR"/extensions/plan-mode
+mkdir -p "$PI_DIR"/skills/openspec
 
 # ═════════════════════════════════════════════════════════════════════════
 # 复制核心配置
@@ -25,9 +26,8 @@ mkdir -p "$PI_DIR"/skills/{openspec,systematic-debugging,test-driven-development
 
 echo "⚙️ 复制核心配置..."
 
-# 主 settings (使用根目录的 pi.template.jsonc)
+# 主 settings
 cp "$SCRIPT_DIR/../pi.template.jsonc" "$PI_DIR/settings.json"
-
 cp "$SCRIPT_DIR/models.template.jsonc" "$PI_DIR/models.json"
 cp "$SCRIPT_DIR/keybindings.template.jsonc" "$PI_DIR/keybindings.json"
 cp "$SCRIPT_DIR/theme.template.jsonc" "$PI_DIR/themes/flexoki-dark.json"
@@ -38,10 +38,10 @@ mkdir -p "$HOME/.config/mcp"
 cp "$SCRIPT_DIR/mcp.template.jsonc" "$HOME/.config/mcp/mcp.json"
 
 # ═════════════════════════════════════════════════════════════════════════
-# 复制扩展 (13 个)
+# 复制扩展 (13 个 .ts + 1 个目录)
 # ═════════════════════════════════════════════════════════════════════════
 
-echo "🔌 复制扩展 (13 个)..."
+echo "🔌 复制扩展..."
 
 for f in "$SCRIPT_DIR"/extensions/*.template.ts; do
   if [ -f "$f" ]; then
@@ -51,8 +51,16 @@ for f in "$SCRIPT_DIR"/extensions/*.template.ts; do
   fi
 done
 
+# plan-mode 目录
+if [ -d "$SCRIPT_DIR/extensions/plan-mode" ]; then
+  cp "$SCRIPT_DIR/extensions/plan-mode/index.template.ts" "$PI_DIR/extensions/plan-mode/index.ts"
+  cp "$SCRIPT_DIR/extensions/plan-mode/utils.template.ts" "$PI_DIR/extensions/plan-mode/utils.ts"
+  cp "$SCRIPT_DIR/extensions/plan-mode/README.md" "$PI_DIR/extensions/plan-mode/README.md"
+  echo "  ✓ plan-mode/"
+fi
+
 # ═════════════════════════════════════════════════════════════════════════
-# 复制技能 (5 个本地)
+# 复制技能 (1 个本地 + superpowers 包提供)
 # ═════════════════════════════════════════════════════════════════════════
 
 echo "🎯 复制技能..."
@@ -83,22 +91,29 @@ for f in "$SCRIPT_DIR"/prompts/*.template.md; do
 done
 
 # ═════════════════════════════════════════════════════════════════════════
-# 安装 Pi 包 (可选)
+# 安装 Pi 包
 # ═════════════════════════════════════════════════════════════════════════
 
 echo ""
 echo "📦 安装 Pi 包..."
 
 if command -v pi &> /dev/null; then
-  # superpowers (14 个技能)
-  pi install git:github.com/obra/superpowers
-  
-  # MCP 支持
-  pi install npm:pi-mcp-adapter
+  # 核心包
+  pi install git:github.com/obra/superpowers      # 14 skills
+  pi install npm:flexoki-pi-theme                 # 主题
+  pi install npm:pi-markdown-preview              # Markdown渲染
+  pi install npm:pi-subagents                     # 子代理
+  pi install npm:pi-mcp-adapter                   # MCP
+  pi install npm:pi-web-access                    # Web搜索
+  pi install npm:pi-ask-user                      # 交互询问
+  pi install git:github.com/anthropics/skills     # 17 skills
+  pi install git:github.com/badlogic/pi-skills    # 10 skills
+  pi install npm:@fission-ai/openspec             # SDD
   
   echo "  ✓ 包安装完成"
 else
   echo "  ⚠️ pi 命令未找到，跳过包安装"
+  echo "  手动安装: pi install <package>"
 fi
 
 # ═════════════════════════════════════════════════════════════════════════
@@ -111,8 +126,9 @@ echo "✓ Pi 配置已恢复到: $PI_DIR"
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
 echo "已安装:"
-echo "  - 10 个扩展 (来自 Pi 官方 examples)"
-echo "  - 5 个本地技能 + superpowers 14 个技能"
+echo "  - 10 个 packages"
+echo "  - 13 个扩展 (含 plan-mode)"
+echo "  - 1 个本地技能 + superpowers 14 个"
 echo "  - 12 个 prompt 模板"
 echo "  - MCP 配置 (~/.config/mcp/mcp.json)"
 echo ""
@@ -120,9 +136,8 @@ echo "验证配置:"
 echo "  pi              # 启动 Pi"
 echo "  /settings       # 查看设置"
 echo "  /model          # 查看模型"
-echo "  /hotkeys        # 查看快捷键"
 echo "  /mcp            # 查看 MCP 状态"
 echo ""
 echo "设置 API Key:"
-echo "  export BAILIAN_CODING_API_KEY='your-key'"
+echo "  export OPENAI_API_KEY='your-key'  # Bailian Coding"
 echo ""

@@ -1,143 +1,57 @@
 /**
- * Enhanced Exit Extension 模板 🚪
- *
- * 增强退出体验，防止意外退出
- *
- * ╔════════════════════════════════════════════════════════════════════════╗
- * ║  功能:                                                                  ║
- * ║    - Ctrl+C 两次确认退出                                               ║
- * ║    - 显示会话统计                                                      ║
- * ║    - 提示保存会话                                                      ║
- * ║                                                                        ║
- * ║  安装: 复制到 ~/.pi/agent/extensions/enhanced-exit.ts                  ║
- * ║  重载: /reload                                                         ║
- * ╚════════════════════════════════════════════════════════════════════════╝
+ * Enhanced Exit Extension
+ * 显示 session 信息和 resume 提示
  */
 
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import * as path from "node:path";
 
 export default function (pi: ExtensionAPI) {
-	let firstCtrlC = false;
-	let ctrlCTimeout: NodeJS.Timeout | null = null;
+  // 注册 /exit 命令
+  pi.registerCommand("exit", {
+    description: "退出 pi，显示 session resume 信息",
+    handler: async (_args, ctx) => {
+      ctx.shutdown();
+    },
+  });
 
-	// ───────────────────────────────────────────────────────────────────────
-	// 计算会话统计
-	// ───────────────────────────────────────────────────────────────────────
+  // 退出时显示 session 信息
+  pi.on("session_shutdown", async (event, ctx) => {
+    if (event.reason !== "quit") return;
 
-	function getSessionStats(ctx: ExtensionContext): {
-		turns: number;
-		tools: number;
-		tokens: { input: number; output: number };
-		duration: string;
-	} {
-		let turns = 0;
-		let tools = 0;
-		let inputTokens = 0;
-		let outputTokens = 0;
+    const sessionFile = ctx.sessionManager.getSessionFile();
+    if (!sessionFile) {
+      // 无 session（ephemeral mode）
+      console.log("\n👋 Session was ephemeral (not saved)\n");
+      return;
+    }
 
-		for (const entry of ctx.sessionManager.getBranch()) {
-			if (entry.type === "message") {
-				if (entry.message.role === "user") {
-					turns++;
-				} else if (entry.message.role === "assistant") {
-					const m = entry.message as Record<string, any>;
-					if (m.usage) {
-						inputTokens += m.usage.input ?? 0;
-						outputTokens += m.usage.output ?? 0;
-					}
-				} else if (entry.message.role === "toolResult") {
-					tools++;
-				}
-			}
-		}
+    // 获取 session ID（真正的 sessionId，而不是文件名时间戳前缀）
+    const sessionId = ctx.sessionManager.getSessionId();
+    // 生成短 ID（前 8 位）用于显示和 resume 命令
+    const shortId = sessionId.slice(0, 8);
 
-		// 计算时长
-		const now = Date.now();
-		const start = ctx.sessionManager.getSession()?.startTime ?? now;
-		const elapsedMs = now - start;
-		const minutes = Math.floor(elapsedMs / 60000);
-		const seconds = Math.floor((elapsedMs % 60000) / 1000);
-		const duration = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+    // 获取 session name（如果有）
+    const sessionName = pi.getSessionName();
 
-		return { turns, tools, tokens: { input: inputTokens, output: outputTokens }, duration };
-	}
+    // 获取工作目录
+    const cwd = ctx.cwd;
+    const projectDir = path.basename(cwd);
 
-	// ───────────────────────────────────────────────────────────────────────
-	// 拦截 Ctrl+C
-	// ───────────────────────────────────────────────────────────────────────
+    console.log("\n" + "─".repeat(50));
+    console.log("👋 Session saved");
+    console.log("─".repeat(50));
 
-	pi.registerShortcut("ctrl+c", {
-		description: "Enhanced exit with confirmation",
-		handler: async (_event, ctx: ExtensionContext) => {
-			if (!ctx.hasUI) return;  // 非交互模式不拦截
-
-			if (firstCtrlC) {
-				// 第二次 Ctrl+C
-				if (ctrlCTimeout) {
-					clearTimeout(ctrlCTimeout);
-					ctrlCTimeout = null;
-				}
-				firstCtrlC = false;
-
-				// 显示会话统计
-				const stats = getSessionStats(ctx);
-
-				const choice = await ctx.ui.select(
-					`Exit Session?\n\n` +
-					`📊 Stats:\n` +
-					`  Turns: ${stats.turns}\n` +
-					`  Tools: ${stats.tools}\n` +
-					`  Tokens: ${stats.tokens.input.toLocaleString()} in / ${stats.tokens.output.toLocaleString()} out\n` +
-					`  Duration: ${stats.duration}\n\n` +
-					`Session saved automatically.`,
-					["Exit", "Cancel"]
-				);
-
-				if (choice === "Exit") {
-					// 正常退出
-					process.exit(0);
-				}
-			} else {
-				// 第一次 Ctrl+C
-				firstCtrlC = true;
-				ctx.ui.notify("Press Ctrl+C again to exit", "info");
-
-				// 3 秒后重置
-				ctrlCTimeout = setTimeout(() => {
-					firstCtrlC = false;
-					ctx.ui.setStatus("exit-prompt", "");
-				}, 3000);
-			}
-		},
-	});
-
-	// ───────────────────────────────────────────────────────────────────────
-	// /exit 命令
-	// ───────────────────────────────────────────────────────────────────────
-
-	pi.registerCommand("exit", {
-		description: "Exit with session summary",
-		handler: async (_args, ctx: ExtensionContext) => {
-			if (!ctx.hasUI) {
-				process.exit(0);
-				return;
-			}
-
-			const stats = getSessionStats(ctx);
-
-			const choice = await ctx.ui.select(
-				`Exit Session\n\n` +
-				`📊 Stats:\n` +
-				`  Turns: ${stats.turns}\n` +
-				`  Tools: ${stats.tools}\n` +
-				`  Tokens: ${stats.tokens.input.toLocaleString()} in / ${stats.tokens.output.toLocaleString()} out\n` +
-				`  Duration: ${stats.duration}`,
-				["Exit", "Cancel"]
-			);
-
-			if (choice === "Exit") {
-				process.exit(0);
-			}
-		},
-	});
+    if (sessionName) {
+      console.log(`  Name: ${sessionName}`);
+    }
+    console.log(`  ID:   ${sessionId} (${shortId} for resume)`);
+    console.log(`  File: ${sessionFile}`);
+    console.log(`  Project: ${projectDir}`);
+    console.log("\nResume commands:");
+    console.log(`  pi -c                 # Continue most recent`);
+    console.log(`  pi -r                 # Browse sessions`);
+    console.log(`  pi --session ${shortId}    # Resume this session`);
+    console.log("─".repeat(50) + "\n");
+  });
 }

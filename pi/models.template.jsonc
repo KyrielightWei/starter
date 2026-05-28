@@ -1,97 +1,76 @@
 {
-  "$schema": "https://pi.dev/models.json",
-
-  // ═════════════════════════════════════════════════════════════════════════
-  // Pi Custom Models 模板 - Bailian Coding Provider 🎨
-  // 当前配置复制到 ~/.pi/agent/models.json
-  // 重载: 打开 /model 时自动重载
-  // ═════════════════════════════════════════════════════════════════════════
-
   "providers": {
-
-    // ───────────────────────────────────────────────────────────────────────
-    // Bailian Coding (阿里百炼编码版) 🤖
-    // 主 Provider，支持多种国产大模型
-    // ───────────────────────────────────────────────────────────────────────
-
     "bailian": {
       "name": "百炼编码",
       "baseUrl": "https://coding.dashscope.aliyuncs.com/v1",
       "api": "openai-completions",
       "apiKey": "OPENAI_API_KEY",
-
-      // 兼容性设置 (部分服务器不支持 developer role)
       "compat": {
         "supportsDeveloperRole": false,
         "supportsReasoningEffort": false
       },
-
       "models": [
         {
           "id": "glm-5",
           "name": "GLM-5",
-          "description": "智谱GLM-5，复杂推理和代码审查",
           "contextWindow": 200000,
           "maxTokens": 8192,
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
         },
         {
           "id": "kimi-k2.5",
           "name": "Kimi K2.5",
-          "description": "月之暗面Kimi，长上下文",
           "contextWindow": 262144,
           "maxTokens": 8192,
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
         },
         {
           "id": "qwen3.5-plus",
           "name": "Qwen 3.5 Plus",
-          "description": "阿里Qwen3.5，适合简单任务",
           "contextWindow": 1048576,
           "maxTokens": 8192,
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
         },
         {
           "id": "qwen3.6-plus",
           "name": "Qwen 3.6 Plus",
-          "description": "阿里Qwen3.6，效果均衡",
           "contextWindow": 1048576,
           "maxTokens": 8192,
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
         },
         {
           "id": "MiniMax-M2.5",
           "name": "MiniMax M2.5",
-          "description": "MiniMax，效果好",
           "contextWindow": 200000,
           "maxTokens": 8192,
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
-        },
-        {
-          "id": "deepseek-chat",
-          "name": "DeepSeek Chat",
-          "description": "DeepSeek，代码能力强",
-          "contextWindow": 64000,
-          "maxTokens": 8192,
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 }
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          }
         }
       ]
     }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // 可选 Provider (未配置，仅供参考)
-    // ═════════════════════════════════════════════════════════════════════════
-
-    // "deepseek": {
-    //   "name": "DeepSeek",
-    //   "baseUrl": "https://api.deepseek.com",
-    //   ...
-    // },
-
-    // "openai": {
-    //   "name": "OpenAI",
-    //   "baseUrl": "https://api.openai.com",
-    //   ...
-    // }
   }
 }

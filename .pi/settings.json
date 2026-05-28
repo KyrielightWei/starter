@@ -1,0 +1,7 @@
+{
+  // 项目级 skills 配置
+  // 加载项目目录的 .claude/skills
+  "skills": [
+    "../.claude/skills"
+  ]
+}

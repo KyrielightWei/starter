@@ -2,7 +2,6 @@
 -- State Manager Module
 --
 -- 提供统一的状态管理接口，支持订阅模式
--- 替代全局变量 _G.AI_MODEL，提供更好的封装性
 
 local M = {}
 
@@ -114,41 +113,5 @@ function M.set_template_version(tool, version)
     end
   end
 end
-
-----------------------------------------------------------------------
--- 向后兼容：设置 _G.AI_MODEL 的 metatable shim
--- 读取时返回当前状态，写入时显示 deprecation warning
-----------------------------------------------------------------------
-local function setup_backward_compat()
-  _G.AI_MODEL = _G.AI_MODEL or {}
-
-  local warned = false
-
-  setmetatable(_G.AI_MODEL, {
-    __index = function(_, key)
-      return state[key]
-    end,
-    __newindex = function(_, key, value)
-      if not warned then
-        vim.notify("Writing to _G.AI_MODEL is deprecated. Use require('ai.state').set() instead.", vim.log.levels.WARN)
-        warned = true
-      end
-
-      if key == "provider" then
-        state.provider = value
-      elseif key == "model" then
-        state.model = value
-      end
-
-      -- 通知订阅者
-      for _, callback in pairs(subscribers) do
-        pcall(callback, M.get())
-      end
-    end,
-  })
-end
-
--- 初始化时设置向后兼容
-setup_backward_compat()
 
 return M

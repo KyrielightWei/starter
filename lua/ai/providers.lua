@@ -41,6 +41,16 @@ function M.register(name, conf)
   }
 end
 
+-- 取消注册 provider（从内存 registry 移除）
+-- 注意：此方法仅修改运行时状态，不会修改 providers.lua 文件本身
+function M.unregister(name)
+  if registry[name] then
+    registry[name] = nil
+    return true
+  end
+  return false
+end
+
 -- 返回 provider 列表
 function M.list()
   local out = {}
@@ -166,6 +176,9 @@ M.register("zenmux", {
   api_key_name = "ZENMUX_API_KEY",
   endpoint = "https://work.oceanbase-dev.com/tokensflow/api/v1",
   model = "z-ai/glm-5.1", -- 智谱 GLM-5.1，默认主力模型
+  -- 注意：以下模型名是 oceanbase 内部 tokensflow 网关的路由别名，
+  -- 不是上游 (Anthropic / OpenAI / Z.AI / DeepSeek) 公开的官方模型名。
+  -- 上游模型版本由 tokensflow 后端映射，更新时需与网关同步。
   static_models = {
     -- GLM 系列 (Z.AI)
     "z-ai/glm-5.1",
@@ -231,8 +244,10 @@ M.register("zenmux", {
 
 ----------------------------------------------------------------------
 -- Glink Provider - Claude Opus 4.x 本地代理
--- 使用本地代理服务器访问 Anthropic Claude API
+-- 使用本地代理服务器 (127.0.0.1:9129) 访问 Anthropic Claude API。
 -- 模型名称格式: glink/<model-id>
+-- 注意：这里的版本号 (4-7 / 4-6) 是 glink 网关定义的别名，
+-- 实际映射到的上游模型由本地代理配置决定。
 ----------------------------------------------------------------------
 M.register("glink", {
   api_key_name = "ANTHROPIC_AUTH_TOKEN",

@@ -147,7 +147,8 @@ local function update_float_title(entry, current_id)
   end
   -- 直接设置一次
   pcall(vim.api.nvim_win_set_config, win, { title = title, title_pos = "center" })
-  -- 延迟再设置一次，防止被 toggleterm 内部重置
+  -- 50ms 后再设置一次，绕过 toggleterm.nvim 在 on_open 后内部重置 title 的行为
+  -- (toggleterm 在 on_open 回调返回后会重新应用自己的 winhighlight/title 配置)
   vim.defer_fn(function()
     if vim.api.nvim_win_is_valid(win) then
       pcall(vim.api.nvim_win_set_config, win, { title = title, title_pos = "center" })

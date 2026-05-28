@@ -1,7 +1,13 @@
 -- lua/ai/opencode.lua
 -- OpenCode 配置生成模块
 
+local JsonUtil = require("ai.json_util")
+
 local M = {}
+
+local strip_jsonc_comments = JsonUtil.strip_jsonc_comments
+local format_json = JsonUtil.format_json
+local deep_merge = JsonUtil.deep_merge
 
 -- OpenCode CLI 配置目录
 -- 官方推荐: ~/.config/opencode/ (遵循 XDG Base Directory 规范)
@@ -62,130 +68,11 @@ local function get_opencode_tui_path()
   return get_opencode_config_dir() .. "/tui.json"
 end
 
-local function read_ai_keys()
-  local ok, Keys = pcall(require, "ai.keys")
-  if not ok then
-    return {}
-  end
+-- 旧的 read_ai_keys / read_ai_providers / get_models_for_provider 已删除。
+-- provider/key 数据通过 ai.config_resolver.build_provider_config() 统一获取，
+-- 且生成路径不再触发同步网络请求。
 
-  local keys_data = Keys.read() or {}
-  local keys = {}
-  local profile = keys_data.profile or "default"
-
-  for provider, profiles in pairs(keys_data) do
-    if provider ~= "profile" and type(profiles) == "table" then
-      local config = profiles[profile] or profiles["default"]
-      -- 兼容新旧格式
-      if type(config) == "table" then
-        keys[provider] = config.api_key or ""
-      elseif type(config) == "string" then
-        keys[provider] = config
-      else
-        keys[provider] = ""
-      end
-    end
-  end
-
-  return keys, profile
-end
-
-local function read_ai_providers()
-  local ok, Providers = pcall(require, "ai.providers")
-  if not ok then
-    return {}
-  end
-
-  local providers = {}
-  -- FIX: Use Providers.list() API instead of pairs(Providers) to avoid
-  -- iterating over module functions (list, get, register, etc.)
-  for _, name in ipairs(Providers.list()) do
-    local def = Providers.get(name)
-    if def and def.endpoint then
-      providers[name] = {
-        api_key_name = def.api_key_name,
-        endpoint = def.endpoint,
-        model = def.model,
-        static_models = def.static_models or {},
-        model_info = def.model_info or {},
-      }
-    end
-  end
-
-  return providers
-end
-
-local function get_models_for_provider(provider_name, provider_def)
-  local ok, Fetch = pcall(require, "ai.fetch_models")
-  if ok then
-    local models = Fetch.fetch(provider_name)
-    if models and #models > 0 then
-      local model_list = {}
-      for _, m in ipairs(models) do
-        local id = m.id or tostring(m)
-        table.insert(model_list, id)
-      end
-      return model_list
-    end
-  end
-  return provider_def.static_models or {}
-end
-
-local function strip_jsonc_comments(content)
-  local result = {}
-  local in_string = false
-  local escape_next = false
-  local i = 1
-
-  while i <= #content do
-    local char = content:sub(i, i)
-
-    if escape_next then
-      table.insert(result, char)
-      escape_next = false
-      i = i + 1
-    elseif char == "\\" and in_string then
-      table.insert(result, char)
-      escape_next = true
-      i = i + 1
-    elseif char == '"' then
-      table.insert(result, char)
-      in_string = not in_string
-      i = i + 1
-    elseif not in_string then
-      if char == "/" and i < #content then
-        local next_char = content:sub(i + 1, i + 1)
-        if next_char == "/" then
-          while i <= #content and content:sub(i, i) ~= "\n" do
-            i = i + 1
-          end
-        elseif next_char == "*" then
-          i = i + 2
-          while i <= #content do
-            if content:sub(i, i) == "*" and i < #content and content:sub(i + 1, i + 1) == "/" then
-              i = i + 2
-              break
-            end
-            i = i + 1
-          end
-        else
-          table.insert(result, char)
-          i = i + 1
-        end
-      else
-        table.insert(result, char)
-        i = i + 1
-      end
-    else
-      table.insert(result, char)
-      i = i + 1
-    end
-  end
-
-  local clean = table.concat(result)
-  -- 去除尾随逗号 (JSON 不允许)
-  clean = clean:gsub(",%s*([}%]])", "%1")
-  return clean
-end
+-- 旧的内联 strip_jsonc_comments / format_json / deep_merge 已迁移至 ai.json_util
 
 local function validate_template(config)
   local errors = {}
@@ -382,112 +269,9 @@ local function read_template_config(version)
   return config or {}, errors, warnings
 end
 
-local function build_provider_config(keys, profile)
-  local providers = read_ai_providers()
-  local provider_config = {}
-  local auth_config = {}
-
-  for provider_name, provider_def in pairs(providers) do
-    local api_key = keys[provider_name] or ""
-
-    if api_key and api_key ~= "" then
-      auth_config[provider_name] = api_key
-
-      local models = get_models_for_provider(provider_name, provider_def)
-      local models_config = {}
-      local model_info = provider_def.model_info or {}
-
-      for _, model_id in ipairs(models) do
-        local info = model_info[model_id] or {}
-        models_config[model_id] = {
-          name = model_id,
-          limit = info.limit or { context = 0, output = 0 },
-          description = info.description,
-        }
-      end
-
-      if vim.tbl_isempty(models_config) and provider_def.model then
-        models_config[provider_def.model] = { name = provider_def.model }
-      end
-
-      local endpoint = provider_def.endpoint
-      endpoint = endpoint:gsub("{(%w+_BASE_ENDPOINT)}", function(var)
-        return os.getenv(var) or ""
-      end)
-
-      provider_config[provider_name] = {
-        npm = "@ai-sdk/openai-compatible",
-        name = provider_name:gsub("_", " "):gsub("(%l)(%w*)", function(a, b)
-          return string.upper(a) .. b
-        end),
-        options = {
-          baseURL = endpoint,
-          apiKey = api_key,
-        },
-        models = models_config,
-      }
-    end
-  end
-
-  return provider_config, auth_config
-end
-
-local function deep_merge(base, override)
-  local result = vim.deepcopy(base)
-
-  for key, value in pairs(override) do
-    if type(value) == "table" and type(result[key]) == "table" then
-      result[key] = deep_merge(result[key], value)
-    else
-      result[key] = value
-    end
-  end
-
-  return result
-end
-
-local function format_json(obj, indent)
-  indent = indent or 0
-  local spacing = string.rep("  ", indent)
-
-  if type(obj) == "table" then
-    if next(obj) == nil then
-      return "{}"
-    end
-
-    local is_array = #obj > 0
-    local items = {}
-
-    if is_array then
-      for i, v in ipairs(obj) do
-        table.insert(items, spacing .. "  " .. format_json(v, indent + 1))
-      end
-      return "[\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "]"
-    else
-      local sorted_keys = {}
-      for k in pairs(obj) do
-        table.insert(sorted_keys, k)
-      end
-      table.sort(sorted_keys)
-
-      for _, k in ipairs(sorted_keys) do
-        local v = obj[k]
-        local key = type(k) == "number" and k or string.format("%q", k)
-        table.insert(items, spacing .. "  " .. key .. ": " .. format_json(v, indent + 1))
-      end
-      return "{\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "}"
-    end
-  elseif type(obj) == "string" then
-    local escaped = obj:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
-    return '"' .. escaped .. '"'
-  elseif type(obj) == "number" or type(obj) == "boolean" then
-    return tostring(obj)
-  elseif obj == nil then
-    return "null"
-  else
-    return tostring(obj)
-  end
-end
+-- 旧的 build_provider_config / deep_merge / format_json 已删除。
+-- build_provider_config: 由 ai.config_resolver.build_provider_config() 替代（已使用 {env}/{file} 安全 key 引用）
+-- deep_merge / format_json: 由 ai.json_util 提供（顶部已 require）
 
 local function show_validation_result(errors, warnings, show_success)
   local lines = {}
@@ -580,14 +364,17 @@ function M.write_config(version_override)
   config.agent.build = config.agent.build or {}
   config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
 
-  -- 写入 API key 文件
+  -- 写入 API key 文件，并清理切换到 ${env:...} 后残留的明文 key 文件
   for provider, key in pairs(auth_config) do
+    local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
     if key and key ~= "" and key:sub(1, 6) ~= "${env:" then
-      local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
       vim.fn.writefile({ key }, key_file)
       -- Security: Set restrictive permissions on API key files
       -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
       vim.uv.fs_chmod(key_file, 384)
+    elseif vim.fn.filereadable(key_file) == 1 then
+      -- 用户已切换到环境变量引用，删除遗留的明文 key 文件
+      os.remove(key_file)
     end
   end
 

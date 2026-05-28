@@ -1,4 +1,5 @@
 -- Helper function to get project root directory
+-- 比 LazyVim 默认 root 检测多识别 C/C++ 构建文件
 local function get_project_root()
   local start_dir = ""
   local bufname = vim.api.nvim_buf_get_name(0)
@@ -27,7 +28,6 @@ local function get_project_root()
 
   local match = vim.fs.find(root_markers, { path = start_dir, upward = true })[1]
   if not match then
-    -- If no root marker found, use current working directory
     return vim.loop.cwd()
   else
     return vim.fs.dirname(match)
@@ -38,20 +38,11 @@ return {
   {
     "ibhagwan/fzf-lua",
     keys = {
-      { "<leader>so", "<cmd>FzfLua treesitter<CR>", desc = "treesitter" },
-    },
-  },
-  {
-    "nvim-telescope/telescope.nvim",
-    keys = {
+      { "<leader>so", "<cmd>FzfLua treesitter<CR>", desc = "Treesitter symbols" },
       {
         "<leader>sg",
         function()
-          local project_root = get_project_root()
-          require("telescope.builtin").live_grep({
-            cwd = project_root,
-            search_dirs = { project_root },
-          })
+          require("fzf-lua").live_grep({ cwd = get_project_root() })
         end,
         desc = "Search in project (grep)",
       },

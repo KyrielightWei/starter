@@ -207,7 +207,9 @@ function M.delete_provider(name)
   end
 
   -- Remove from in-memory registry
-  Providers[name] = nil
+  -- FIX: 之前 `Providers[name] = nil` 是无效操作 —— Providers 模块的 registry 是文件内
+  -- 私有 table，而非 M 表本身。改用新增的 Providers.unregister() API。
+  Providers.unregister(name)
 
   -- Remove provider's Keys entry
   local keys_data = Keys.read()

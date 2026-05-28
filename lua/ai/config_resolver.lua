@@ -3,6 +3,7 @@
 
 local Providers = require("ai.providers")
 local Keys = require("ai.keys")
+local JsonUtil = require("ai.json_util")
 
 local M = {}
 
@@ -11,74 +12,31 @@ local cache = {
   last_modified = 0,
 }
 
-local function deep_merge(base, override)
-  if type(base) ~= "table" or type(override) ~= "table" then
-    return override
-  end
+local deep_merge = JsonUtil.deep_merge
+local strip_jsonc_comments = JsonUtil.strip_jsonc_comments
 
-  local result = vim.deepcopy(base)
-  for key, value in pairs(override) do
-    if type(value) == "table" and type(result[key]) == "table" then
-      result[key] = deep_merge(result[key], value)
-    else
-      result[key] = value
+-- ${file:...} 引用允许的根目录白名单
+-- 防止任意文件读取（例如 /etc/passwd、~/.ssh/id_rsa）
+local function is_file_path_allowed(path)
+  local expanded = vim.fn.expand(path)
+  local abs = vim.fn.fnamemodify(expanded, ":p")
+  local home = vim.fn.expand("~")
+  local allowed_prefixes = {
+    home .. "/.config/",
+    home .. "/.local/state/",
+    home .. "/.claude/",
+    home .. "/.opencode/",
+    vim.fn.stdpath("config") .. "/",
+    vim.fn.stdpath("state") .. "/",
+    vim.fn.stdpath("data") .. "/",
+    vim.fn.getcwd() .. "/",
+  }
+  for _, prefix in ipairs(allowed_prefixes) do
+    if abs:sub(1, #prefix) == prefix then
+      return true
     end
   end
-  return result
-end
-
-local function strip_jsonc_comments(content)
-  local result = {}
-  local in_string = false
-  local escape_next = false
-  local i = 1
-
-  while i <= #content do
-    local char = content:sub(i, i)
-
-    if escape_next then
-      table.insert(result, char)
-      escape_next = false
-      i = i + 1
-    elseif char == "\\" and in_string then
-      table.insert(result, char)
-      escape_next = true
-      i = i + 1
-    elseif char == '"' then
-      table.insert(result, char)
-      in_string = not in_string
-      i = i + 1
-    elseif not in_string then
-      if char == "/" and i < #content then
-        local next_char = content:sub(i + 1, i + 1)
-        if next_char == "/" then
-          while i <= #content and content:sub(i, i) ~= "\n" do
-            i = i + 1
-          end
-        elseif next_char == "*" then
-          i = i + 2
-          while i <= #content do
-            if content:sub(i, i) == "*" and i < #content and content:sub(i + 1, i + 1) == "/" then
-              i = i + 2
-              break
-            end
-            i = i + 1
-          end
-        else
-          table.insert(result, char)
-          i = i + 1
-        end
-      else
-        table.insert(result, char)
-        i = i + 1
-      end
-    else
-      table.insert(result, char)
-      i = i + 1
-    end
-  end
-
-  return table.concat(result)
+  return false
 end
 
 local function get_env_var(provider)
@@ -123,6 +81,10 @@ local function resolve_refs(value, context)
       elseif ref_type == "key" then
         return M.get_api_key(ref_key) or ""
       elseif ref_type == "file" then
+        if not is_file_path_allowed(ref_key) then
+          vim.notify(string.format("${file:%s} 路径未在白名单内，已拒绝", ref_key), vim.log.levels.WARN)
+          return ""
+        end
         local expanded = vim.fn.expand(ref_key)
         if vim.fn.filereadable(expanded) == 1 then
           return table.concat(vim.fn.readfile(expanded), "\n")
@@ -139,7 +101,8 @@ local function resolve_refs(value, context)
   elseif type(value) == "table" then
     local result = {}
     for k, v in pairs(value) do
-      if k:sub(1, 1) ~= "$" then
+      -- 跳过以 "$" 开头的元数据 key（如 $schema）；非字符串 key（数组下标）直接保留
+      if type(k) ~= "string" or k:sub(1, 1) ~= "$" then
         result[k] = resolve_refs(v, context)
       end
     end
@@ -358,7 +321,7 @@ end
 
 function M.get(path, default)
   local config = M.resolve()
-  local parts = vim.split(path, ".")
+  local parts = vim.split(path, ".", { plain = true })
   local current = config
 
   for _, part in ipairs(parts) do
@@ -373,7 +336,7 @@ end
 
 function M.set(path, value)
   local config = M.resolve()
-  local parts = vim.split(path, ".")
+  local parts = vim.split(path, ".", { plain = true })
   local current = config
 
   for i = 1, #parts - 1 do

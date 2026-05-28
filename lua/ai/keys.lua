@@ -34,28 +34,6 @@
 --
 -- 推荐：使用环境变量格式以避免 API key 写入文件
 -- ============================================================================
---
--- ============================================================================
--- Key 文件格式 (~/.local/state/nvim/ai_keys.lua)
--- ============================================================================
---
--- return {
---   profile = "default",
---   bailian_coding = {
---     default = {
---       api_key = "sk-xxx",
---       base_url = "https://coding.dashscope.aliyuncs.com/v1",
---       base_url_claude = "",  -- Claude Code 专用 (可选)
---     },
---   },
--- }
---
--- 说明：
--- - api_key: API 密钥
--- - base_url: API endpoint (可选，不填则使用 providers.lua 默认值)
--- - base_url_claude: Claude Code 专用 endpoint (可选)
---
--- ============================================================================
 
 local Providers = require("ai.providers")
 
@@ -66,6 +44,7 @@ local function keys_path()
 end
 
 --- 安全加载 Lua 文件（sandboxed，禁止访问全局变量）
+--- 解析失败时会通过 vim.notify 上报详细错误，避免静默失败。
 ---@param path string 文件路径
 ---@return table|nil
 local function safe_load_lua(path)
@@ -77,14 +56,24 @@ local function safe_load_lua(path)
     return nil
   end
   local code = table.concat(content, "\n")
-  local ok, result = pcall(function()
-    local func = load(code, "keys", "t", {})
-    return func and func() or nil
-  end)
-  if ok and type(result) == "table" then
-    return result
+  local func, load_err = load(code, "keys", "t", {})
+  if not func then
+    vim.notify(string.format("ai_keys.lua 加载失败 (%s): %s", path, load_err), vim.log.levels.ERROR)
+    return nil
   end
-  return nil
+  local ok, result = pcall(func)
+  if not ok then
+    vim.notify(string.format("ai_keys.lua 执行失败 (%s): %s", path, tostring(result)), vim.log.levels.ERROR)
+    return nil
+  end
+  if type(result) ~= "table" then
+    vim.notify(
+      string.format("ai_keys.lua 必须 return 一个 table，实际类型: %s", type(result)),
+      vim.log.levels.ERROR
+    )
+    return nil
+  end
+  return result
 end
 
 --- 验证 provider/profile 名称是否安全（仅允许字母数字、下划线、连字符）

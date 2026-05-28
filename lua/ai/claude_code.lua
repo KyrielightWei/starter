@@ -5,64 +5,13 @@ local M = {}
 
 local Providers = require("ai.providers")
 local Keys = require("ai.keys")
+local JsonUtil = require("ai.json_util")
 
--- 判断 table 是否为纯数组（所有 key 为连续整数）
-local function tbl_is_array(t)
-  if type(t) ~= "table" then
-    return false
-  end
-  local i = 0
-  for _ in pairs(t) do
-    i = i + 1
-    if t[i] == nil then
-      return false
-    end
-  end
-  return i > 0
-end
+local tbl_is_array = JsonUtil.tbl_is_array
+local format_json = JsonUtil.format_json
+local strip_jsonc_comments = JsonUtil.strip_jsonc_comments
 
-local function format_json(obj, indent)
-  indent = indent or 0
-  local spacing = string.rep("  ", indent)
-
-  if type(obj) == "table" then
-    if next(obj) == nil then
-      return "{}"
-    end
-
-    local items = {}
-
-    if tbl_is_array(obj) then
-      for i, v in ipairs(obj) do
-        table.insert(items, spacing .. "  " .. format_json(v, indent + 1))
-      end
-      return "[\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "]"
-    else
-      local sorted_keys = {}
-      for k in pairs(obj) do
-        table.insert(sorted_keys, k)
-      end
-      table.sort(sorted_keys)
-
-      for _, k in ipairs(sorted_keys) do
-        local v = obj[k]
-        local key = type(k) == "number" and k or string.format("%q", k)
-        table.insert(items, spacing .. "  " .. key .. ": " .. format_json(v, indent + 1))
-      end
-      return "{\n" .. table.concat(items, ",\n") .. "\n" .. spacing .. "}"
-    end
-  elseif type(obj) == "string" then
-    -- JSON 字符串转义
-    local escaped = obj:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
-    return '"' .. escaped .. '"'
-  elseif type(obj) == "number" or type(obj) == "boolean" then
-    return tostring(obj)
-  elseif obj == nil then
-    return "null"
-  else
-    return tostring(obj)
-  end
-end
+-- 旧的 tbl_is_array / format_json / strip_jsonc_comments 已迁移至 ai.json_util
 
 local function get_config_dir()
   return vim.fn.expand("~/.claude")
@@ -86,66 +35,6 @@ end
 
 local function get_ccstatusline_settings_path()
   return vim.fn.expand("~/.config/ccstatusline/settings.json")
-end
-
-local function strip_jsonc_comments(content)
-  local result = {}
-  local in_string = false
-  local escape_next = false
-  local i = 1
-
-  while i <= #content do
-    local char = content:sub(i, i)
-
-    if escape_next then
-      table.insert(result, char)
-      escape_next = false
-      i = i + 1
-    elseif char == "\\" and in_string then
-      table.insert(result, char)
-      escape_next = true
-      i = i + 1
-    elseif char == '"' then
-      table.insert(result, char)
-      in_string = not in_string
-      i = i + 1
-    elseif not in_string then
-      if char == "/" and i < #content then
-        local next_char = content:sub(i + 1, i + 1)
-        if next_char == "/" then
-          while i <= #content and content:sub(i, i) ~= "\n" do
-            i = i + 1
-          end
-        elseif next_char == "*" then
-          i = i + 2
-          while i <= #content do
-            if content:sub(i, i) == "*" and i < #content and content:sub(i + 1, i + 1) == "/" then
-              i = i + 2
-              break
-            end
-            i = i + 1
-          end
-        else
-          table.insert(result, char)
-          i = i + 1
-        end
-      else
-        table.insert(result, char)
-        i = i + 1
-      end
-    else
-      table.insert(result, char)
-      i = i + 1
-    end
-  end
-
-  local clean = table.concat(result)
-
-  -- 去除尾随逗号 (JSON 不允许)
-  -- 匹配: , 后面跟着空白和 } 或 ]
-  clean = clean:gsub(",%s*([}%]])", "%1")
-
-  return clean
 end
 
 local function read_template()

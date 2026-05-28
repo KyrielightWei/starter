@@ -110,15 +110,6 @@ describe("ai.state module", function()
     end)
   end)
 
-  describe("backward compatibility", function()
-    it("_G.AI_MODEL reads from state", function()
-      State.set("openai", "gpt-4")
-
-      assert.are.equal("openai", _G.AI_MODEL.provider)
-      assert.are.equal("gpt-4", _G.AI_MODEL.model)
-    end)
-  end)
-
   describe("State template version", function()
     it("returns default version when not set", function()
       local version = State.get_template_version("opencode")

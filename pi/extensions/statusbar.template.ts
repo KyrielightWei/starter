@@ -1,15 +1,11 @@
 /**
- * Pi Custom Status Bar Extension - 完整修复版
+ * Pi Custom Status Bar Extension - 语法修复版
  * 三行状态栏：状态/Token / 目录/模型/Thinking / 上下文进度
- * 
- * 修复:
- * 1. 速率计算只在 turn 开始时记录基准
- * 2. 如果 API 不返回 cost，使用 models.json 配置计算
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth } from "@earendil-works/pi-tui";
 import * as path from "node:path";
 import * as fs from "node:fs";
 
@@ -21,8 +17,6 @@ let cachedUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, v
 let modelCosts: Record<string, { input: number; output: number }> = {};
 let sessionStartTime = Date.now();
 let turnCount = 0;
-let lastContextTokens = 0;
-let lastContextTime = Date.now();
 let turnStartTime = Date.now();
 let turnStartTokens = 0;
 let agentActive = false;
@@ -39,17 +33,25 @@ function fmt(n: number): string {
 function loadModelCosts() {
 	if (Object.keys(modelCosts).length > 0) return modelCosts;
 	
-	const modelsPath = path.join(process.env.HOME || "", ".pi/agent/models.json");
+	const home = process.env.HOME || "";
+	const modelsPath = path.join(home, ".pi/agent/models.json");
+	
 	try {
 		if (fs.existsSync(modelsPath)) {
-			const models = JSON.parse(fs.readFileSync(modelsPath, "utf8"));
-			for (const [, provider] of Object.entries(models.providers || {})) {
-				for (const model of (provider as any).models || []) {
-					if (model.id && model.cost) {
-						modelCosts[model.id] = {
-							input: model.cost.input || 0,
-							output: model.cost.output || 0,
-						};
+			const content = fs.readFileSync(modelsPath, "utf8");
+			const models = JSON.parse(content);
+			const providers = models.providers || {};
+			
+			for (const providerKey in providers) {
+				const provider = providers[providerKey];
+				if (provider && provider.models) {
+					for (const model of provider.models) {
+						if (model.id && model.cost) {
+							modelCosts[model.id] = {
+								input: model.cost.input || 0,
+								output: model.cost.output || 0,
+							};
+						}
 					}
 				}
 			}
@@ -64,7 +66,6 @@ function loadModelCosts() {
 function calculateCost(input: number, output: number, modelId: string): number {
 	const costs = loadModelCosts();
 	const mc = costs[modelId] || { input: 0, output: 0 };
-	// cost per 1M tokens
 	const inputCost = (input / 1_000_000) * mc.input;
 	const outputCost = (output / 1_000_000) * mc.output;
 	return inputCost + outputCost;
@@ -76,19 +77,18 @@ function getUsage(ctx: ExtensionContext) {
 	currentModel = ctx.model?.id || "";
 	
 	for (const e of ctx.sessionManager.getBranch()) {
-		if (e.type === "message" && (e.message as any).role === "assistant") {
+		if (e.type === "message" && e.message && e.message.role === "assistant") {
 			const m = e.message as AssistantMessage;
 			if (m.usage) {
 				cachedUsage.input += m.usage.input ?? 0;
 				cachedUsage.output += m.usage.output ?? 0;
 				cachedUsage.cacheRead += m.usage.cacheRead ?? 0;
 				cachedUsage.cacheWrite += m.usage.cacheWrite ?? 0;
-				// 使用 API cost 或配置计算
-				const apiCost = m.usage.cost?.total ?? 0;
+				
+				const apiCost = (m.usage as any).cost?.total ?? 0;
 				if (apiCost > 0) {
 					cachedUsage.cost += apiCost;
 				} else {
-					// API 未返回 cost，使用配置估算
 					cachedUsage.cost += calculateCost(
 						m.usage.input ?? 0,
 						m.usage.output ?? 0,
@@ -107,8 +107,6 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", (_event, ctx: ExtensionContext) => {
 		sessionStartTime = Date.now();
 		turnCount = 0;
-		lastContextTokens = 0;
-		lastContextTime = Date.now();
 		turnStartTime = Date.now();
 		turnStartTokens = 0;
 		agentActive = false;
@@ -162,18 +160,17 @@ export default function (pi: ExtensionAPI) {
 					const filled = Math.round(pct / 10);
 					const bar = BAR_FULL.repeat(filled) + BAR_EMPTY.repeat(10 - filled);
 
-					// ═══ 第一行：Token 统计 + 成本 ═══
+					// ═══ 第一行 ═══
 					const statColor = agentActive ? theme.fg("accent", "⚡ Running") : theme.fg("success", "✓ Idle");
 					const tokInStr = theme.fg("muted", `↑${fmt(u.input)}`);
 					const tokOutStr = theme.fg("muted", `↓${fmt(u.output)}`);
-					// 显示 cost，如果为 0 也显示 (配置中可能设为 0)
 					const costStr = `$${u.cost.toFixed(4)}`;
 					const cacheStr = cacheTot > 0 ? theme.fg("success", `C:${fmt(u.cacheRead)} ${cacheRate}%`) : "";
 					
 					const line1Parts = [statColor, tokInStr, tokOutStr, costStr, cacheStr].filter(Boolean);
 					const line1 = line1Parts.join("  ");
 
-					// ═══ 第二行：会话 + 环境 + 模型 ═══
+					// ═══ 第二行 ═══
 					const speedCol = turnSpeed > 5000 ? "error" : turnSpeed > 1000 ? "warning" : "dim";
 					const spStr = theme.fg(speedCol, `⚡${fmt(turnSpeed)}/s`);
 					const turnStr = theme.fg("dim", `T${turnCount}`);
@@ -182,14 +179,28 @@ export default function (pi: ExtensionAPI) {
 					const cwdStr = theme.fg("muted", `📁${cwd}`);
 					const fullModel = provider ? `${provider}/${modelId}` : modelId;
 					const modelStr = theme.fg("accent", fullModel);
-					const tiColors: Record<string, string> = { off: "dim", minimal: "thinkingMinimal", low: "thinkingLow", medium: "thinkingMedium", high: "thinkingHigh", xhigh: "thinkingXhigh" };
-					const tiIcons: Record<string, string> = { off: "○", minimal: "◔", low: "◑", medium: "●", high: "◉", xhigh: "⬤" };
-					const tiStr = theme.fg(tiColors[thinking] ?? "dim", `🧠${tiIcons[thinking] ?? "○"}${thinking}`);
+					const tiColors: Record<string, string> = { 
+						off: "dim", 
+						minimal: "thinkingMinimal", 
+						low: "thinkingLow", 
+						medium: "thinkingMedium", 
+						high: "thinkingHigh", 
+						xhigh: "thinkingXhigh" 
+					};
+					const tiIcons: Record<string, string> = { 
+						off: "○", 
+						minimal: "◔", 
+						low: "◑", 
+						medium: "●", 
+						high: "◉", 
+						xhigh: "⬤" 
+					};
+					const tiStr = theme.fg(tiColors[thinking] || "dim", `🧠${tiIcons[thinking] || "○"}${thinking}`);
 					
 					const line2Parts = [spStr, turnStr, durStr, branchStr, cwdStr, modelStr, tiStr];
 					const line2 = line2Parts.join("  ");
 
-					// ═══ 第三行：上下文进度 ═══
+					// ═══ 第三行 ═══
 					const pctCol = pct > 85 ? "error" : pct > 60 ? "warning" : "success";
 					const pctNum = Math.round(pct);
 					const pctStr = theme.fg(pctCol, `${pctNum}%`);
@@ -219,15 +230,15 @@ export default function (pi: ExtensionAPI) {
 	pi.on("turn_end", () => {
 		agentActive = false;
 		cachedUsage.valid = false;
-		lastContextTokens = 0;
-		lastContextTime = Date.now();
 	});
 
 	pi.registerCommand("statusbar", {
 		description: "Toggle status bar",
 		handler: async (_args, ctx) => {
 			enabled = !enabled;
-			ctx.ui.setFooter(enabled ? undefined : undefined);
+			if (!enabled) {
+				ctx.ui.setFooter(undefined);
+			}
 			ctx.ui.notify(enabled ? "Status bar on" : "Status bar off", "info");
 		},
 	});

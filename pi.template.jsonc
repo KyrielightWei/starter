@@ -99,12 +99,50 @@
   "enabledModels": ["glm-5", "qwen3.*", "kimi-k2*"],
 
   // ───────────────────────────────────────────────────────────────────────
+  // Branch / Tree (会话分支)
+  // ───────────────────────────────────────────────────────────────────────
+
+  "branchSummary": {
+    "reserveTokens": 16384,
+    "skipPrompt": false
+  },
+
+  // /tree 默认过滤模式: default | no-tools | user-only | labeled-only | all
+  "treeFilterMode": "default",
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Message Delivery
+  // ───────────────────────────────────────────────────────────────────────
+
+  // steeringMode / followUpMode: "all" 或 "one-at-a-time"
+  "steeringMode": "one-at-a-time",
+  "followUpMode": "one-at-a-time",
+
+  // ───────────────────────────────────────────────────────────────────────
   // Resources (扩展、技能、Prompt) 📚
   // ───────────────────────────────────────────────────────────────────────
 
+  // 跨工具复用 skill (Claude Code / Codex 的 skill 目录)
+  // 路径在 ~/.pi/agent/settings.json 中相对 ~/.pi/agent 解析；~ 和绝对路径都支持
+  "skills": [
+    "~/.claude/skills",
+    "~/.codex/skills"
+  ],
+
   // Pi 包 (npm 或 git)
   "packages": [
-    "git:github.com/obra/superpowers"
+    // Superpowers - 跨工具通用工程方法论 (brainstorming/TDD/debugging/...)
+    "git:github.com/obra/superpowers",
+
+    // pi-mcp-adapter - MCP 支持（社区方案，单 proxy tool 避免 context bloat）
+    // 安装后可用 /mcp 命令；配置文件 ~/.config/mcp/mcp.json 或 .mcp.json
+    "npm:pi-mcp-adapter",
+
+    // Anthropic 官方 skill 包 - 文档处理 (docx/pdf/pptx/xlsx)、web 开发
+    "git:github.com/anthropics/skills",
+
+    // Pi 维护者的 skill 包 - web search / 浏览器 / Google APIs / transcription
+    "git:github.com/badlogic/pi-skills"
   ],
 
   // 启用技能命令 (/skill:name)

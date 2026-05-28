@@ -80,7 +80,7 @@ class TodoListComponent {
     } else {
       const done = this.todos.filter((t) => t.done).length;
       const total = this.todos.length;
-      lines.push(truncateToWidth(`  ${th.fg("muted", `${done}/${total} completed")}`, width));
+      lines.push(truncateToWidth(`  ${th.fg("muted", `${done}/${total} completed`)}`, width));
       lines.push("");
 
       for (const todo of this.todos) {

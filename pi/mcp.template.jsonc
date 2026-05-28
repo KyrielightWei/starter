@@ -1,0 +1,208 @@
+{
+  // ═════════════════════════════════════════════════════════════════════════
+  // MCP 配置 (供 pi-mcp-adapter 使用) 🌐
+  //
+  // 安装前置:
+  //   pi install npm:pi-mcp-adapter
+  //   重启 pi
+  //
+  // 推荐配置文件位置（pi-mcp-adapter 自动加载，按优先级合并）:
+  //   1. ~/.config/mcp/mcp.json     - 用户全局共享（跨工具复用：Cursor/Claude/Codex/Pi）
+  //   2. ~/.pi/agent/mcp.json       - Pi 全局覆盖
+  //   3. .mcp.json                  - 项目共享（团队共用，进 git）
+  //   4. .pi/mcp.json               - 项目 Pi 专属覆盖
+  //
+  // 本模板适合放到 ~/.config/mcp/mcp.json（跨工具共享）。
+  //
+  // Pi 内的关键命令:
+  //   /mcp           交互面板（servers / tools / connect / OAuth）
+  //   /mcp setup     首次安装向导（导入其他工具的配置）
+  //   /mcp tools     列出所有 MCP tools
+  //   /mcp reconnect 重连所有 server
+  //   /mcp-auth <s>  对单个 server 跑 OAuth
+  //
+  // 默认行为:
+  //   - 所有 MCP server 都是 lazy 启动（首次 tool call 才连接）
+  //   - 单个 mcp({...}) proxy tool 接管所有 server（避免 ~10k token bloat）
+  //   - 通过 mcp({search:"..."}) 按需发现工具
+  //   - 高频工具可加 directTools 提升为顶级 tool（每个 ~150-300 token）
+  // ═════════════════════════════════════════════════════════════════════════
+
+  "settings": {
+    // Tool 命名前缀模式: "server"（默认）| "short"（去掉 -mcp 后缀）| "none"
+    "toolPrefix": "server",
+
+    // 空闲多少分钟后断开 server（0 = 不断开）
+    "idleTimeout": 10,
+
+    // 全局 directTools 默认值（per-server 可覆盖）
+    "directTools": false,
+
+    // 配置好的 direct tools 全部就绪后，是否隐藏 mcp proxy tool（省 token）
+    "disableProxyTool": false,
+
+    // 自动跑 OAuth（server 需要 auth 时）
+    "autoAuth": true
+  },
+
+  "mcpServers": {
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Context7 - 实时库文档 📚 (强推)
+    // 避免训练数据过时；查 React/Vue/PyTorch/Rust crate 等
+    // 工具不多 → 可以 directTools 提升
+    // ───────────────────────────────────────────────────────────────────────
+
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "lifecycle": "lazy",
+      "directTools": true
+    },
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Filesystem - 受限文件系统 📁
+    // 比 pi 内置 read/write 多 search/move 等；适合给指定目录开权限
+    // ───────────────────────────────────────────────────────────────────────
+
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/data/1/weixiaoxian.wxx/dev_tool/starter"
+      ],
+      "lifecycle": "lazy"
+    },
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Git - 结构化 git 操作 🌿 [默认未启用，需先装 uv]
+    //
+    // 用 Python 系（uv/uvx）启动；启用前：
+    //   curl -LsSf https://astral.sh/uv/install.sh | sh
+    //   export PATH="$HOME/.local/bin:$PATH"
+    //   which uvx   # 验证
+    //
+    // 启用：取消下面的块注释，重跑 ./scripts/install-pi-dev.sh
+    // ───────────────────────────────────────────────────────────────────────
+
+    /*
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "/data/1/weixiaoxian.wxx/dev_tool/starter"],
+      "lifecycle": "lazy"
+    },
+    */
+
+    // ───────────────────────────────────────────────────────────────────────
+    // GitHub - issues / PRs / repo 🐙
+    // 需要 GITHUB_PERSONAL_ACCESS_TOKEN
+    // 工具很多 → 用 directTools allow-list 只暴露常用几个
+    // ───────────────────────────────────────────────────────────────────────
+
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "$env:GITHUB_PERSONAL_ACCESS_TOKEN"
+      },
+      "lifecycle": "lazy",
+      "directTools": ["search_repositories", "get_file_contents", "list_issues", "get_pull_request"]
+    },
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Fetch - URL → markdown 🌐 [默认未启用，需先装 uv，参见 git 段落]
+    // ───────────────────────────────────────────────────────────────────────
+
+    /*
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "lifecycle": "lazy"
+    },
+    */
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Memory - 跨会话知识图谱 🧠
+    // 在多个 pi session 间共享 facts / preferences
+    // ───────────────────────────────────────────────────────────────────────
+
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "lifecycle": "lazy"
+    },
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Playwright - 浏览器自动化 🌐
+    // 适合 E2E 测试、网页抓取
+    // ───────────────────────────────────────────────────────────────────────
+
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp"],
+      "lifecycle": "lazy"
+    },
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Chrome DevTools - 浏览器调试 🐞
+    // 工具不多 → directTools 提升
+    // ───────────────────────────────────────────────────────────────────────
+
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "lifecycle": "lazy",
+      "directTools": true
+    }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // 其他可选 (取消注释启用)
+    // ───────────────────────────────────────────────────────────────────────
+
+    // "postgres": {
+    //   "command": "npx",
+    //   "args": ["-y", "@modelcontextprotocol/server-postgres"],
+    //   "env": { "DATABASE_URL": "$env:DATABASE_URL" },
+    //   "lifecycle": "lazy"
+    // },
+
+    // "slack": {
+    //   "command": "npx",
+    //   "args": ["-y", "@modelcontextprotocol/server-slack"],
+    //   "env": {
+    //     "SLACK_BOT_TOKEN": "$env:SLACK_BOT_TOKEN",
+    //     "SLACK_TEAM_ID": "$env:SLACK_TEAM_ID"
+    //   },
+    //   "lifecycle": "lazy"
+    // },
+
+    // "linear": {
+    //   "command": "npx",
+    //   "args": ["-y", "@cline/linear-mcp"],
+    //   "env": { "LINEAR_API_KEY": "$env:LINEAR_API_KEY" },
+    //   "lifecycle": "lazy"
+    // }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // 字段速查（来自 pi-mcp-adapter README）
+  // ═════════════════════════════════════════════════════════════════════════
+  //
+  //   command          stdio 启动命令
+  //   args             命令参数数组
+  //   env              环境变量；支持 ${VAR} 和 $env:VAR 插值
+  //   cwd              工作目录；支持 ${VAR}、$env:VAR、~
+  //   url              HTTP endpoint（StreamableHTTP + SSE fallback）
+  //   headers          HTTP headers；支持插值
+  //   auth             "bearer" | "oauth"
+  //   bearerToken      / bearerTokenEnv
+  //   lifecycle        "lazy"（默认）| "eager" | "keep-alive"
+  //   idleTimeout      单 server 空闲分钟
+  //   directTools      true | string[] | false —— 是否提升为顶级 tool
+  //   excludeTools     string[] —— 隐藏指定 tool
+  //   exposeResources  把 MCP resources 也暴露为 tool（默认 true）
+  //   debug            true → 显示 server stderr
+  //
+  // ═════════════════════════════════════════════════════════════════════════
+}

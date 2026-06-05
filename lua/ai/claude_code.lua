@@ -528,7 +528,7 @@ local function build_provider_settings()
   model = model or Registry.get_default_model(provider_name)
 
   -- Detect if selected model is a Claude model
-  local selected_type = detect_model_type_and_version(model)
+  local selected_type, _ = detect_model_type_and_version(model)
   local is_claude_model = selected_type ~= "unknown"
 
   -- Check if provider supports Claude Code (via base_url_claude or has Claude models)

@@ -198,23 +198,6 @@ local commands = {
     desc = "Sync AI Configs",
   },
 
-  -- ECC 命令（向后兼容）
-  {
-    "ECCInstall",
-    function()
-      require("ai.ecc").open_installer()
-    end,
-    desc = "Install ECC Framework",
-  },
-
-  {
-    "ECCStatus",
-    function()
-      require("ai.ecc").show_status()
-    end,
-    desc = "Show ECC Status",
-  },
-
   -- OpenCode 命令
   {
     "OpenCodeWriteConfig",
@@ -564,6 +547,12 @@ function M.setup(opts)
   local ok_cp, CommitPicker = pcall(require, "commit_picker.init")
   if ok_cp then
     CommitPicker.setup()
+  end
+
+  -- Ensure default prompt files exist
+  local ok_sp, SystemPrompt = pcall(require, "ai.system_prompt")
+  if ok_sp and SystemPrompt.ensure_default_files then
+    SystemPrompt.ensure_default_files()
   end
 
   -- 注册快捷键和命令

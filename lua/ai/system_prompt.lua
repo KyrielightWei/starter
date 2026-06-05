@@ -236,9 +236,4 @@ function M.show_status()
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
-----------------------------------------------------------------------
--- 初始化：确保默认文件存在
-----------------------------------------------------------------------
-M.ensure_default_files()
-
 return M

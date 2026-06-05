@@ -233,7 +233,7 @@ function M.export_to_env_file(path)
   local lines = {}
 
   for env_var, value in pairs(exported) do
-    table.insert(lines, string.format("export %s='%s'", env_var, value))
+    table.insert(lines, string.format("export %s=%s", env_var, vim.fn.shellescape(value)))
   end
 
   table.sort(lines)

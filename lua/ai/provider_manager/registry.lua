@@ -15,21 +15,24 @@ local M = {}
 -- Priority: project root > user config directory
 ----------------------------------------------------------------------
 local function _get_providers_path()
-  -- Try project root first (when running as a standalone project)
+  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
+
+  -- Only use project path when cwd IS the nvim config directory (self-editing)
   local cwd = vim.fn.getcwd()
-  local project_path = cwd .. "/lua/ai/providers.lua"
-  if vim.fn.filereadable(project_path) == 1 then
-    return project_path
+  if cwd == vim.fn.stdpath("config") then
+    local project_path = cwd .. "/lua/ai/providers.lua"
+    if vim.fn.filereadable(project_path) == 1 then
+      return project_path
+    end
   end
 
   -- Fallback to user config directory (when installed as plugin)
-  local config_path = vim.fn.stdpath("config") .. "/lua/ai/providers.lua"
   if vim.fn.filereadable(config_path) == 1 then
     return config_path
   end
 
-  -- Last resort: return project path even if doesn't exist (for creating new file)
-  return project_path
+  -- Last resort: return config path even if doesn't exist (for creating new file)
+  return config_path
 end
 
 ----------------------------------------------------------------------

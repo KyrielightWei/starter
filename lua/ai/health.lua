@@ -189,7 +189,7 @@ local function check_ecc()
   if ecc.repo_version then
     vim.health.ok("Version: " .. ecc.repo_version)
   end
-  if #ecc.modules > 0 then
+  if ecc.modules and #ecc.modules > 0 then
     vim.health.ok("Modules (" .. #ecc.modules .. "): " .. table.concat(ecc.modules, ", "))
   end
 
@@ -299,8 +299,9 @@ local function check_api_keys()
   local invalid_count = 0
   local missing_count = 0
 
-  for provider, def in pairs(Providers) do
-    if type(def) == "table" and def.api_key_name then
+  for _, provider in ipairs(Providers.list()) do
+    local def = Providers.get(provider)
+    if def and def.api_key_name then
       local config = Keys.get_config(provider)
 
       if not config or not config.api_key or config.api_key == "" then
@@ -426,12 +427,16 @@ function M.check()
     return
   end
 
-  local backend = ai.get_backend and ai.get_backend()
-  if backend and backend.name then
-    vim.health.ok("Backend registered: " .. backend.name)
+  local ok_state, State = pcall(require, "ai.state")
+  if ok_state then
+    local current = State.get()
+    if current and current.provider then
+      vim.health.ok("Current provider: " .. current.provider .. " / " .. (current.model or "unknown"))
+    else
+      vim.health.info("No provider selected yet")
+    end
   else
-    vim.health.error("No backend registered")
-    vim.health.info("Run :lua require('ai').setup()")
+    vim.health.warn("State module not loaded")
   end
 
   -- Check each component

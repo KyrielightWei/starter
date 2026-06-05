@@ -57,7 +57,6 @@ function M.watch()
   if M.enabled then
     return
   end
-  M.enabled = false
 
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = vim.api.nvim_create_augroup("AIConfigWatcher", { clear = true }),

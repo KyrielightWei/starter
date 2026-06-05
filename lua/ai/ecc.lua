@@ -76,24 +76,6 @@ function M.show_status()
   end
 end
 
---- 打开安装器
-function M.open_installer()
-  if M.is_installed() then
-    vim.notify("ECC already installed", vim.log.levels.INFO)
-    return
-  end
-
-  vim.ui.select({"Yes", "No"}, {
-    prompt = "Install ECC Framework?",
-  }, function(choice)
-    if choice == "Yes" then
-      M.install({}, function(msg)
-        vim.notify(msg, vim.log.levels.INFO)
-      end)
-    end
-  end)
-end
-
 --- 格式化 ECC 状态通知行
 ---@param ecc table|nil
 ---@return string[]

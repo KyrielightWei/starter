@@ -4,10 +4,11 @@
   // ccstatusline 状态栏配置
   // 修改后运行 :ClaudeCodeGenerateConfig 同步到 ~/.config/ccstatusline/settings.json
   //
-  // 文档: https://github.com/nick-field/ccstatusline
+  // 文档: https://github.com/sirmalloc/ccstatusline
 
   "version": 3,
   "lines": [
+    // Line 1: 模型 + Git + 成本 + 时长
     [
       {
         "id": "1",
@@ -26,8 +27,8 @@
       },
       {
         "id": "4",
-        "type": "claude-session-id",
-        "color": "brightBlack",
+        "type": "session-cost",
+        "color": "yellow",
         "rawValue": true
       },
       {
@@ -37,6 +38,7 @@
         "rawValue": true
       }
     ],
+    // Line 2: Token 用量 + 缓存 + 上下文进度条 + 压缩次数
     [
       {
         "id": "6",
@@ -50,40 +52,70 @@
       },
       {
         "id": "8",
-        "type": "context-bar",
+        "type": "tokens-cached",
         "color": "cyan"
       },
       {
         "id": "9",
-        "type": "session-cost",
-        "color": "yellow",
-        "rawValue": true
-      }
-    ],
-    [
+        "type": "context-bar",
+        "color": "cyan"
+      },
       {
         "id": "10",
-        "type": "input-speed",
-        "color": "green",
-        "metadata": {
-          "window": "0"
-        }
-      },
+        "type": "compaction-counter",
+        "color": "yellow"
+      }
+    ],
+    // Line 3: 速度(30s窗口) + 限额追踪 + Block 计时
+    [
       {
         "id": "11",
         "type": "output-speed",
         "color": "magenta",
         "metadata": {
-          "window": "0"
+          "window": "30"
         }
       },
       {
         "id": "12",
+        "type": "session-usage",
+        "color": "green"
+      },
+      {
+        "id": "13",
+        "type": "weekly-usage",
+        "color": "blue"
+      },
+      {
+        "id": "14",
+        "type": "block-timer",
+        "color": "yellow"
+      },
+      {
+        "id": "15",
+        "type": "block-reset-timer",
+        "color": "brightBlack"
+      }
+    ],
+    // Line 4: 超额用量 + 会话 + 项目
+    [
+      {
+        "id": "16",
+        "type": "extra-usage-utilization",
+        "color": "red"
+      },
+      {
+        "id": "17",
+        "type": "extra-usage-remaining",
+        "color": "green"
+      },
+      {
+        "id": "18",
         "type": "session-name",
         "color": "cyan"
       },
       {
-        "id": "13",
+        "id": "19",
         "type": "git-root-dir",
         "color": "green"
       }

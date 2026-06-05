@@ -98,6 +98,7 @@
     "npm:pi-mcp-adapter",                  // MCP 协议支持
     "npm:pi-web-access",                   // Web 搜索 / URL fetch
     "npm:pi-ask-user",                     // 交互式询问 UI
+    "npm:pi-codex-limit",                  // Codex/quota 限制提示
     "git:github.com/anthropics/skills",    // 17 官方 skills (docx/pdf/...)
     "git:github.com/badlogic/pi-skills",   // 10 skills (search/...)
     "npm:@fission-ai/openspec"             // SDD 工作流
@@ -145,18 +146,16 @@
   // "treeFilterMode": "default",
 
   // 跨工具复用 skill (Claude Code / Codex 的 skill 目录)
-  // "skills": [
-  //   "~/.claude/skills",
-  //   "~/.codex/skills"
-  // ],
+  // Pi 启动时扫描这些路径，暴露为 /skill:name 命令
+  // 全局 skill: ~/.claude/skills/、~/.codex/skills/
+  // 项目级 skill: 当前 cwd 下的 .claude/skills/
+  "skills": [
+    "~/.claude/skills",
+    "./.claude/skills"
+  ],
 
   // 启用技能命令 (/skill:name)
-  // "enableSkillCommands": true,
-
-  // 可选 Packages (未安装)
-  // "npm:pi-mcp-adapter",           // MCP 支持
-  // "git:github.com/anthropics/skills", // Anthropic 官方 skill
-  // "git:github.com/badlogic/pi-skills", // Pi 维护者 skill
+  "enableSkillCommands": true,
 
   // 遥测和警告
   // "enableInstallTelemetry": true,

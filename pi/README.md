@@ -11,6 +11,8 @@ pi/
 ├── README.md                       # 本文件
 ├── CLI.md                          # CLI 命令行参考
 ├── PACKAGES.md                     # 包管理文档
+├── AUTH.md                         # 认证 & Provider 配置（auth.json / models.json 详解）
+├── INTEGRATION_WITH_CLAUDE_CODE.md # Pi × Claude Code 跨工具对接指南
 ├── AGENTS.template.md              # 全局工作流约定
 ├── pi.template.jsonc               # 主 settings (→ ~/.pi/agent/settings.json)
 ├── models.template.jsonc           # 5 个模型 (→ ~/.pi/agent/models.json)
@@ -39,7 +41,7 @@ pi/
 │       ├── utils.template.ts
 │       └── README.md
 │
-├── prompts/                        # 12 个 prompt 模板
+├── prompts/                        # 12 个基础 + 2 个链式工作流
 │   ├── commit.template.md          # 提交消息
 │   ├── debug.template.md           # 调试
 │   ├── docs.template.md            # 文档生成
@@ -51,9 +53,17 @@ pi/
 │   ├── refactor.template.md        # 重构
 │   ├── review.template.md          # 代码审查
 │   ├── security.template.md        # 安全检查
-│   └── test.template.md            # 测试
+│   ├── test.template.md            # 测试
+│   ├── scout-and-plan.template.md      # 链式: scout → planner
+│   └── implement-and-review.template.md# 链式: worker → reviewer → worker
 │
-├── skills/                         # 本地 skills
+├── agents/                         # 4 个子代理模板 (→ ~/.pi/agent/agents/)
+│   ├── scout.template.md           # 快速代码侦察
+│   ├── planner.template.md         # 实现计划生成
+│   ├── worker.template.md          # 通用执行代理
+│   └── reviewer.template.md        # 代码评审代理
+│
+├── skills/                         # 本地 skills (仅 1 个；其余由包提供)
 │   └── openspec/SKILL.md           # SDD 工作流
 │
 └── themes/                         # 可选主题
@@ -70,7 +80,7 @@ cd pi
 脚本会：
 1. 创建 `~/.pi/agent/` 目录结构
 2. 复制所有模板文件
-3. 安装 10 个 Pi packages:
+3. 安装 11 个 Pi packages:
    - `git:github.com/obra/superpowers` — 14 skills
    - `git:github.com/anthropics/skills` — 17 官方 skills
    - `git:github.com/badlogic/pi-skills` — 10 skills
@@ -80,29 +90,54 @@ cd pi
    - `npm:pi-mcp-adapter` — MCP 支持
    - `npm:pi-web-access` — Web 搜索
    - `npm:pi-ask-user` — 交互询问
+   - `npm:pi-codex-limit` — Codex/quota 限制
    - `npm:@fission-ai/openspec` — SDD 工作流
 
 ## 🔑 配置 API Key
+
+最简：环境变量
 
 ```bash
 export OPENAI_API_KEY='your-bailian-key'
 ```
 
-或使用 `/keys` 命令在 Pi 中配置。
+更推荐：使用 `~/.pi/agent/auth.json` 集中管理凭据（不污染 shell、文件权限 0600、多 provider 共存）。
+
+详见 [AUTH.md](./AUTH.md)，覆盖：
+
+- `auth.json` 的两种类型（`api_key` / `oauth`）和支持的 `key` 引用格式
+- `models.json` 中 `apiKey` 字段的语义（环境变量名而非密钥本身）
+- API Key 解析优先级（CLI → auth.json api_key → oauth → 环境变量 → fallback）
+- 完整 Bailian Coding 配置链路 + 常见问题（401 / MCP 空配置）
+- 与 OpenCode 凭据管理的对比
+
+## 🔗 Claude Code 对接
+
+模板已启用 Claude Code skill 自动加载（全局 + 项目级），并通过 `claude-rules` 扩展暴露项目 rule。
+
+详见 [INTEGRATION_WITH_CLAUDE_CODE.md](./INTEGRATION_WITH_CLAUDE_CODE.md)，覆盖：
+
+- **Skill** — `~/.claude/skills` + `.claude/skills` 自动扫描，暴露为 `/skill:name`
+- **Rule** — `claude-rules` 扩展列出 `.claude/rules/`，模型按需 read
+- **Command** — 不兼容，需手动转为 `.pi/prompts/*.md`（附转换步骤）
+- **Agent** — 格式不同，不可直接共享
 
 ## 📊 配置统计
 
 | 类型 | 数量 |
 |------|------|
-| Packages | 10 |
+| Packages | 11 |
 | Extensions | 13 (含 plan-mode) |
-| Prompts | 12 |
-| Skills (本地) | 1 |
-| Skills (superpowers) | 14 |
+| Agents (本地) | 4 (scout/planner/worker/reviewer) |
+| Prompts | 14 (12 基础 + 2 链式) |
+| Skills (本地) | 1 (openspec) |
+| Skills (superpowers) | 14 (含 systematic-debugging, TDD, using-git-worktrees, verification-before-completion 等) |
 | Skills (anthropics) | 17 |
 | Skills (badlogic) | 10 |
-| Skills (.claude) | 266 (可选) |
+| Skills (.claude) | 自动加载（全局 + 项目级 .claude/skills） |
 | Models | 5 |
+
+> **说明**：`systematic-debugging`、`test-driven-development`、`using-git-worktrees`、`verification-before-completion` 等 skill 由 `git:github.com/obra/superpowers` 包提供，不是本地模板。
 
 ## 🔧 验证
 

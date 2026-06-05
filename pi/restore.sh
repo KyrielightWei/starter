@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "📁 创建目录结构..."
 
-mkdir -p "$PI_DIR"/{themes,extensions,skills,prompts,sessions}
+mkdir -p "$PI_DIR"/{themes,extensions,skills,prompts,sessions,agents}
 mkdir -p "$PI_DIR"/extensions/plan-mode
 mkdir -p "$PI_DIR"/skills/openspec
 
@@ -77,7 +77,7 @@ for dir in "$SCRIPT_DIR"/skills/*/; do
 done
 
 # ═════════════════════════════════════════════════════════════════════════
-# 复制 Prompts (12 个)
+# 复制 Prompts (12 个基础 + 2 个链式工作流)
 # ═════════════════════════════════════════════════════════════════════════
 
 echo "📝 复制 Prompt 模板..."
@@ -86,6 +86,20 @@ for f in "$SCRIPT_DIR"/prompts/*.template.md; do
   if [ -f "$f" ]; then
     name=$(basename "$f" .template.md)
     cp "$f" "$PI_DIR/prompts/$name.md"
+    echo "  ✓ $name.md"
+  fi
+done
+
+# ═════════════════════════════════════════════════════════════════════════
+# 复制 Agents (子代理：scout/planner/worker/reviewer)
+# ═════════════════════════════════════════════════════════════════════════
+
+echo "🤖 复制子代理..."
+
+for f in "$SCRIPT_DIR"/agents/*.template.md; do
+  if [ -f "$f" ]; then
+    name=$(basename "$f" .template.md)
+    cp "$f" "$PI_DIR/agents/$name.md"
     echo "  ✓ $name.md"
   fi
 done
@@ -106,10 +120,11 @@ if command -v pi &> /dev/null; then
   pi install npm:pi-mcp-adapter                   # MCP
   pi install npm:pi-web-access                    # Web搜索
   pi install npm:pi-ask-user                      # 交互询问
+  pi install npm:pi-codex-limit                   # Codex/quota 限制
   pi install git:github.com/anthropics/skills     # 17 skills
   pi install git:github.com/badlogic/pi-skills    # 10 skills
   pi install npm:@fission-ai/openspec             # SDD
-  
+
   echo "  ✓ 包安装完成"
 else
   echo "  ⚠️ pi 命令未找到，跳过包安装"
@@ -126,10 +141,11 @@ echo "✓ Pi 配置已恢复到: $PI_DIR"
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
 echo "已安装:"
-echo "  - 10 个 packages"
+echo "  - 11 个 packages"
 echo "  - 13 个扩展 (含 plan-mode)"
+echo "  - 4 个子代理 (scout/planner/worker/reviewer)"
 echo "  - 1 个本地技能 + superpowers 14 个"
-echo "  - 12 个 prompt 模板"
+echo "  - 14 个 prompt 模板 (含 2 个链式工作流)"
 echo "  - MCP 配置 (~/.config/mcp/mcp.json)"
 echo ""
 echo "验证配置:"

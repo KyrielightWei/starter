@@ -26,3 +26,26 @@ Thumbs.db
 
 # Agent evidence
 .sisyphus/
+
+# Local agent settings
+.qoder/settings.local.json
+.claude/settings.local.json
+
+# Local tool configurations
+.pi/
+.opencode/
+.planning/
+
+# Test scripts (contain hardcoded paths or environment-specific values)
+test_*.js
+test_*.sh
+start-qoder.sh
+
+# Test reports
+BAILIAN_CODING_TEST_REPORT*.md
+
+# Reviews (generated artifacts)
+reviews/
+
+# Python
+__pycache__/

@@ -32,15 +32,21 @@ describe("registry static_models CRUD", function()
       end
     end
     vim.fn.filereadable = function(path)
-      if path:find("/tmp/nvim_test_") then return 1 end
+      if path:find("/tmp/nvim_test_") then
+        return 1
+      end
       return 0
     end
     vim.fn.delete = function(_) end
 
     vim.loop = vim.loop or {}
     vim.uv = vim.uv or vim.loop
-    vim.loop.fs_rename = function(_, _) return nil end
-    vim.uv.fs_rename = function(_, _) return nil end
+    vim.loop.fs_rename = function(_, _)
+      return nil
+    end
+    vim.uv.fs_rename = function(_, _)
+      return nil
+    end
 
     -- Clear cached modules
     package.loaded["ai.provider_manager.file_util"] = nil
@@ -76,7 +82,9 @@ describe("registry static_models CRUD", function()
     it("should handle large content with many lines", function()
       local path = "/tmp/nvim_test_large/test.lua"
       local lines = {}
-      for i = 1, 50 do table.insert(lines, "line_" .. i) end
+      for i = 1, 50 do
+        table.insert(lines, "line_" .. i)
+      end
       local content = table.concat(lines, "\n")
       local ok = FileUtil.safe_write_file(path, content)
       assert.is_true(ok)

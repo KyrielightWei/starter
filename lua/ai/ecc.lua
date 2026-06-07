@@ -54,7 +54,6 @@ function M.install(opts, on_progress)
 
   notify("Installing ECC Framework...")
 
-
   local cmd = M.install_hint()
   local output = vim.fn.system(cmd)
 

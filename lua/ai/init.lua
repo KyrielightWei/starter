@@ -277,6 +277,51 @@ local commands = {
     desc = "Preview Claude Code Settings",
   },
 
+  -- Pi 命令
+  {
+    "PiGenerateConfig",
+    function()
+      local ok, Pi = pcall(require, "ai.pi")
+      if ok then
+        Pi.write_config()
+      end
+    end,
+    desc = "Generate Pi Config",
+  },
+
+  {
+    "PiPreviewConfig",
+    function()
+      local ok, Pi = pcall(require, "ai.pi")
+      if ok then
+        Pi.preview_config()
+      end
+    end,
+    desc = "Preview Pi Config",
+  },
+
+  {
+    "PiEditTemplate",
+    function()
+      local ok, Pi = pcall(require, "ai.pi")
+      if ok then
+        Pi.edit_template()
+      end
+    end,
+    desc = "Edit Pi Template",
+  },
+
+  {
+    "PiStatus",
+    function()
+      local ok, Pi = pcall(require, "ai.pi")
+      if ok then
+        Pi.show_status()
+      end
+    end,
+    desc = "Show Pi Status",
+  },
+
   -- Model Commands
   {
     "AIModelSwitch",
@@ -563,7 +608,7 @@ function M.setup(opts)
     M.setup_commands()
   end
 
-  vim.notify("AI Module initialized (OpenCode + Claude Code)", vim.log.levels.INFO)
+  vim.notify("AI Module initialized (OpenCode + Claude Code + Pi)", vim.log.levels.INFO)
 
   return M
 end

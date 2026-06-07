@@ -86,7 +86,7 @@ end
 
 ----------------------------------------------------------------------
 -- get_template_version(tool): 获取工具的模版版本
--- @param tool string: 工具名称 (opencode, claude_code)
+-- @param tool string: 工具名称 (opencode, claude_code, pi)
 -- @return string: 当前版本，默认 "default"
 ----------------------------------------------------------------------
 function M.get_template_version(tool)

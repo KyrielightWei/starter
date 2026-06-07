@@ -27,7 +27,9 @@ function cache_stub.get(p, m)
   return _cache_data[p] and _cache_data[p][m]
 end
 function cache_stub.set(p, m, r)
-  if not _cache_data[p] then _cache_data[p] = {} end
+  if not _cache_data[p] then
+    _cache_data[p] = {}
+  end
   _cache_data[p][m] = r
 end
 function cache_stub.is_valid(p, m)
@@ -144,7 +146,7 @@ describe("ai.provider_manager.status", function()
     it("returns cached status when cache is valid", function()
       -- Populate cache with a valid entry
       _cache_data["test-prov"] = {
-        ["test-model"] = { status = "available", timestamp = os.time() }
+        ["test-model"] = { status = "available", timestamp = os.time() },
       }
       local result = Status.get_cached_status("test-prov", "test-model")
       assert.are.equal("available", result)
@@ -152,7 +154,7 @@ describe("ai.provider_manager.status", function()
 
     it("returns cached 'unavailable' status", function()
       _cache_data["bad-prov"] = {
-        ["bad-model"] = { status = "unavailable", timestamp = os.time() }
+        ["bad-model"] = { status = "unavailable", timestamp = os.time() },
       }
       local result = Status.get_cached_status("bad-prov", "bad-model")
       assert.are.equal("unavailable", result)
@@ -160,7 +162,7 @@ describe("ai.provider_manager.status", function()
 
     it("returns cached 'timeout' status", function()
       _cache_data["slow-prov"] = {
-        ["slow-model"] = { status = "timeout", timestamp = os.time() }
+        ["slow-model"] = { status = "timeout", timestamp = os.time() },
       }
       local result = Status.get_cached_status("slow-prov", "slow-model")
       assert.are.equal("timeout", result)
@@ -168,7 +170,7 @@ describe("ai.provider_manager.status", function()
 
     it("returns cached 'error' status", function()
       _cache_data["err-prov"] = {
-        ["err-model"] = { status = "error", timestamp = os.time() }
+        ["err-model"] = { status = "error", timestamp = os.time() },
       }
       local result = Status.get_cached_status("err-prov", "err-model")
       assert.are.equal("error", result)
@@ -181,8 +183,12 @@ describe("ai.provider_manager.status", function()
       -- For this test: override is_valid to return true but get to return nil
       local orig_is_valid = cache_stub.is_valid
       local orig_get = cache_stub.get
-      cache_stub.is_valid = function() return true end
-      cache_stub.get = function() return nil end
+      cache_stub.is_valid = function()
+        return true
+      end
+      cache_stub.get = function()
+        return nil
+      end
 
       local result = Status.get_cached_status("ghost-prov", "ghost-model")
       assert.are.equal("unchecked", result)
@@ -196,7 +202,7 @@ describe("ai.provider_manager.status", function()
   describe("get_cached_status_with_pending()", function()
     it("returns same status as get_cached_status", function()
       _cache_data["test-prov"] = {
-        ["test-model"] = { status = "available", timestamp = os.time() }
+        ["test-model"] = { status = "available", timestamp = os.time() },
       }
       local status, is_checking = Status.get_cached_status_with_pending("test-prov", "test-model")
       assert.are.equal("available", status)
@@ -312,7 +318,9 @@ describe("ai.provider_manager.status", function()
       end)
 
       -- Wait for vim.schedule to fire
-      vim.wait(1000, function() return results_received end, 50, false)
+      vim.wait(1000, function()
+        return results_received
+      end, 50, false)
       assert.is_true(results_received)
     end)
   end)

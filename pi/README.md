@@ -139,6 +139,44 @@ export OPENAI_API_KEY='your-bailian-key'
 
 > **说明**：`systematic-debugging`、`test-driven-development`、`using-git-worktrees`、`verification-before-completion` 等 skill 由 `git:github.com/obra/superpowers` 包提供，不是本地模板。
 
+## 🧠 Neovim AI 同步
+
+Pi 也可以通过本仓库的 Neovim AI 模块统一管理，而不是只依赖 shell restore 脚本：
+
+```vim
+:PiGenerateConfig   " 同步全局 ~/.pi/agent 配置
+:PiPreviewConfig    " 预览 settings/models/resources
+:PiEditTemplate     " 编辑 Pi settings 模板
+:PiStatus           " 查看 CLI、配置、资源和 package 状态
+:AISync             " 在 OpenCode / Claude Code / Pi 中选择同步目标
+```
+
+同步范围：
+
+- `~/.pi/agent/settings.json`
+- `~/.pi/agent/models.json`（从 Neovim provider/key/model 体系生成，并以 `pi/models.template.jsonc` 为基础）
+- `~/.pi/agent/keybindings.json`
+- `~/.pi/agent/themes/<theme.name>.json`
+- `~/.pi/agent/extensions/`（含 statusbar）
+- `~/.pi/agent/prompts/`
+- `~/.pi/agent/skills/openspec/`
+- `~/.pi/agent/AGENTS.md`
+
+同步策略：
+
+- 只写全局 `~/.pi/agent`，不修改项目 `.pi/`。
+- JSON 配置保守合并，保留用户自定义字段。
+- 文件资源通过 `.starter-sync-manifest.json` 记录 hash；检测到用户改动时先备份再更新。
+- 只同步本仓库拥有的 local `openspec` skill；superpowers skills 由 `git:github.com/obra/superpowers` package 提供，避免本地副本遮蔽上游版本。
+- 不自动执行 `pi install` 或 `pi update`。`:PiStatus` 只报告缺失 packages，并给出手动安装提示。
+
+**模板文件关系：**
+
+- `pi.template.jsonc`（仓库根目录）是 legacy 模板，保持向后兼容。
+- `templates/pi/default.template.jsonc` 是版本化模板，由 TemplateVersion 系统管理。
+- `ai.pi` 模块优先使用版本化模板，若不存在则回退到 legacy 模板。
+- 两个文件内容相同。编辑时请同时更新两份，或只编辑版本化模板并删除 legacy 文件。
+
 ## 🔧 验证
 
 ```bash
@@ -146,4 +184,11 @@ pi              # 启动
 /settings       # 查看设置
 /model          # 查看模型
 /mcp            # MCP 状态
+```
+
+Neovim 内验证：
+
+```vim
+:PiStatus
+:checkhealth ai
 ```

@@ -12,7 +12,13 @@ describe("ai.provider_manager.results module", function()
     it("opens a floating window", function()
       local sample_results = {
         { provider = "openai", model = "gpt-4", status = "available", response_time = 150, error_msg = "" },
-        { provider = "deepseek", model = "deepseek-chat", status = "timeout", response_time = 5000, error_msg = "request timed out" },
+        {
+          provider = "deepseek",
+          model = "deepseek-chat",
+          status = "timeout",
+          response_time = 5000,
+          error_msg = "request timed out",
+        },
       }
 
       Results.show_results(sample_results, "Detection Results")
@@ -37,9 +43,27 @@ describe("ai.provider_manager.results module", function()
     it("displays results as table with columns", function()
       local sample_results = {
         { provider = "openai", model = "gpt-4", status = "available", response_time = 150, error_msg = "" },
-        { provider = "deepseek", model = "deepseek-chat", status = "unavailable", response_time = 50, error_msg = "401 Unauthorized" },
-        { provider = "qwen", model = "qwen-max", status = "error", response_time = 200, error_msg = "500 Internal Server Error" },
-        { provider = "kimi", model = "kimi-k2", status = "warning", response_time = 300, error_msg = "429 rate limited" },
+        {
+          provider = "deepseek",
+          model = "deepseek-chat",
+          status = "unavailable",
+          response_time = 50,
+          error_msg = "401 Unauthorized",
+        },
+        {
+          provider = "qwen",
+          model = "qwen-max",
+          status = "error",
+          response_time = 200,
+          error_msg = "500 Internal Server Error",
+        },
+        {
+          provider = "kimi",
+          model = "kimi-k2",
+          status = "warning",
+          response_time = 300,
+          error_msg = "429 rate limited",
+        },
       }
 
       Results.show_results(sample_results, "Detection Results")

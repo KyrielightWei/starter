@@ -349,7 +349,10 @@ function M.list()
         if result.valid then
           vim.notify("✅ " .. item.name .. " is valid", vim.log.levels.INFO)
         else
-          vim.notify("❌ " .. item.name .. " validation failed:\n" .. table.concat(result.errors, "\n"), vim.log.levels.ERROR)
+          vim.notify(
+            "❌ " .. item.name .. " validation failed:\n" .. table.concat(result.errors, "\n"),
+            vim.log.levels.ERROR
+          )
         end
       end,
     },

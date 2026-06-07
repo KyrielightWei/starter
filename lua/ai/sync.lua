@@ -32,6 +32,20 @@ local sync_targets = {
       return vim.fn.executable("claude") == 1
     end,
   },
+  pi = {
+    name = "Pi",
+    enabled = true,
+    sync = function()
+      local ok, Pi = pcall(require, "ai.pi")
+      if ok and Pi.write_config then
+        return Pi.write_config()
+      end
+      return false, "Pi module not found"
+    end,
+    check = function()
+      return vim.fn.executable("pi") == 1
+    end,
+  },
 }
 
 function M.register_target(name, config)

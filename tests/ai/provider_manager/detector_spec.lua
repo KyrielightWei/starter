@@ -25,27 +25,43 @@ package.loaded["ai.provider_manager.detector"] = nil
 local _cache_data = {}
 
 local cache_stub = {}
-function cache_stub.get(p, m) return _cache_data[p] and _cache_data[p][m] end
+function cache_stub.get(p, m)
+  return _cache_data[p] and _cache_data[p][m]
+end
 function cache_stub.set(p, m, r)
-  if not _cache_data[p] then _cache_data[p] = {} end
+  if not _cache_data[p] then
+    _cache_data[p] = {}
+  end
   _cache_data[p][m] = r
 end
-function cache_stub.is_valid(p, m) return cache_stub.get(p, m) ~= nil end
-function cache_stub.clear() _cache_data = {} end
+function cache_stub.is_valid(p, m)
+  return cache_stub.get(p, m) ~= nil
+end
+function cache_stub.clear()
+  _cache_data = {}
+end
 
 local _providers = {}
 local providers_stub = {}
-function providers_stub.get(name) return _providers[name] end
+function providers_stub.get(name)
+  return _providers[name]
+end
 function providers_stub.list()
   local out = {}
-  for k, v in pairs(_providers) do table.insert(out, k) end
+  for k, v in pairs(_providers) do
+    table.insert(out, k)
+  end
   return out
 end
 
 local _keys = {}
 local keys_stub = {}
-function keys_stub.get_key(p) return _keys[p] and _keys[p].api_key or "" end
-function keys_stub.get_base_url(p) return _keys[p] and _keys[p].base_url or "" end
+function keys_stub.get_key(p)
+  return _keys[p] and _keys[p].api_key or ""
+end
+function keys_stub.get_base_url(p)
+  return _keys[p] and _keys[p].base_url or ""
+end
 
 local _registry_models = {}
 local registry_stub = {}
@@ -56,10 +72,14 @@ function registry_stub.list_providers()
   end
   return out
 end
-function registry_stub.get_default_model(name) return _registry_models[name] end
+function registry_stub.get_default_model(name)
+  return _registry_models[name]
+end
 
 local state_stub = {
-  get = function() return { provider = nil, model = nil } end,
+  get = function()
+    return { provider = nil, model = nil }
+  end,
   set = function() end,
 }
 
@@ -112,7 +132,7 @@ describe("ai.provider_manager.detector", function()
     end)
 
     it("exports STATUS_ERROR", function()
-      assert.are.equal("error",Detector.STATUS_ERROR)
+      assert.are.equal("error", Detector.STATUS_ERROR)
     end)
   end)
 
@@ -394,7 +414,9 @@ describe("ai.provider_manager.detector", function()
         result = r
         done = true
       end)
-      vim.wait(5000, function() return done end, 50, false)
+      vim.wait(5000, function()
+        return done
+      end, 50, false)
 
       assert.is_not_nil(result)
       assert.are.equal("available", result.status)
@@ -428,7 +450,9 @@ describe("ai.provider_manager.detector", function()
         results = r
         done = true
       end)
-      vim.wait(10000, function() return done end, 50, false)
+      vim.wait(10000, function()
+        return done
+      end, 50, false)
 
       assert.is_not_nil(results)
       assert.is_true(#results >= 2)
@@ -461,14 +485,19 @@ describe("ai.provider_manager.detector", function()
         results = r
         done = true
       end)
-      vim.wait(10000, function() return done end, 50, false)
+      vim.wait(10000, function()
+        return done
+      end, 50, false)
 
       assert.is_not_nil(results)
       assert.is_true(#results >= 2)
       -- Both should have results even though one had no key
       local found_fail = false
       for _, r in ipairs(results) do
-        if r.provider == "fail_prov" then found_fail = true; break end
+        if r.provider == "fail_prov" then
+          found_fail = true
+          break
+        end
       end
       assert.is_true(found_fail)
     end)

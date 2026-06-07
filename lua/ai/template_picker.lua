@@ -41,112 +41,112 @@ function M.open(tool, opts)
   local versions = TV.list(tool)
 
   if #versions == 0 then
-    vim.notify("No templates found for " .. tool .. ". Create one with :AITemplateCreate " .. tool .. " <name>", vim.log.levels.WARN)
+    vim.notify(
+      "No templates found for " .. tool .. ". Create one with :AITemplateCreate " .. tool .. " <name>",
+      vim.log.levels.WARN
+    )
     return
   end
 
   local current = State.get_template_version(tool)
 
-  fzf.fzf_exec(
-    function(cb)
-      for _, v in ipairs(versions) do
-        local prefix = v == current and "* " or "  "
-        cb(prefix .. v)
+  fzf.fzf_exec(function(cb)
+    for _, v in ipairs(versions) do
+      local prefix = v == current and "* " or "  "
+      cb(prefix .. v)
+    end
+    cb()
+  end, {
+    prompt = tool .. " templates> ",
+    preview = function(selected)
+      if not selected then
+        return
       end
-      cb()
+      local version = selected:gsub("^%*? ", "")
+      local path = TV.get_template_path(tool, version)
+      if vim.fn.filereadable(path) == 1 then
+        return vim.fn.readfile(path)
+      end
+      return { "Template not found: " .. path }
     end,
-    {
-      prompt = tool .. " templates> ",
-      preview = function(selected)
+    actions = {
+      -- Enter: Select version
+      ["default"] = function(selected)
         if not selected then
           return
         end
-        local version = selected:gsub("^%*? ", "")
-        local path = TV.get_template_path(tool, version)
-        if vim.fn.filereadable(path) == 1 then
-          return vim.fn.readfile(path)
+        local version = selected[1]:gsub("^%*? ", "")
+        State.set_template_version(tool, version)
+        vim.notify("Selected template: " .. version, vim.log.levels.INFO)
+        if opts.on_select then
+          opts.on_select(version)
         end
-        return { "Template not found: " .. path }
       end,
-      actions = {
-        -- Enter: Select version
-        ["default"] = function(selected)
-          if not selected then
-            return
+      -- Ctrl-E: Edit template
+      ["ctrl-e"] = function(selected)
+        if not selected then
+          return
+        end
+        local version = selected[1]:gsub("^%*? ", "")
+        local path = TV.get_template_path(tool, version)
+        vim.cmd("edit " .. vim.fn.fnameescape(path))
+      end,
+      -- Ctrl-D: Delete version
+      ["ctrl-d"] = function(selected)
+        if not selected then
+          return
+        end
+        local version = selected[1]:gsub("^%*? ", "")
+        if version == "default" then
+          vim.notify("Cannot delete default template", vim.log.levels.ERROR)
+          return
+        end
+        local confirm = vim.fn.confirm("Delete template '" .. version .. "'?", "&Yes\n&No", 2)
+        if confirm == 1 then
+          local ok, result = TV.delete(tool, version)
+          if ok then
+            vim.notify(result, vim.log.levels.INFO)
+            -- Refresh picker
+            M.open(tool, opts)
+          else
+            vim.notify(result, vim.log.levels.ERROR)
           end
-          local version = selected[1]:gsub("^%*? ", "")
-          State.set_template_version(tool, version)
-          vim.notify("Selected template: " .. version, vim.log.levels.INFO)
-          if opts.on_select then
-            opts.on_select(version)
+        end
+      end,
+      -- Ctrl-N: Create new version
+      ["ctrl-n"] = function()
+        local name = vim.fn.input("New template name: ")
+        if name and name ~= "" then
+          local ok, result = TV.create(tool, name)
+          if ok then
+            vim.notify("Created template: " .. name, vim.log.levels.INFO)
+            -- Refresh picker
+            M.open(tool, opts)
+          else
+            vim.notify(result, vim.log.levels.ERROR)
           end
-        end,
-        -- Ctrl-E: Edit template
-        ["ctrl-e"] = function(selected)
-          if not selected then
-            return
+        end
+      end,
+      -- Ctrl-Y: Copy version
+      ["ctrl-y"] = function(selected)
+        if not selected then
+          return
+        end
+        local source = selected[1]:gsub("^%*? ", "")
+        local target = vim.fn.input("Copy '" .. source .. "' to: ")
+        if target and target ~= "" then
+          local ok, result = TV.copy(tool, source, target)
+          if ok then
+            vim.notify("Copied to: " .. target, vim.log.levels.INFO)
+            -- Refresh picker
+            M.open(tool, opts)
+          else
+            vim.notify(result, vim.log.levels.ERROR)
           end
-          local version = selected[1]:gsub("^%*? ", "")
-          local path = TV.get_template_path(tool, version)
-          vim.cmd("edit " .. vim.fn.fnameescape(path))
-        end,
-        -- Ctrl-D: Delete version
-        ["ctrl-d"] = function(selected)
-          if not selected then
-            return
-          end
-          local version = selected[1]:gsub("^%*? ", "")
-          if version == "default" then
-            vim.notify("Cannot delete default template", vim.log.levels.ERROR)
-            return
-          end
-          local confirm = vim.fn.confirm("Delete template '" .. version .. "'?", "&Yes\n&No", 2)
-          if confirm == 1 then
-            local ok, result = TV.delete(tool, version)
-            if ok then
-              vim.notify(result, vim.log.levels.INFO)
-              -- Refresh picker
-              M.open(tool, opts)
-            else
-              vim.notify(result, vim.log.levels.ERROR)
-            end
-          end
-        end,
-        -- Ctrl-N: Create new version
-        ["ctrl-n"] = function()
-          local name = vim.fn.input("New template name: ")
-          if name and name ~= "" then
-            local ok, result = TV.create(tool, name)
-            if ok then
-              vim.notify("Created template: " .. name, vim.log.levels.INFO)
-              -- Refresh picker
-              M.open(tool, opts)
-            else
-              vim.notify(result, vim.log.levels.ERROR)
-            end
-          end
-        end,
-        -- Ctrl-Y: Copy version
-        ["ctrl-y"] = function(selected)
-          if not selected then
-            return
-          end
-          local source = selected[1]:gsub("^%*? ", "")
-          local target = vim.fn.input("Copy '" .. source .. "' to: ")
-          if target and target ~= "" then
-            local ok, result = TV.copy(tool, source, target)
-            if ok then
-              vim.notify("Copied to: " .. target, vim.log.levels.INFO)
-              -- Refresh picker
-              M.open(tool, opts)
-            else
-              vim.notify(result, vim.log.levels.ERROR)
-            end
-          end
-        end,
-      },
-    }
-  )
+        end
+      end,
+    },
+  })
 end
 
 ----------------------------------------------------------------------

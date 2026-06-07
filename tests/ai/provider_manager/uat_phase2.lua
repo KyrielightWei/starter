@@ -62,7 +62,7 @@ Detector._http_fn = function(cmd, opts, cb)
   cb({ code = 0, stdout = '{"choices":[{}]}', stderr = "" })
 end
 assert(type(Detector._http_fn) == "function", "M._http_fn injectable")
-Detector._http_fn = nil  -- Reset
+Detector._http_fn = nil -- Reset
 
 -- Test 5: Cache operations
 print("\n[Test 5] Cache operations")
@@ -87,32 +87,50 @@ Cache.clear()
 print("\n[Test 6] TTL differentiation")
 local now = os.time()
 Cache.set("ttl_test", "available_model", {
-  status = "available", response_time = 10, error_msg = "", timestamp = now - 299
+  status = "available",
+  response_time = 10,
+  error_msg = "",
+  timestamp = now - 299,
 })
 assert(Cache.is_valid("ttl_test", "available_model") == true, "available: 299s < 300s TTL")
 
 Cache.set("ttl_test", "available_expired", {
-  status = "available", response_time = 10, error_msg = "", timestamp = now - 301
+  status = "available",
+  response_time = 10,
+  error_msg = "",
+  timestamp = now - 301,
 })
 assert(Cache.is_valid("ttl_test", "available_expired") == false, "available: 301s > 300s TTL — expired")
 
 Cache.set("ttl_test", "error_model", {
-  status = "error", response_time = 10, error_msg = "", timestamp = now - 29
+  status = "error",
+  response_time = 10,
+  error_msg = "",
+  timestamp = now - 29,
 })
 assert(Cache.is_valid("ttl_test", "error_model") == true, "error: 29s < 30s TTL")
 
 Cache.set("ttl_test", "error_expired", {
-  status = "error", response_time = 10, error_msg = "", timestamp = now - 31
+  status = "error",
+  response_time = 10,
+  error_msg = "",
+  timestamp = now - 31,
 })
 assert(Cache.is_valid("ttl_test", "error_expired") == false, "error: 31s > 30s TTL — expired")
 
 Cache.set("ttl_test", "timeout_model", {
-  status = "timeout", response_time = 10, error_msg = "", timestamp = now - 59
+  status = "timeout",
+  response_time = 10,
+  error_msg = "",
+  timestamp = now - 59,
 })
 assert(Cache.is_valid("ttl_test", "timeout_model") == true, "timeout: 59s < 60s TTL")
 
 Cache.set("ttl_test", "timeout_expired", {
-  status = "timeout", response_time = 10, error_msg = "", timestamp = now - 61
+  status = "timeout",
+  response_time = 10,
+  error_msg = "",
+  timestamp = now - 61,
 })
 assert(Cache.is_valid("ttl_test", "timeout_expired") == false, "timeout: 61s > 60s TTL — expired")
 Cache.clear()

@@ -60,7 +60,7 @@ describe("commit_picker/config", function()
     it("returns true when file exists", function()
       -- Write a minimal config file
       local f = io.open(config_path, "w")
-      f:write("return {\n  mode = \"unpushed\",\n  count = 20,\n  base_commit = nil,\n}\n")
+      f:write('return {\n  mode = "unpushed",\n  count = 20,\n  base_commit = nil,\n}\n')
       f:close()
 
       assert.is_true(Config.config_file_exists())

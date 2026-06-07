@@ -223,6 +223,47 @@ local function check_ecc()
 end
 
 ----------------------------------------------------------------------
+-- Check Pi installation and configuration
+----------------------------------------------------------------------
+local function check_pi()
+  vim.health.start("ai.pi")
+
+  local ok_pi, Pi = pcall(require, "ai.pi")
+  if not ok_pi then
+    vim.health.warn("Pi module not loaded")
+    return
+  end
+
+  local status = Pi.get_status()
+  if status.installed then
+    vim.health.ok("Pi CLI installed")
+  else
+    vim.health.warn("Pi CLI not found in PATH")
+    vim.health.info("Install/update pi with the project Pi documentation or npm global package instructions")
+  end
+
+  if status.config_exists then
+    vim.health.ok("Pi settings exists: " .. status.config_path)
+  else
+    vim.health.info("Pi settings not found")
+    vim.health.info("Run :PiGenerateConfig to create it")
+  end
+
+  if status.managed_files and status.managed_files > 0 then
+    vim.health.ok("Pi managed resources tracked: " .. status.managed_files)
+  else
+    vim.health.info("No Pi managed resource manifest yet")
+  end
+
+  if status.missing_packages and #status.missing_packages > 0 then
+    vim.health.warn("Pi missing packages: " .. table.concat(status.missing_packages, ", "))
+    for _, hint in ipairs(status.install_hints or {}) do
+      vim.health.info(hint)
+    end
+  end
+end
+
+----------------------------------------------------------------------
 -- Check Claude Code installation and configuration
 ----------------------------------------------------------------------
 local function check_claude_code()
@@ -447,6 +488,7 @@ function M.check()
   check_ccstatusline()
   check_ecc()
   check_claude_code()
+  check_pi()
 end
 
 return M

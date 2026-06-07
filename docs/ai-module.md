@@ -99,10 +99,20 @@ lua/ai/
 | `:ClaudeCodeStatus` | 查看状态 |
 | `:ClaudeCodeCheckDeps` | 检查依赖 |
 
+### Pi 命令
+
+| 命令 | 说明 |
+|------|------|
+| `:PiGenerateConfig` | 生成并保守合并全局 Pi 配置到 `~/.pi/agent` |
+| `:PiPreviewConfig` | 预览 Pi settings/models/resources，不写入文件 |
+| `:PiEditTemplate` | 编辑当前 Pi settings 模板（优先 `templates/pi/<version>.template.jsonc`，回退 `pi.template.jsonc`） |
+| `:PiStatus` | 查看 Pi CLI、全局配置、托管资源和缺失 packages 状态 |
+
 ### 配置同步命令
 
 | 命令 | 说明 |
 |------|------|
+| `:AISync` | 选择并同步 AI 工具配置（OpenCode / Claude Code / Pi） |
 | `:AISyncAll` | 同步所有 AI 工具配置 |
 | `:AISyncSelect` | 选择并同步配置 |
 | `:AIExportKeys` | 导出 API Key 到 env 文件 |
@@ -181,4 +191,8 @@ M.register("new_provider", {
 | OpenCode 模板 | `opencode.template.jsonc` |
 | OpenCode 配置 | `~/.config/opencode/opencode.json` |
 | Claude Code 配置 | `~/.claude/settings.json` |
+| Pi 配置 | `~/.pi/agent/settings.json` |
+| Pi 模型 | `~/.pi/agent/models.json` |
+| Pi 扩展 | `~/.pi/agent/extensions/` |
+| Pi Prompts | `~/.pi/agent/prompts/` |
 | Prompts 目录 | `~/.claude/prompts/` |

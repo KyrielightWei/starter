@@ -62,32 +62,56 @@ describe("ai.provider_manager.cache module", function()
     end)
 
     it("returns false for expired available result (TTL 300s)", function()
-      Cache.set("openai", "gpt-4", { status = "available", response_time = 150, error_msg = "", timestamp = os.time() - 301 })
+      Cache.set(
+        "openai",
+        "gpt-4",
+        { status = "available", response_time = 150, error_msg = "", timestamp = os.time() - 301 }
+      )
       assert.is_false(Cache.is_valid("openai", "gpt-4"))
     end)
 
     it("returns false for expired timeout result (TTL 60s)", function()
-      Cache.set("openai", "gpt-4", { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 61 })
+      Cache.set(
+        "openai",
+        "gpt-4",
+        { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 61 }
+      )
       assert.is_false(Cache.is_valid("openai", "gpt-4"))
     end)
 
     it("returns false for expired error result (TTL 30s)", function()
-      Cache.set("openai", "gpt-4", { status = "error", response_time = 200, error_msg = "500 error", timestamp = os.time() - 31 })
+      Cache.set(
+        "openai",
+        "gpt-4",
+        { status = "error", response_time = 200, error_msg = "500 error", timestamp = os.time() - 31 }
+      )
       assert.is_false(Cache.is_valid("openai", "gpt-4"))
     end)
 
     it("returns false for expired unavailable result (TTL 120s)", function()
-      Cache.set("openai", "gpt-4", { status = "unavailable", response_time = 100, error_msg = "404", timestamp = os.time() - 121 })
+      Cache.set(
+        "openai",
+        "gpt-4",
+        { status = "unavailable", response_time = 100, error_msg = "404", timestamp = os.time() - 121 }
+      )
       assert.is_false(Cache.is_valid("openai", "gpt-4"))
     end)
 
     it("returns true for non-expired timeout result (within 60s)", function()
-      Cache.set("openai", "gpt-4", { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 30 })
+      Cache.set(
+        "openai",
+        "gpt-4",
+        { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 30 }
+      )
       assert.is_true(Cache.is_valid("openai", "gpt-4"))
     end)
 
     it("returns true for non-expired error result (within 30s)", function()
-      Cache.set("openai", "gpt-4", { status = "error", response_time = 200, error_msg = "500 error", timestamp = os.time() - 15 })
+      Cache.set(
+        "openai",
+        "gpt-4",
+        { status = "error", response_time = 200, error_msg = "500 error", timestamp = os.time() - 15 }
+      )
       assert.is_true(Cache.is_valid("openai", "gpt-4"))
     end)
 
@@ -162,34 +186,66 @@ describe("ai.provider_manager.cache module", function()
 
   describe("differentiated TTLs", function()
     it("available status has 300s TTL", function()
-      Cache.set("test", "model", { status = "available", response_time = 100, error_msg = "", timestamp = os.time() - 299 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "available", response_time = 100, error_msg = "", timestamp = os.time() - 299 }
+      )
       assert.is_true(Cache.is_valid("test", "model"))
 
-      Cache.set("test", "model", { status = "available", response_time = 100, error_msg = "", timestamp = os.time() - 301 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "available", response_time = 100, error_msg = "", timestamp = os.time() - 301 }
+      )
       assert.is_false(Cache.is_valid("test", "model"))
     end)
 
     it("timeout status has 60s TTL", function()
-      Cache.set("test", "model", { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 59 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 59 }
+      )
       assert.is_true(Cache.is_valid("test", "model"))
 
-      Cache.set("test", "model", { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 61 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "timeout", response_time = 5000, error_msg = "timeout", timestamp = os.time() - 61 }
+      )
       assert.is_false(Cache.is_valid("test", "model"))
     end)
 
     it("error status has 30s TTL", function()
-      Cache.set("test", "model", { status = "error", response_time = 200, error_msg = "500", timestamp = os.time() - 29 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "error", response_time = 200, error_msg = "500", timestamp = os.time() - 29 }
+      )
       assert.is_true(Cache.is_valid("test", "model"))
 
-      Cache.set("test", "model", { status = "error", response_time = 200, error_msg = "500", timestamp = os.time() - 31 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "error", response_time = 200, error_msg = "500", timestamp = os.time() - 31 }
+      )
       assert.is_false(Cache.is_valid("test", "model"))
     end)
 
     it("unavailable status has 120s TTL", function()
-      Cache.set("test", "model", { status = "unavailable", response_time = 100, error_msg = "404", timestamp = os.time() - 119 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "unavailable", response_time = 100, error_msg = "404", timestamp = os.time() - 119 }
+      )
       assert.is_true(Cache.is_valid("test", "model"))
 
-      Cache.set("test", "model", { status = "unavailable", response_time = 100, error_msg = "404", timestamp = os.time() - 121 })
+      Cache.set(
+        "test",
+        "model",
+        { status = "unavailable", response_time = 100, error_msg = "404", timestamp = os.time() - 121 }
+      )
       assert.is_false(Cache.is_valid("test", "model"))
     end)
   end)

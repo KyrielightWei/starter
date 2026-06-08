@@ -42,7 +42,8 @@ mihomo-mgr.py config
 mihomo-mgr.py config-init
 mihomo-mgr.py config-set --config-dir /path/to/config --bin-dir /path/to/bin
 mihomo-mgr.py config-set --sub-url "https://example.com/sub"
-mihomo-mgr.py config-set --proxy-host 127.0.0.1 --proxy-http-port 10808 --proxy-socks-port 10808
+mihomo-mgr.py config-set --proxy-host 127.0.0.1 --mixed-port 10808
+mihomo-mgr.py config-set --proxy-http-port 10808 --proxy-socks-port 10808
 mihomo-mgr.py config-clear
 
 # Subscription config
@@ -117,7 +118,7 @@ mihomo-mgr.py status --json     # Machine-readable JSON output
 - Unix socket is supported when explicitly configured
 - `config-init` creates an editable JSONC config template at `~/.config/mihomo-mgr/config.json`
 - `sub-pull` caches raw subscription as `subscription.raw.yaml` and writes normalized `config.yaml`
-- Generated config uses `mixed-port`, removes top-level `port`/`socks-port`, sets `allow-lan: false`, `bind-address`, and `external-controller`
+- Generated config uses `mixed-port` (from `mixed_port` > `proxy_http_port` > `proxy_socks_port` > default `10808`), removes top-level `port`/`socks-port`, sets `allow-lan: false`, `bind-address`, and `external-controller`
 - `start` records stdout/stderr to the configured log file
 - `status` shows process PID and discovered mihomo processes
 - `proxy-on` derives proxy host/ports from mihomo `/configs` when available; explicit args and persisted config take priority
@@ -126,6 +127,6 @@ mihomo-mgr.py status --json     # Machine-readable JSON output
 - `db-check --download` downloads missing default files: `country.mmdb` and `geosite.dat`
 - `--geodata` adds `geoip.dat`; `--asn` adds `GeoLite2-ASN.mmdb`; `--all` includes all db/dat/mmdb files (including lite editions)
 - Group/node names with special characters (emoji, CJK) are supported
-- `delay-group` tests nodes sequentially — may take a while for large groups
+- `delay-group` tests nodes concurrently (default 10 threads) — fast even for large groups
 - `status --json` outputs machine-readable JSON for scripting
 - `completion bash|zsh` generates shell completion scripts for tab-completing commands, group names, and node names

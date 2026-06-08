@@ -123,10 +123,15 @@ Equivalent manual config:
   // Subscription URL. Treat it as a secret if it contains a token.
   "sub_url": "",
 
-  // Use one mixed port for terminal HTTP and SOCKS proxy variables.
+  // mihomo mixed-port for generated config.yaml.
+  // Also used as fallback for terminal proxy ports.
+  "mixed_port": "10808",
+
   "proxy_host": "127.0.0.1",
-  "proxy_http_port": "10808",
-  "proxy_socks_port": "10808",
+
+  // Separate terminal proxy ports. mixed_port takes priority over these.
+  "proxy_http_port": "",
+  "proxy_socks_port": "",
 
   "api": "http://127.0.0.1:9090",
   "sock": "",
@@ -137,8 +142,8 @@ Equivalent manual config:
 Field guidance:
 
 - Required for subscription pulling: `sub_url`
-- Recommended: `config_dir`, `bin_dir`, `api`, `proxy_host`, `proxy_http_port`, `proxy_socks_port`, `no_proxy`
-- Optional: `bin`, `log_file`, `pid_file`, `sock`, `secret`, `proxy_http`, `proxy_socks`
+- Recommended: `config_dir`, `bin_dir`, `mixed_port`, `api`, `proxy_host`, `no_proxy`
+- Optional: `bin`, `log_file`, `pid_file`, `sock`, `secret`, `proxy_http`, `proxy_socks`, `proxy_http_port`, `proxy_socks_port`
 
 ## Subscription
 
@@ -165,7 +170,7 @@ With `config_dir` configured, files are written under that directory:
 `subscription.raw.yaml` keeps the unmodified subscription response. `config.yaml` is generated from it with local runtime settings:
 
 - removes top-level `port` and `socks-port`
-- sets `mixed-port` from `proxy_http_port`, usually `10808`
+- sets `mixed-port` from `mixed_port` (priority), or `proxy_http_port` / `proxy_socks_port` (fallback), default `10808`
 - sets `allow-lan: false`
 - sets `bind-address` from `proxy_host`, usually `127.0.0.1`
 - sets `external-controller` from `api`, usually `127.0.0.1:9090`
@@ -210,9 +215,10 @@ eval "$(mm proxy-off)"
 `proxy-on` derives host and ports from the mihomo `/configs` API when available. The priority is:
 
 1. Explicit `proxy-on` arguments
-2. Persisted `config-set` proxy values
-3. mihomo `/configs`
-4. Fallback values
+2. `mixed_port` from persisted config
+3. `proxy_http_port` / `proxy_socks_port` from persisted config
+4. mihomo `/configs`
+5. Fallback values
 
 Fallback values:
 

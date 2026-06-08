@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """mihomo-mgr - Control mihomo via its external controller API."""
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 import argparse
 import json
@@ -344,6 +344,17 @@ def cmd_groups(args):
         print(f"  {name} ({t}): {now}  [{n} nodes]")
 
 
+def _fetch_node_delay(node_name):
+    """获取单个节点的延迟信息。返回 (name, delay_ms)。"""
+    try:
+        node_data = api("GET", f"/proxies/{_urlencode(node_name)}", quiet=True)
+        history = node_data.get("history") or []
+        delay = (history[-1].get("delay") or 0) if history else 0
+        return node_name, delay
+    except (SystemExit, Exception):
+        return node_name, 0
+
+
 def cmd_nodes(args):
     """List nodes in a proxy group."""
     data = api("GET", f"/proxies/{_urlencode(args.group)}")
@@ -351,14 +362,19 @@ def cmd_nodes(args):
         print(f"'{args.group}' is not a group or not found.", file=sys.stderr)
         sys.exit(1)
     now = data.get("now", "")
+    all_nodes = data.get("all") or []
     print(f"Group: {args.group} ({data.get('type', '?')})")
     print(f"Current: {now}\n")
-    for node_name in data.get("all") or []:
+    # 并行获取节点延迟
+    delays = {}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_fetch_node_delay, n): n for n in all_nodes}
+        for future in as_completed(futures):
+            name, delay = future.result()
+            delays[name] = delay
+    for node_name in all_nodes:
         marker = " ★" if node_name == now else ""
-        # Get delay info from history
-        node_data = api("GET", f"/proxies/{_urlencode(node_name)}")
-        history = node_data.get("history") or []
-        delay = (history[-1].get("delay") or 0) if history else 0
+        delay = delays.get(node_name, 0)
         delay_str = f"{delay}ms" if delay > 0 else "N/A"
         print(f"  {node_name}{marker}  ({delay_str})")
 
@@ -418,17 +434,14 @@ def cmd_delay_group(args):
     if "all" not in data:
         print(f"'{args.group}' is not a group.", file=sys.stderr)
         sys.exit(1)
-    # 过滤掉订阅信息 / 内置代理 / 其他策略组名，只保留真实节点
-    _skip_prefixes = ("🎯", "🛑", "🐟", "♻️", "🌍", "🍎", "💬", "📢", "📲", "🚀", "Ⓜ️",
-                      "📅", "📊", "拉取于")
+    # 从 API 获取所有策略组名，过滤掉非真实节点
+    proxies_data = api("GET", "/proxies", quiet=True)
+    proxies = proxies_data.get("proxies") or {}
+    group_types = ("Selector", "URLTest", "Fallback", "LoadBalance")
+    group_names = {k for k, v in proxies.items() if v.get("type") in group_types}
     _skip_exact = ("DIRECT", "REJECT", "GLOBAL")
     def _is_real_node(name):
-        if name in _skip_exact:
-            return False
-        for p in _skip_prefixes:
-            if name.startswith(p):
-                return False
-        return True
+        return name not in _skip_exact and name not in group_names
     all_nodes = [n for n in data.get("all") or [] if _is_real_node(n)]
     total = len(all_nodes)
     print(f"Testing {total} nodes in '{args.group}' (timeout={timeout}ms, concurrency={concurrency})...\n")
@@ -601,6 +614,11 @@ def cmd_start(args):
         if missing:
             _download_db_files(missing)
 
+    # 启动前把 config.json 的参数同步到 config.yaml
+    if not args.no_patch:
+        if _patch_config_yaml(_load_mgr_config(), paths):
+            print("Patched config.yaml with config-set values")
+
     cmd = [paths["bin_path"], "-d", str(paths["config_dir"])]
     if args.config:
         cmd.extend(["-f", str(Path(args.config).expanduser())])
@@ -725,6 +743,8 @@ def cmd_config(args):
         socks=None,
         no_proxy=None,
     ))
+    mixed_port = _cfg_value(cfg, "mixed_port", "-")
+    print(f"  mixed_port: {mixed_port}")
     print(f"  proxy_http: {http_url}")
     print(f"  proxy_socks: {socks_url}")
     print(f"  no_proxy: {no_proxy}")
@@ -756,24 +776,38 @@ def cmd_config_set(args):
         "sock": args.persist_sock,
         "sub_url": args.persist_sub_url,
         "proxy_host": args.persist_proxy_host,
+        "mixed_port": args.persist_mixed_port,
         "proxy_http_port": args.persist_proxy_http_port,
         "proxy_socks_port": args.persist_proxy_socks_port,
         "proxy_http": args.persist_proxy_http,
         "proxy_socks": args.persist_proxy_socks,
         "no_proxy": args.persist_no_proxy,
     }
+    # 校验端口值
+    for key in ("mixed_port", "proxy_http_port", "proxy_socks_port"):
+        val = updates.get(key)
+        if val:
+            try:
+                port = int(val)
+                if not (1 <= port <= 65535):
+                    raise ValueError
+            except ValueError:
+                print(f"Invalid port value for {key}: {val} (must be 1-65535)", file=sys.stderr)
+                sys.exit(1)
     for key, value in updates.items():
         if value:
             cfg[key] = str(Path(value).expanduser()) if key.endswith("_dir") or key.endswith("_file") or key == "bin" else value
     if args.persist_secret is not None:
         cfg["secret"] = args.persist_secret
     _save_mgr_config(cfg)
+    _invalidate_config_cache()
     print(f"Saved {_mgr_config_path()}")
 
 
 def cmd_config_clear(args):
     """Remove persisted mihomo-mgr configuration."""
     _unlink_if_exists(_mgr_config_path())
+    _invalidate_config_cache()
     print(f"Removed {_mgr_config_path()}")
 
 
@@ -929,11 +963,23 @@ def _mgr_config_path():
     return Path(os.environ.get("MIHOMO_MGR_CONFIG", DEFAULT_MGR_CONFIG_PATH)).expanduser()
 
 
+_mgr_config_cache = None
+
+
 def _load_mgr_config():
+    global _mgr_config_cache
+    if _mgr_config_cache is not None:
+        return _mgr_config_cache
     try:
-        return json.loads(_strip_json_comments(_mgr_config_path().read_text()))
+        _mgr_config_cache = json.loads(_strip_json_comments(_mgr_config_path().read_text()))
     except (FileNotFoundError, json.JSONDecodeError):
-        return {}
+        _mgr_config_cache = {}
+    return _mgr_config_cache
+
+
+def _invalidate_config_cache():
+    global _mgr_config_cache
+    _mgr_config_cache = None
 
 
 def _cfg_value(cfg, key, default=None):
@@ -1002,10 +1048,16 @@ def _default_mgr_config_text():
   "secret": "",
 
   // RECOMMENDED:
+  // mihomo mixed-port for HTTP+SOCKS. Also used as fallback for terminal proxy ports.
+  // Set this to override the port in generated config.yaml.
+  "mixed_port": "10808",
+
   // Generated mihomo config policy. 10808 means HTTP and SOCKS share the mixed-port.
   "proxy_host": "127.0.0.1",
-  "proxy_http_port": "10808",
-  "proxy_socks_port": "10808",
+
+  // OPTIONAL: separate terminal proxy ports. When empty, mixed_port is used.
+  "proxy_http_port": "",
+  "proxy_socks_port": "",
 
   // OPTIONAL:
   // Full proxy URLs. Usually leave empty so mihomo-mgr builds them from host/ports
@@ -1076,6 +1128,7 @@ def _binary_exists(bin_path):
 def _download_db_files(names):
     config_dir = _get_paths()["config_dir"]
     config_dir.mkdir(parents=True, exist_ok=True)
+    failed = []
     for name in names:
         target = config_dir / name
         urls = DB_FILES[name]
@@ -1091,22 +1144,33 @@ def _download_db_files(names):
             except Exception as e:
                 print(f"  failed: {e}", file=sys.stderr)
         else:
-            print(f"Failed to download {name}", file=sys.stderr)
-            sys.exit(1)
+            failed.append(name)
+    if failed:
+        print(f"Failed to download: {', '.join(failed)}", file=sys.stderr)
+        sys.exit(1)
 
 
 def _proxy_values(args):
     cfg = _load_mgr_config()
-    mihomo_cfg = _get_mihomo_config_quiet()
+    # 配置已提供完整端口和主机时跳过 mihomo API（避免未运行时 10s 超时）
+    _has_port = _cfg_value(cfg, "mixed_port") or (
+        _cfg_value(cfg, "proxy_http_port") and _cfg_value(cfg, "proxy_socks_port")
+    )
+    if _has_port and _cfg_value(cfg, "proxy_host"):
+        mihomo_cfg = {}
+    else:
+        mihomo_cfg = _get_mihomo_config_quiet()
     host = args.host or _cfg_value(cfg, "proxy_host") or _proxy_host_from_mihomo(mihomo_cfg) or DEFAULT_PROXY_HOST
     http_port = str(
         args.http_port
+        or _cfg_value(cfg, "mixed_port")
         or _cfg_value(cfg, "proxy_http_port")
         or _proxy_http_port_from_mihomo(mihomo_cfg)
         or DEFAULT_HTTP_PROXY_PORT
     )
     socks_port = str(
         args.socks_port
+        or _cfg_value(cfg, "mixed_port")
         or _cfg_value(cfg, "proxy_socks_port")
         or _proxy_socks_port_from_mihomo(mihomo_cfg)
         or DEFAULT_SOCKS_PROXY_PORT
@@ -1160,23 +1224,30 @@ def _fetch_subscription(url):
     return data.decode("utf-8-sig", errors="replace")
 
 
-def _normalize_subscription_config(raw, cfg):
+def _build_config_updates(cfg):
+    """构建 config.yaml 的覆盖项（mixed-port、bind-address 等）。"""
     host = _cfg_value(cfg, "proxy_host", DEFAULT_PROXY_HOST)
-    mixed_port = _cfg_value(cfg, "proxy_http_port") or _cfg_value(cfg, "proxy_socks_port") or DEFAULT_HTTP_PROXY_PORT
+    mixed_port = _cfg_value(cfg, "mixed_port") or _cfg_value(cfg, "proxy_http_port") or _cfg_value(cfg, "proxy_socks_port") or DEFAULT_HTTP_PROXY_PORT
     api_url = _cfg_value(cfg, "api", DEFAULT_HTTP)
     controller = _controller_from_api(api_url)
     secret = _cfg_value(cfg, "secret", "")
 
     updates = {
         "mixed-port": str(mixed_port),
-        "port": None,
-        "socks-port": None,
-        "allow-lan": "false",
         "bind-address": _yaml_quote(host),
         "external-controller": _yaml_quote(controller),
     }
     if secret:
         updates["secret"] = _yaml_quote(secret)
+    return updates
+
+
+def _normalize_subscription_config(raw, cfg):
+    updates = _build_config_updates(cfg)
+    # sub-pull 额外覆盖策略性设置
+    updates["port"] = None
+    updates["socks-port"] = None
+    updates["allow-lan"] = "false"
     return _update_top_level_yaml(raw, updates)
 
 
@@ -1210,6 +1281,30 @@ def _top_level_yaml_key(line):
         return None
     key = line.split(":", 1)[0].strip()
     return key or None
+
+
+def _patch_config_yaml(cfg, paths):
+    """启动前把 config.json 的可配置参数同步写入现有 config.yaml。
+
+    覆盖 config-set 管理的 key，同时移除与 mixed-port 冲突的 port/socks-port。
+    不动 allow-lan / mode 等策略性设置。
+    返回是否发生了修改。
+    """
+    config_file = paths["config_file"]
+    if not config_file.exists():
+        return False
+    raw = config_file.read_text()
+
+    updates = _build_config_updates(cfg)
+    # 移除与 mixed-port 冲突的独立端口
+    updates["port"] = None
+    updates["socks-port"] = None
+
+    patched = _update_top_level_yaml(raw, updates)
+    if patched != raw:
+        config_file.write_text(patched)
+        return True
+    return False
 
 
 def _yaml_quote(value):
@@ -1565,6 +1660,15 @@ def _print_help(cmd=None):
 
 
 def main():
+    # 内部补全命令：在 argparse 之前处理，不暴露给用户
+    if len(sys.argv) >= 2 and sys.argv[1] == "__complete":
+        ns = argparse.Namespace(
+            complete_cmd=sys.argv[2] if len(sys.argv) > 2 else "",
+            complete_args=sys.argv[3:] if len(sys.argv) > 3 else [],
+        )
+        cmd_internal_complete(ns)
+        return
+
     p = argparse.ArgumentParser(description="mihomo-mgr - control mihomo via API")
     p.add_argument("--sock", help="Unix socket path")
     p.add_argument("--api", help=f"HTTP API URL (default: {DEFAULT_HTTP})")
@@ -1589,7 +1693,8 @@ def main():
         description="Get or set the proxy mode. When a value is given, updates it via the API. Otherwise prints the current mode.",
         epilog="Examples:\n  mihomo-mgr.py mode          # Show current mode\n  mihomo-mgr.py mode global   # Switch to global mode",
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("value", nargs="?", choices=["rule", "global", "direct"])
+    s.add_argument("value", nargs="?", choices=["rule", "global", "direct"],
+        help="proxy mode to set (omit to show current)")
 
     sub.add_parser("groups",
         help="List all proxy groups with current node",
@@ -1698,11 +1803,12 @@ def main():
 
     s = sub.add_parser("start",
         help="Start mihomo as background process",
-        description="Start mihomo as a background process. Creates necessary directories,\ndownloads missing DB files (unless --skip-db-check), and writes pid/log files.",
+        description="Start mihomo as a background process. Creates necessary directories,\ndownloads missing DB files (unless --skip-db-check),\npatches config.yaml with config-set values (unless --no-patch), and writes pid/log files.",
         epilog="Examples:\n  mihomo-mgr.py start\n  mihomo-mgr.py start --config /path/to/config.yaml",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     s.add_argument("--config", help="config file path")
     s.add_argument("--skip-db-check", action="store_true", help="Do not download missing DB files before start")
+    s.add_argument("--no-patch", action="store_true", help="Skip config.yaml patching before start")
 
     s = sub.add_parser("stop",
         help="Stop mihomo process gracefully",
@@ -1714,11 +1820,12 @@ def main():
 
     s = sub.add_parser("restart",
         help="Restart mihomo process",
-        description="Stop then start the mihomo process. Accepts both start and stop flags.",
+        description="Stop then start the mihomo process.\nSupports --config, --skip-db-check, --no-patch (from start)\nand --timeout, --force (from stop).\nBefore starting, patches config.yaml with config-set values.",
         epilog="Examples:\n  mihomo-mgr.py restart\n  mihomo-mgr.py restart --config /path/to/config.yaml",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     s.add_argument("--config", help="config file path")
     s.add_argument("--skip-db-check", action="store_true", help="Do not download missing DB files before start")
+    s.add_argument("--no-patch", action="store_true", help="Skip config.yaml patching before start")
     s.add_argument("--timeout", type=float, default=5.0, help="Graceful stop timeout in seconds")
     s.add_argument("--force", action="store_true", help="Kill if graceful stop times out")
 
@@ -1767,23 +1874,24 @@ def main():
     s = sub.add_parser("config-set",
         help="Persist configuration values",
         description="Persist configuration values to ~/.config/mihomo-mgr/config.json.\nOnly provided flags are saved; omitted values keep their existing settings.",
-        epilog="Examples:\n  mihomo-mgr.py config-set --bin ~/clash/mihomo\n  mihomo-mgr.py config-set --sub-url 'https://...' --api http://127.0.0.1:9090",
+        epilog="Examples:\n  mihomo-mgr.py config-set --mixed-port 7890\n  mihomo-mgr.py config-set --sub-url 'https://...' --api http://127.0.0.1:9090\n  mihomo-mgr.py config-set --config-dir ~/.config/mihomo --bin-dir /usr/local/bin",
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("--config-dir", dest="persist_config_dir", help="mihomo config directory")
-    s.add_argument("--bin-dir", dest="persist_bin_dir", help="directory containing the mihomo binary")
-    s.add_argument("--bin", dest="persist_bin", help="mihomo binary path or command")
-    s.add_argument("--log-file", dest="persist_log_file", help="mihomo log file")
-    s.add_argument("--pid-file", dest="persist_pid_file", help="mihomo pid file")
-    s.add_argument("--api", dest="persist_api", help="HTTP API URL")
-    s.add_argument("--sock", dest="persist_sock", help="Unix socket path")
-    s.add_argument("--secret", dest="persist_secret", help="API secret")
-    s.add_argument("--sub-url", dest="persist_sub_url", help="subscription URL")
-    s.add_argument("--proxy-host", dest="persist_proxy_host", help="proxy host")
-    s.add_argument("--proxy-http-port", dest="persist_proxy_http_port", help="HTTP proxy port")
-    s.add_argument("--proxy-socks-port", dest="persist_proxy_socks_port", help="SOCKS proxy port")
-    s.add_argument("--proxy-http", dest="persist_proxy_http", help="full HTTP proxy URL")
-    s.add_argument("--proxy-socks", dest="persist_proxy_socks", help="full SOCKS proxy URL")
-    s.add_argument("--no-proxy", dest="persist_no_proxy", help="no_proxy value")
+    s.add_argument("--config-dir", dest="persist_config_dir", metavar="DIR", help="mihomo config directory")
+    s.add_argument("--bin-dir", dest="persist_bin_dir", metavar="DIR", help="directory containing the mihomo binary")
+    s.add_argument("--bin", dest="persist_bin", metavar="PATH", help="mihomo binary path or command")
+    s.add_argument("--log-file", dest="persist_log_file", metavar="PATH", help="mihomo log file")
+    s.add_argument("--pid-file", dest="persist_pid_file", metavar="PATH", help="mihomo pid file")
+    s.add_argument("--api", dest="persist_api", metavar="URL", help="HTTP API URL")
+    s.add_argument("--sock", dest="persist_sock", metavar="PATH", help="Unix socket path")
+    s.add_argument("--secret", dest="persist_secret", metavar="SECRET", help="API secret")
+    s.add_argument("--sub-url", dest="persist_sub_url", metavar="URL", help="subscription URL")
+    s.add_argument("--proxy-host", dest="persist_proxy_host", metavar="HOST", help="proxy host")
+    s.add_argument("--mixed-port", dest="persist_mixed_port", metavar="PORT", help="mihomo mixed-port (primary port for config.yaml and proxy-on)")
+    s.add_argument("--proxy-http-port", dest="persist_proxy_http_port", metavar="PORT", help="HTTP proxy port (overrides mixed-port for HTTP)")
+    s.add_argument("--proxy-socks-port", dest="persist_proxy_socks_port", metavar="PORT", help="SOCKS proxy port (overrides mixed-port for SOCKS)")
+    s.add_argument("--proxy-http", dest="persist_proxy_http", metavar="URL", help="full HTTP proxy URL")
+    s.add_argument("--proxy-socks", dest="persist_proxy_socks", metavar="URL", help="full SOCKS proxy URL")
+    s.add_argument("--no-proxy", dest="persist_no_proxy", metavar="HOSTS", help="no_proxy value")
 
     sub.add_parser("config-clear",
         help="Remove persisted configuration",
@@ -1800,12 +1908,12 @@ def main():
 
     s = sub.add_parser("proxy-on",
         help="Print shell exports to enable proxy",
-        description="Print shell export commands for temporary proxy environment variables.\nPipe through eval to apply to the current shell.\n\nProxy host/ports are derived from: CLI args > persisted config > mihomo /configs > defaults.",
+        description="Print shell export commands for temporary proxy environment variables.\nPipe through eval to apply to the current shell.\n\nProxy host/ports are derived from:\n  CLI args > mixed_port > proxy_http/socks_port > mihomo /configs > defaults",
         epilog="Examples:\n  eval \"$(mihomo-mgr.py proxy-on)\"\n  eval \"$(mihomo-mgr.py proxy-on --host 127.0.0.1 --http-port 7890)\"",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     s.add_argument("--host", help=f"proxy host (fallback: {DEFAULT_PROXY_HOST})")
-    s.add_argument("--http-port", help=f"HTTP proxy port (fallback: {DEFAULT_HTTP_PROXY_PORT})")
-    s.add_argument("--socks-port", help=f"SOCKS proxy port (fallback: {DEFAULT_SOCKS_PROXY_PORT})")
+    s.add_argument("--http-port", help=f"HTTP proxy port (fallback: mixed_port > {DEFAULT_HTTP_PROXY_PORT})")
+    s.add_argument("--socks-port", help=f"SOCKS proxy port (fallback: mixed_port > {DEFAULT_SOCKS_PROXY_PORT})")
     s.add_argument("--http", help="full HTTP proxy URL")
     s.add_argument("--socks", help="full SOCKS proxy URL")
     s.add_argument("--no-proxy", help=f"no_proxy value (default: {DEFAULT_NO_PROXY})")
@@ -1824,11 +1932,6 @@ def main():
         epilog="Examples:\n  source <(mihomo-mgr.py completion bash)  # Enable for current shell\n  mihomo-mgr.py completion zsh               # Print zsh script",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     s.add_argument("shell", choices=["bash", "zsh"], help="Target shell")
-
-    s = sub.add_parser("__complete", add_help=False,
-        description="Internal completion handler — not intended for direct use.")
-    s.add_argument("complete_cmd", help="Command being completed")
-    s.add_argument("complete_args", nargs="*", help="Positional args", default=[])
 
     args = p.parse_args()
 

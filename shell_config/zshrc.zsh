@@ -136,3 +136,14 @@ export OPENAI_WIRE_API=chat
 # tokensflow shell completion (managed by install-tokensflow-linux.sh)
 fpath=("$HOME/.zsh/completions" $fpath)
 autoload -Uz compinit && compinit -i
+
+
+###############################################
+# mihomo-mgr (代理管理)
+###############################################
+
+# alias
+alias mm="python3 /data/1/weixiaoxian.wxx/dev_tool/starter/skill/mihomo-mgr/scripts/mihomo-mgr.py"
+
+# zsh 补全（命令、策略组名、节点名）
+source <(mm completion zsh)

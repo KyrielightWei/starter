@@ -19,7 +19,7 @@
 
 ### 当前配置
 
-`pi.template.jsonc` 已启用：
+`templates/pi/default.template.jsonc` 已启用：
 
 ```jsonc
 "skills": [

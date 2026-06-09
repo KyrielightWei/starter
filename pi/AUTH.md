@@ -2,7 +2,7 @@
 
 > 本文档说明 Pi 的认证机制（`auth.json`）、Provider 定义（`models.json`）、以及它们与 `settings.json` 的关系。
 >
-> 主 settings 字段说明见 [pi.template.jsonc](../pi.template.jsonc)。
+> 主 settings 字段说明见 [default.template.jsonc](../templates/pi/default.template.jsonc)。
 > 模型 / Provider 模板见 [models.template.jsonc](./models.template.jsonc)。
 
 ---
@@ -13,7 +13,7 @@
 
 | 文件 | 用途 | 模板 |
 |------|------|------|
-| `settings.json` | 用户偏好（主题、思考级别、压缩、包列表等）| `pi.template.jsonc` |
+| `settings.json` | 用户偏好（主题、思考级别、压缩、包列表等）| `templates/pi/default.template.jsonc` |
 | `models.json` | Provider 和模型定义 | `models.template.jsonc` |
 | `auth.json` | 认证信息（API Key、OAuth Token） | 不进入模板 — 含敏感凭据 |
 
@@ -129,7 +129,7 @@ Pi 按以下顺序解析 API Key：
 }
 ```
 
-完整字段（含注释）见 [pi.template.jsonc](../pi.template.jsonc)。
+完整字段（含注释）见 [default.template.jsonc](../templates/pi/default.template.jsonc)。
 
 ---
 
@@ -164,7 +164,7 @@ Pi 按以下顺序解析 API Key：
 }
 ```
 
-**3. `settings.json`**（来自 `pi.template.jsonc`）：
+**3. `settings.json`**（来自 `templates/pi/default.template.jsonc`）：
 
 ```json
 {
@@ -224,4 +224,4 @@ echo '{}' > .mcp.json
 - Pi GitHub: https://github.com/earendil-works/pi-coding-agent
 - Bailian Coding API: https://coding.dashscope.aliyuncs.com/v1
 - 模型清单：[../../docs/BAILIAN_CODING_MODELS.md](../../docs/BAILIAN_CODING_MODELS.md)
-- 主 settings 模板：[../pi.template.jsonc](../pi.template.jsonc)
+- 主 settings 模板：[../templates/pi/default.template.jsonc](../templates/pi/default.template.jsonc)

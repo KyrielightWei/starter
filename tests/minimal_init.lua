@@ -9,6 +9,9 @@ vim.cmd([[set runtimepath=$VIMRUNTIME]])
 local project_root = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h")
 vim.opt.runtimepath:append(project_root)
 
+-- Add local AI plugin to runtimepath
+vim.opt.runtimepath:append(project_root .. "/local-plugins/ai")
+
 -- Add plenary.nvim to runtimepath (if available)
 vim.opt.runtimepath:append(project_root .. "/.tests/plenary.nvim")
 

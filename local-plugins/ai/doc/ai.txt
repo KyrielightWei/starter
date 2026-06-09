@@ -1,0 +1,116 @@
+*ai.txt*    AI coding tool configuration manager
+
+==============================================================================
+CONTENTS                                                        *ai-contents*
+
+    1. Commands ............... |ai-commands|
+    2. Keymaps ................ |ai-keymaps|
+    3. Configuration .......... |ai-configuration|
+    4. Modules ................ |ai-modules|
+
+==============================================================================
+1. COMMANDS                                                        *ai-commands*
+
+High-frequency~
+
+AISync              Select and sync config to a tool (OpenCode/Claude Code/Pi)
+AIKeys              Edit API keys and base URLs
+AIProvider          Open Provider Manager panel
+AIModel             Switch model (with scope: global/tool-specific)
+
+Tool config~
+
+OpenCodeGenerate    Generate OpenCode config from template
+OpenCodePreview     Preview merged OpenCode config
+OpenCodeEdit        Edit OpenCode template
+OpenCodeStatus      Show OpenCode installation and config status
+OpenCodeTheme       TUI theme: `OpenCodeTheme [generate|preview|edit]`
+
+ClaudeCodeGenerate  Generate Claude Code settings
+ClaudeCodePreview   Preview Claude Code settings
+ClaudeCodeEdit      Edit Claude Code template
+ClaudeCodeStatus    Show status including dependency check
+
+PiGenerate          Generate Pi config
+PiPreview           Preview Pi config
+PiEdit              Edit Pi settings template
+PiStatus            Show Pi CLI and config status
+
+Subcommands~
+
+AI template list [tool]           List template versions
+AI template select [tool]         Select template version (picker UI)
+AI template create <tool> <name>  Create new template version
+AI template delete <tool> <name>  Delete template version
+AI template rename <tool> <o> <n> Rename template version
+AI template edit                  Edit current template version
+
+AI context copy                   Copy buffer context to clipboard
+AI context show                   Show context in new buffer
+
+AI prompt edit                    Open prompts directory
+AI prompt list                    List available prompts
+
+AI watch                          Enable config file watcher
+AI watch force                    Force sync all configs
+
+AI export                         Export API keys to env file
+
+AI backup <tool> [n]              Restore config backup
+
+==============================================================================
+2. KEYMAPS                                                        *ai-keymaps*
+
+All keymaps use the `<leader>k` prefix (AI Tools group):
+
+<leader>kk    AIModel         Switch model
+<leader>ks    AISync          Sync config
+<leader>ke    AIKeys          Edit API keys
+<leader>kp    AIProvider      Provider Manager
+
+<leader>kC    Commit Picker   Open commit picker
+<leader>kf    Next Commit     Navigate to next commit
+<leader>kb    Prev Commit     Navigate to previous commit
+<leader>kd    Diff Viewer     Open diff viewer
+
+==============================================================================
+3. CONFIGURATION                                            *ai-configuration*
+
+require("ai").setup({opts})
+
+Options:~
+    template_dir  (string)  Base directory for template files.
+                            Default: `vim.fn.stdpath("config")`
+
+Template files are read from:
+    {template_dir}/templates/{tool}/{version}.template.jsonc
+    {template_dir}/{tool}.template.jsonc  (legacy fallback)
+    {template_dir}/pi/                    (Pi resource templates)
+
+==============================================================================
+4. MODULES                                                        *ai-modules*
+
+The plugin contains these internal modules (require as `ai.<name>`):
+
+pi              Pi config generation and sync
+opencode        OpenCode config generation
+claude_code     Claude Code settings generation
+sync            Multi-tool sync coordinator
+keys            API key management
+providers       Provider registry
+model_switch    Model switching UI
+provider_manager  Provider detection and management UI
+commit_picker   Git commit browser
+terminal        Terminal session management
+terminal_picker Terminal selector UI
+context         Buffer context extraction
+system_prompt   System prompt management
+config_watcher  Config file hot-reload
+config_backup   Config backup/restore
+paths           Unified path resolution
+health          :checkhealth integration
+state           Persistent state management
+template_version  Template version CRUD
+template_picker   Template version selector UI
+
+vim:tw=78:ts=8:ft=help:norl:

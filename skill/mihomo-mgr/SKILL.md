@@ -83,6 +83,11 @@ mihomo-mgr.py mode rule         # Set mode
 mihomo-mgr.py groups            # List all proxy groups
 mihomo-mgr.py nodes <group>     # List nodes in a group
 mihomo-mgr.py select <group> <node>  # Switch node
+mihomo-mgr.py best <group> <keyword...>  # Auto-select fastest node by region keywords
+mihomo-mgr.py best <group> <keyword...> --watch  # Create url-test group for auto-failover
+mihomo-mgr.py best --list       # List active watch groups and status
+mihomo-mgr.py best <group> <keyword...> --switch  # Switch to an existing watch group
+mihomo-mgr.py best <group> --watch-off  # Remove watch group and restore
 
 # Delay testing
 mihomo-mgr.py delay <node>      # Test single node
@@ -127,6 +132,12 @@ mihomo-mgr.py status --json     # Machine-readable JSON output
 - `db-check --download` downloads missing default files: `country.mmdb` and `geosite.dat`
 - `--geodata` adds `geoip.dat`; `--asn` adds `GeoLite2-ASN.mmdb`; `--all` includes all db/dat/mmdb files (including lite editions)
 - Group/node names with special characters (emoji, CJK) are supported
+- `best` filters nodes by region keywords (e.g. 日本 美国), tests delays concurrently, and auto-selects the fastest
+- `best --watch` creates a url-test proxy group in config.yaml with the filtered nodes, reloads mihomo, and lets the native url-test mechanism handle health checks and failover automatically (no external polling needed); use `--watch-off` to remove the group and restore the original selection
+- Default url-test parameters: `interval=15s` (health check every 15 seconds), `tolerance=50ms`, `timeout=2000ms`; configurable via `--interval`, `--tolerance`, `--health-timeout`
+- `best --list` shows all active watch groups with their current node, delay, node count, and associated configuration
+- `best --switch` switches a Selector to an existing watch group (e.g. `best "🚀 节点选择" 日本 美国 --switch`)
+- `--dry-run` previews results without switching
 - `delay-group` tests nodes concurrently (default 10 threads) — fast even for large groups
 - `status --json` outputs machine-readable JSON for scripting
 - `completion bash|zsh` generates shell completion scripts for tab-completing commands, group names, and node names

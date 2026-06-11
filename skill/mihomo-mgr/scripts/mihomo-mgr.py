@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """mihomo-mgr - Control mihomo via its external controller API."""
 
-VERSION = "1.1.0"
+VERSION = "1.3.0"
 
 import argparse
 import json
@@ -494,6 +494,625 @@ def cmd_delay_group(args):
     avg = sum(d for _, d in alive) // len(alive) if alive else 0
     fastest = alive[0][1] if alive else "-"
     print(f"\n  {total} nodes │ {elapsed:.1f}s │ reachable: {len(alive)} │ fastest: {fastest}ms │ avg: {avg}ms │ timeout: {len(dead)}")
+
+
+# ── best: YAML 配置操作 ──────────────────────────────────────────────
+
+_BEST_GROUP_PREFIX = "🎯 best-"
+_BEST_STATE_PATH = "~/.config/mihomo-mgr/best-watch.json"
+
+
+def _best_group_name(keywords):
+    """根据关键词生成 url-test 组名。"""
+    return _BEST_GROUP_PREFIX + "".join(keywords)
+
+
+def _best_state_path():
+    return Path(_BEST_STATE_PATH).expanduser()
+
+
+def _best_save_state(group, original_node, ut_group, keywords):
+    """保存 watch 状态，用于 --watch-off 恢复。"""
+    path = _best_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = {
+        "group": group,
+        "original_node": original_node,
+        "ut_group": ut_group,
+        "keywords": keywords,
+    }
+    path.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n")
+
+
+def _best_load_state():
+    """加载 watch 状态。"""
+    try:
+        return json.loads(_best_state_path().read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _best_clear_state():
+    """清除 watch 状态。"""
+    try:
+        _best_state_path().unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _yaml_quote(name):
+    """YAML flow format 引用名称（含特殊字符时用单引号）。"""
+    if name and all(c.isalnum() or c in "-_." for c in name):
+        return name
+    return "'" + name.replace("'", "''") + "'"
+
+
+def _line_is_group(line, group_name):
+    """判断一行是否是目标 proxy-group 的定义（flow-style 单行格式）。"""
+    stripped = line.strip()
+    if not stripped.startswith("- {"):
+        return False
+    for fmt in [
+        f"name: '{group_name}'",
+        f'name: "{group_name}"',
+        f"name: {group_name},",
+        f"name: {group_name} ",
+    ]:
+        if fmt in stripped:
+            return True
+    return False
+
+
+def _add_to_proxies_list(line, new_proxy_quoted):
+    """在 proxies: [...] 的开头添加一个代理名。"""
+    idx = line.find("proxies: [")
+    if idx < 0:
+        return line
+    insert_at = idx + len("proxies: [")
+    rest = line[insert_at:].lstrip()
+    if rest.startswith("]"):
+        return line[:insert_at] + new_proxy_quoted + line[insert_at:]
+    return line[:insert_at] + new_proxy_quoted + ", " + line[insert_at:]
+
+
+def _remove_from_proxies_list(line, group_name):
+    """从 proxies: [...] 中删除一个代理名（处理各种引用格式和逗号）。"""
+    for fmt in [
+        f"'{group_name}', ",
+        f'"{group_name}", ',
+        f"{group_name}, ",
+        f", '{group_name}'",
+        f', "{group_name}"',
+        f", {group_name}",
+        f"'{group_name}'",
+        f'"{group_name}"',
+    ]:
+        idx = line.find(fmt)
+        if idx >= 0:
+            return line[:idx] + line[idx + len(fmt):]
+    return line
+
+
+def _config_add_watch_group(raw, ut_group, filtered_nodes, url, interval, tolerance, timeout, target_group):
+    """在 config.yaml 中添加 url-test 组，并加入目标 Selector 的 proxies 列表。
+    返回修改后的 YAML 文本，如果找不到 proxy-groups 则返回 None。
+    """
+    proxies_str = ", ".join(_yaml_quote(n) for n in filtered_nodes)
+    ut_line = (
+        f"    - {{ name: '{ut_group}', type: url-test,"
+        f" url: '{url}', interval: {interval}, tolerance: {tolerance}, timeout: {timeout},"
+        f" proxies: [{proxies_str}] }}"
+    )
+    ut_quoted = _yaml_quote(ut_group)
+
+    lines = raw.splitlines()
+    out = []
+    group_inserted = False
+    proxy_added = False
+
+    for line in lines:
+        if not group_inserted and line.rstrip() == "proxy-groups:":
+            out.append(line)
+            out.append(ut_line)
+            group_inserted = True
+            continue
+        if not proxy_added and _line_is_group(line, target_group):
+            line = _add_to_proxies_list(line, ut_quoted)
+            proxy_added = True
+        out.append(line)
+
+    if not group_inserted:
+        return None
+    return "\n".join(out) + "\n"
+
+
+def _config_remove_watch_group(raw, ut_group, target_group):
+    """从 config.yaml 中移除 url-test 组，并从目标 Selector 的 proxies 列表中删除。
+    返回 (修改后的 YAML 文本, 是否找到了组)。
+    """
+    lines = raw.splitlines()
+    out = []
+    removed = False
+    for line in lines:
+        if _line_is_group(line, ut_group):
+            removed = True
+            continue
+        if _line_is_group(line, target_group):
+            line = _remove_from_proxies_list(line, ut_group)
+        out.append(line)
+    return "\n".join(out) + "\n", removed
+
+
+def _config_has_group(raw, group_name):
+    """检查 YAML 文本中是否包含指定名称的 proxy-group。"""
+    return any(_line_is_group(line, group_name) for line in raw.splitlines())
+
+
+def _api_raw(method, path, body=None):
+    """调用 mihomo API，不退出程序。返回 (success: bool, data: dict|None)。"""
+    sock, http_url, secret = _get_args()
+    headers = {"Content-Type": "application/json"}
+    if secret:
+        headers["Authorization"] = f"Bearer {secret}"
+
+    try:
+        if sock and Path(sock).exists():
+            conn = UnixHTTPConnection(sock)
+            body_bytes = body if isinstance(body, bytes) else (body.encode() if body else None)
+            conn.request(method, path, body=body_bytes, headers=headers)
+            resp = conn.getresponse()
+            raw = resp.read()
+            if resp.status >= 400:
+                return False, None
+            return True, (json.loads(raw) if raw.strip() else None) or {}
+        else:
+            url = http_url.rstrip("/") + path
+            data = body if isinstance(body, bytes) else (body.encode() if body else None)
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = resp.read()
+                return True, (json.loads(raw) if raw.strip() else None) or {}
+    except Exception:
+        return False, None
+
+
+def _group_exists_in_api(group_name):
+    """检查组是否在 mihomo 运行时中存在（不退出程序）。"""
+    ok, data = _api_raw("GET", f"/proxies/{_urlencode(group_name)}")
+    return ok and data is not None
+
+
+def _reload_mihomo(wait_for_group=None, restart_process=False):
+    """重载 mihomo 配置。
+    如果 restart_process=True 或修改了 proxy-groups，需要重启进程。
+    否则使用 PUT /configs 热重载。
+    如果指定了 wait_for_group，还会等待该组出现在 proxies API 中。
+    返回是否成功。
+    """
+    paths = _get_paths()
+    config_file = paths["config_file"]
+
+    if restart_process or not config_file.exists():
+        # 重启进程：先停止，再启动
+        pid_file = paths["pid_file"]
+        pid = _read_pid(pid_file)
+        if pid and _is_pid_running(pid):
+            try:
+                os.kill(pid, signal.SIGTERM)
+                for _ in range(10):
+                    time.sleep(0.5)
+                    if not _is_pid_running(pid):
+                        break
+                else:
+                    os.kill(pid, signal.SIGKILL)
+                    time.sleep(0.5)
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                pass
+        _unlink_if_exists(pid_file)
+
+        # 启动新进程
+        bin_path = paths["bin_path"]
+        config_dir = paths["config_dir"]
+        log_file = paths["log_file"]
+        if not _binary_exists(bin_path):
+            return False
+
+        config_dir.mkdir(parents=True, exist_ok=True)
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+
+        cmd = [bin_path, "-d", str(config_dir)]
+        if config_file.exists():
+            cmd.extend(["-f", str(config_file)])
+
+        with log_file.open("ab") as log:
+            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        pid_file.write_text(str(proc.pid) + "\n")
+    else:
+        # 热重载：发送配置文件路径
+        try:
+            payload = json.dumps({"path": str(config_file)}).encode()
+            ok, _ = _api_raw("PUT", "/configs", body=payload)
+            if not ok:
+                return False
+        except Exception:
+            return False
+
+    # 等待 API 恢复
+    api_ready = False
+    for _ in range(30):
+        time.sleep(0.5)
+        ok, _ = _api_raw("GET", "/version")
+        if ok:
+            api_ready = True
+            break
+    if not api_ready:
+        return False
+    # 等待指定组出现
+    if wait_for_group:
+        for _ in range(30):
+            time.sleep(0.5)
+            if _group_exists_in_api(wait_for_group):
+                return True
+        return False
+    return True
+
+
+# ── best: 核心逻辑 ──────────────────────────────────────────────────
+
+
+def _best_filter_nodes(group_name, keywords):
+    """按关键词过滤策略组中的真实节点。返回 (filtered, group_data)。"""
+    data = api("GET", f"/proxies/{_urlencode(group_name)}")
+    if "all" not in data:
+        print(f"'{group_name}' is not a group or not found.", file=sys.stderr)
+        sys.exit(1)
+
+    proxies_data = api("GET", "/proxies", quiet=True)
+    proxies = proxies_data.get("proxies") or {}
+    group_types = ("Selector", "URLTest", "Fallback", "LoadBalance")
+    group_names = {k for k, v in proxies.items() if v.get("type") in group_types}
+    _skip_exact = ("DIRECT", "REJECT", "GLOBAL")
+
+    all_nodes = data.get("all") or []
+    kw_lower = [k.lower() for k in keywords]
+    filtered = [
+        n for n in all_nodes
+        if n not in _skip_exact
+        and n not in group_names
+        and any(kw in n.lower() for kw in kw_lower)
+    ]
+
+    if not filtered:
+        print(f"No nodes matching {keywords} in '{group_name}'.")
+        regions = set()
+        for n in all_nodes:
+            if n not in _skip_exact and n not in group_names:
+                parts = n.split("-")
+                if len(parts) >= 2:
+                    region_name = "".join(c for c in parts[1] if not c.isdigit())
+                    if region_name:
+                        regions.add(region_name)
+        if regions:
+            print(f"  Available regions: {', '.join(sorted(regions))}")
+        sys.exit(1)
+
+    return filtered, data
+
+
+def _best_test_all(filtered, url, timeout, concurrency, kw_display):
+    """并发测试所有节点延迟，返回 (alive, dead, total)。"""
+    total = len(filtered)
+    results = []
+    lock = threading.Lock()
+    completed = 0
+    start = time.time()
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = {executor.submit(_test_node_delay, n, url, timeout): n for n in filtered}
+        for future in as_completed(futures):
+            name, d = future.result()
+            with lock:
+                completed += 1
+                results.append((name, d))
+                elapsed = time.time() - start
+                ds = f"{d}ms" if d > 0 else "timeout"
+                print(f"\r  [{completed}/{total}] {name:<30} {ds:>8}  ({elapsed:.0f}s)    ", end="", flush=True)
+    print("\r" + " " * 80 + "\r", end="")
+
+    results.sort(key=lambda x: (x[1] == 0, x[1]))
+    alive = [(n, d) for n, d in results if d > 0]
+    dead = [(n, d) for n, d in results if d == 0]
+    return alive, dead, total
+
+
+def _best_print_results(alive, dead, total, kw_display):
+    """打印测试结果。"""
+    print(f"  Reachable nodes ({len(alive)}/{total}):")
+    for i, (name, d) in enumerate(alive):
+        marker = " ← best" if i == 0 else ""
+        print(f"    {i+1:>2}. {name}: {d}ms{marker}")
+    if dead:
+        print(f"  Timeout ({len(dead)}): {', '.join(n for n, _ in dead[:5])}{'...' if len(dead) > 5 else ''}")
+
+
+def _best_switch(group, node_name, dry_run=False):
+    """切换策略组到指定节点。"""
+    if dry_run:
+        print(f"  (dry-run, would switch to {node_name})")
+        return
+    api("PUT", f"/proxies/{_urlencode(group)}", {"name": node_name})
+    print(f"  ✓ Switched '{group}' → {node_name}")
+
+
+def _best_list_watches():
+    """列出所有活跃的 watch 组及其运行状态。"""
+    # 从 API 获取所有 proxy groups
+    try:
+        proxies_data = api("GET", "/proxies", quiet=True)
+    except SystemExit:
+        print("Cannot connect to mihomo API.", file=sys.stderr)
+        sys.exit(1)
+
+    proxies = proxies_data.get("proxies") or {}
+
+    # 过滤出 best- 前缀的 URLTest 组
+    watch_groups = {}
+    for name, g in proxies.items():
+        if name.startswith(_BEST_GROUP_PREFIX) and g.get("type") == "URLTest":
+            watch_groups[name] = g
+
+    if not watch_groups:
+        print("No active watch groups.")
+        return
+
+    # 加载状态文件
+    state = _best_load_state()
+
+    print(f"Active watch groups ({len(watch_groups)}):\n")
+
+    for name, g in watch_groups.items():
+        now = g.get("now", "-")
+        all_nodes = g.get("all") or []
+        node_count = len(all_nodes)
+
+        # 获取当前节点的延迟
+        delay = 0
+        if now and now in proxies:
+            node_data = proxies.get(now) or {}
+            history = node_data.get("history") or []
+            if history:
+                delay = history[-1].get("delay") or 0
+
+        # 从状态文件获取关联信息
+        target_group = ""
+        keywords = []
+        original_node = ""
+        if state and state.get("ut_group") == name:
+            target_group = state.get("group", "")
+            keywords = state.get("keywords", [])
+            original_node = state.get("original_node", "")
+
+        # 显示组信息
+        print(f"  {name}")
+        print(f"    Type: URLTest")
+        print(f"    Nodes: {node_count}")
+        print(f"    Current: {now}")
+        if delay > 0:
+            print(f"    Delay: {delay}ms")
+        elif delay == 0 and now != "-":
+            print(f"    Delay: timeout")
+
+        if target_group:
+            print(f"    Target: {target_group}")
+        if keywords:
+            print(f"    Keywords: {', '.join(keywords)}")
+        if original_node:
+            print(f"    Original: {original_node}")
+        print()
+
+
+def _best_watch_off(args, dry_run):
+    """清理 watch 模式：移除 url-test 组，恢复原始选择。"""
+    state = _best_load_state()
+
+    if args.keywords:
+        ut_group = _best_group_name(args.keywords)
+        group = args.group
+    elif state:
+        ut_group = state["ut_group"]
+        group = state["group"]
+    else:
+        print("No watch state found. Specify group and keywords, e.g.:")
+        print('  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --watch-off')
+        sys.exit(1)
+
+    original_node = state.get("original_node", "") if state else ""
+    print(f"Removing watch: {ut_group}")
+
+    if dry_run:
+        print(f"  (dry-run) Would remove '{ut_group}' from config")
+        print(f"  (dry-run) Would reload mihomo")
+        if original_node:
+            print(f"  (dry-run) Would switch '{group}' → {original_node}")
+        return
+
+    paths = _get_paths()
+    config_file = paths["config_file"]
+    if not config_file.exists():
+        print(f"  Config file not found: {config_file}", file=sys.stderr)
+        _best_clear_state()
+        return
+
+    raw = config_file.read_text()
+    new_raw, removed = _config_remove_watch_group(raw, ut_group, group)
+
+    if not removed:
+        print(f"  Group '{ut_group}' not found in config (already removed?).")
+        _best_clear_state()
+        return
+
+    config_file.write_text(new_raw)
+    print(f"  Removed '{ut_group}' from config.")
+
+    print("  Restarting mihomo...")
+    if not _reload_mihomo(restart_process=True):
+        print("  ✗ Mihomo failed to restart.", file=sys.stderr)
+        config_file.write_text(raw)
+        print("  Config rolled back.", file=sys.stderr)
+        sys.exit(1)
+    print("  ✓ Mihomo restarted.")
+
+    if original_node:
+        try:
+            api("PUT", f"/proxies/{_urlencode(group)}", {"name": original_node})
+            print(f"  ✓ Switched '{group}' → {original_node}")
+        except SystemExit:
+            print(f"  Warning: could not switch back to '{original_node}'.", file=sys.stderr)
+
+    _best_clear_state()
+    print(f"\n  Watch removed.")
+
+
+def cmd_best(args):
+    """Filter nodes by keywords, test delays, and auto-select the fastest.
+
+    With --watch, creates a url-test proxy group in config.yaml with the
+    filtered nodes, reloads mihomo, and lets the native url-test mechanism
+    handle health checks and failover — no external polling needed.
+    """
+    url = args.url or "http://www.gstatic.com/generate_204"
+    timeout = args.timeout or 5000
+    concurrency = args.concurrency or 10
+    keywords = args.keywords
+    kw_display = ", ".join(keywords)
+    dry_run = args.dry_run
+
+    # ── list: 列出所有 watch 组 ──
+    if getattr(args, "list", False):
+        _best_list_watches()
+        return
+
+    # ── switch: 切换到指定的 watch 组 ──
+    if getattr(args, "switch", False):
+        if not keywords:
+            print("Error: keywords are required. Example: best \"\U0001f680 节点选择\" 日本 美国 --switch", file=sys.stderr)
+            sys.exit(1)
+        ut_group = _best_group_name(keywords)
+        if dry_run:
+            print(f"  (dry-run) Would switch '{args.group}' → {ut_group}")
+            return
+        try:
+            api("PUT", f"/proxies/{_urlencode(args.group)}", {"name": ut_group})
+            print(f"  ✓ Switched '{args.group}' → {ut_group}")
+        except SystemExit:
+            print(f"  ✗ Failed to switch. Group '{ut_group}' may not exist.", file=sys.stderr)
+            print(f"  Create it first: mihomo-mgr.py best \"{args.group}\" {' '.join(keywords)} --watch", file=sys.stderr)
+        return
+
+    # ── watch-off: 清理模式 ──
+    if getattr(args, "watch_off", False):
+        _best_watch_off(args, dry_run)
+        return
+
+    if not keywords:
+        print("Error: keywords are required. Example: best \"\U0001f680 节点选择\" 日本 美国", file=sys.stderr)
+        sys.exit(1)
+
+    # ── 过滤节点 ──
+    filtered, data = _best_filter_nodes(args.group, keywords)
+    total = len(filtered)
+    now_name = data.get("now", "")
+
+    # ── 初始测试 ──
+    print(f"Filtering {total} nodes matching [{kw_display}] in '{args.group}'...")
+    print(f"Testing delays (timeout={timeout}ms, concurrency={concurrency})...\n")
+
+    alive, dead, total = _best_test_all(filtered, url, timeout, concurrency, kw_display)
+
+    if not alive:
+        print(f"All {total} nodes matching [{kw_display}] are unreachable.")
+        sys.exit(1)
+
+    _best_print_results(alive, dead, total, kw_display)
+    best_name, best_delay = alive[0]
+    print(f"\n  Best: {best_name} ({best_delay}ms)")
+
+    # ── 非 watch 模式：直接选择最快节点 ──
+    if not args.watch:
+        if best_name == now_name:
+            print(f"  Already selected — no change needed.")
+        else:
+            if now_name:
+                print(f"  Previous: {now_name}")
+            _best_switch(args.group, best_name, dry_run)
+        return
+
+    # ── watch 模式：创建 url-test 组，让 mihomo 原生接管 ──
+    ut_group = _best_group_name(keywords)
+    interval = args.interval or 15
+    tolerance = args.tolerance or 50
+    health_timeout = args.health_timeout or 2000
+
+    if dry_run:
+        print(f"\n  (dry-run) Would create url-test group: {ut_group}")
+        print(f"  (dry-run) Nodes: {len(alive)}, interval={interval}s, tolerance={tolerance}ms, timeout={health_timeout}ms")
+        print(f"  (dry-run) Would switch '{args.group}' → {ut_group}")
+        return
+
+    # 读取 config.yaml
+    paths = _get_paths()
+    config_file = paths["config_file"]
+    if not config_file.exists():
+        print(f"\n  Config file not found: {config_file}", file=sys.stderr)
+        print("  Watch mode requires a config file. Run 'sub-pull' first.", file=sys.stderr)
+        sys.exit(1)
+
+    raw = config_file.read_text()
+
+    if _config_has_group(raw, ut_group):
+        print(f"\n  url-test group '{ut_group}' already exists in config.")
+        # 检查 mihomo 运行时是否已加载该组
+        if _group_exists_in_api(ut_group):
+            print(f"  Group already loaded in mihomo.")
+        else:
+            # 组在 config 里但 mihomo 没加载，需要重启进程
+            print(f"  Group not loaded in mihomo, restarting...")
+            if not _reload_mihomo(wait_for_group=ut_group, restart_process=True):
+                print("  ✗ Mihomo failed to restart.", file=sys.stderr)
+                sys.exit(1)
+            print("  ✓ Mihomo restarted.")
+    else:
+        alive_names = [n for n, _ in alive]
+        new_raw = _config_add_watch_group(
+            raw, ut_group, alive_names, url, interval, tolerance, health_timeout, args.group,
+        )
+        if new_raw is None:
+            print(f"\n  Failed to parse config: proxy-groups section not found.", file=sys.stderr)
+            sys.exit(1)
+
+        config_file.write_text(new_raw)
+        print(f"\n  Added url-test group '{ut_group}' ({len(alive)} nodes, interval={interval}s, timeout={health_timeout}ms)")
+
+        # 重启 mihomo，等待新组出现
+        print("  Restarting mihomo...")
+        if not _reload_mihomo(wait_for_group=ut_group, restart_process=True):
+            print("  ✗ Mihomo failed to restart.", file=sys.stderr)
+            config_file.write_text(raw)
+            print("  Config rolled back.", file=sys.stderr)
+            sys.exit(1)
+        print("  ✓ Mihomo restarted.")
+
+    # 切换策略组到 url-test 组
+    api("PUT", f"/proxies/{_urlencode(args.group)}", {"name": ut_group})
+    print(f"  ✓ Switched '{args.group}' → {ut_group}")
+
+    # 保存状态（用于 --watch-off 恢复）
+    _best_save_state(args.group, now_name, ut_group, keywords)
+
+    print(f"\n  Watch active. Mihomo natively handles health checks and failover.")
+    print(f"  To stop: mihomo-mgr.py best \"{args.group}\" --watch-off")
 
 
 def cmd_conns(args):
@@ -1434,6 +2053,7 @@ def _get_all_api_nodes():
 _COMPLETE_MAP = {
     "nodes": [(1, "group")],
     "select": [(1, "group"), (2, "node")],
+    "best": [(1, "group")],
     "delay": [(1, "all_nodes")],
     "delay-group": [(1, "group")],
     "mode": [(1, "mode")],
@@ -1445,7 +2065,7 @@ def cmd_completion(args):
     script_path = os.path.abspath(sys.argv[0])
     # Subcommands and dynamic completions — keep in sync with dispatch
     subcmds = " ".join(sorted([
-        "status", "mode", "groups", "nodes", "select", "delay",
+        "status", "mode", "groups", "nodes", "select", "best", "delay",
         "delay-group", "conns", "conns-close", "rules", "dns",
         "flush-dns", "api-restart", "upgrade-geo",
         "db-check", "db-download",
@@ -1456,7 +2076,7 @@ def cmd_completion(args):
         "proxy-status", "proxy-on", "proxy-off",
         "completion",
     ]))
-    dynamic_cmds = "nodes|select|delay|delay-group|mode"
+    dynamic_cmds = "nodes|select|best|delay|delay-group|mode"
 
     bash_script = f"""# mihomo-mgr bash completion — source this file or add to ~/.bashrc
 _mihomo_mgr_complete() {{
@@ -1569,6 +2189,7 @@ CMD_GROUPS = OrderedDict([
     ]),
     ("Control", [
         ("select", "Switch node in a proxy group"),
+        ("best", "Auto-select fastest node matching keywords"),
         ("delay", "Test node delay"),
         ("delay-group", "Test all nodes in a group"),
         ("conns-close", "Close connections"),
@@ -1608,6 +2229,10 @@ CMD_GROUPS = OrderedDict([
 HELP_EXAMPLES = [
     ("Show overall status", "mihomo-mgr.py status"),
     ("Switch proxy node", 'mihomo-mgr.py select "\U0001f680 节点选择" "S-IEPL-香港7"'),
+    ("Auto-select fastest JP/US node", 'mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国'),
+    ("Watch & auto-failover JP/US nodes", 'mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --watch'),
+    ("List active watch groups", 'mihomo-mgr.py best --list'),
+    ("Switch to watch group", 'mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --switch'),
     ("Enable terminal proxy", 'eval "$(mihomo-mgr.py proxy-on)"'),
     ("Disable terminal proxy", 'eval "$(mihomo-mgr.py proxy-off)"'),
     ("Start mihomo", "mihomo-mgr.py start"),
@@ -1716,6 +2341,46 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter)
     s.add_argument("group", help="Group name")
     s.add_argument("node", help="Node name")
+
+    s = sub.add_parser("best",
+        help="Auto-select fastest node matching keywords",
+        description="Filter nodes in a proxy group by one or more keywords (region names),\n"
+                    "test their delays concurrently, and automatically select the fastest one.\n"
+                    "Keywords are matched case-insensitively against node names.\n\n"
+                    "With --watch, creates a url-test proxy group in config.yaml with the\n"
+                    "filtered nodes, reloads mihomo, and lets the native url-test mechanism\n"
+                    "handle health checks and failover — no external polling needed.\n"
+                    "Use --watch-off to remove the url-test group and restore the original.",
+        epilog='Examples:\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" 香港 --timeout 3000\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --watch\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 --watch --interval 30\n'
+               '  mihomo-mgr.py best --list\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --switch\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" --watch-off\n'
+               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 --dry-run',
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    s.add_argument("group", nargs="?", help="Proxy group name")
+    s.add_argument("keywords", nargs="*", help="Region keywords to filter nodes (e.g. 日本 美国 香港)")
+    s.add_argument("--url", help="Test URL (default: http://www.gstatic.com/generate_204)")
+    s.add_argument("--timeout", type=int, help="Delay test timeout in ms (default: 5000)")
+    s.add_argument("--concurrency", type=int, help="Max concurrent requests (default: 10)")
+    s.add_argument("--dry-run", action="store_true", help="Only show results, do not switch node")
+    s.add_argument("--watch", action="store_true",
+        help="Create a url-test group in config and let mihomo handle failover natively")
+    s.add_argument("--watch-off", action="store_true",
+        help="Remove the watch url-test group and restore original selection")
+    s.add_argument("--list", action="store_true",
+        help="List all active watch groups and their status")
+    s.add_argument("--switch", action="store_true",
+        help="Switch to an existing watch group (e.g. best \"group\" 日本 美国 --switch)")
+    s.add_argument("--interval", type=int, metavar="SECS",
+        help="Health check interval for url-test group in seconds (default: 15)")
+    s.add_argument("--tolerance", type=int, metavar="MS",
+        help="Latency tolerance in ms to prevent flapping (default: 50)")
+    s.add_argument("--health-timeout", type=int, metavar="MS",
+        help="Health check timeout per node in ms (default: 2000)")
 
     s = sub.add_parser("delay",
         help="Test latency of a single node",
@@ -1972,7 +2637,7 @@ def main():
 
     dispatch = {
         "status": cmd_status, "mode": cmd_mode, "groups": cmd_groups,
-        "nodes": cmd_nodes, "select": cmd_select, "delay": cmd_delay,
+        "nodes": cmd_nodes, "select": cmd_select, "best": cmd_best, "delay": cmd_delay,
         "delay-group": cmd_delay_group, "conns": cmd_conns,
         "conns-close": cmd_conns_close, "rules": cmd_rules,
         "dns": cmd_dns, "flush-dns": cmd_flush_dns,

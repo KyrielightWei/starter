@@ -3,6 +3,20 @@
 
 local M = {}
 
+local function make_review_range(selected_shas)
+  local ok_range, Range = pcall(require, "ai_review.range")
+  if not ok_range then
+    return nil
+  end
+  if #selected_shas == 1 then
+    return Range.single_commit(selected_shas[1])
+  end
+  if #selected_shas >= 2 then
+    return Range.commit_range(selected_shas[1], selected_shas[2], { selected_shas[1], selected_shas[2] })
+  end
+  return nil
+end
+
 ----------------------------------------------------------------------
 -- Lazy-load submodules with pcall to prevent cascading failures
 -- Verifies exported functions exist (WR-01 fix)
@@ -59,7 +73,8 @@ end
 -- Shows picker; on selection, stores SHAs and opens diff (D-03, D-13)
 -- Phase 5: uses get_commits_for_mode() for config-aware fetching
 ----------------------------------------------------------------------
-function M.open()
+function M.open(opts)
+  opts = opts or {}
   local mods, err = get_modules()
   if not mods then
     vim.notify("[commit_picker] " .. err .. " module failed to load", vim.log.levels.ERROR)
@@ -95,21 +110,45 @@ function M.open()
     on_select = function(selected_shas)
       -- Store selection
       Selection.set_selected(selected_shas)
-      -- Open diff with selection (D-03, D-06, D-08)
-      if #selected_shas > 0 then
-        if mods.Navigation then
-          -- Update navigation view_mode based on selection count
-          mods.Navigation.load_commits()
-        end
-        Diff.open_diff(selected_shas)
+      if #selected_shas == 0 then
+        return
       end
+
+      local review_range = make_review_range(selected_shas)
+      if opts.review_mode then
+        if review_range then
+          local ok_cache, Cache = pcall(require, "ai_review.range_cache")
+          if ok_cache then
+            local ok_save, err_save = Cache.save(review_range)
+            if not ok_save then
+              vim.notify("Review range 缓存失败: " .. tostring(err_save), vim.log.levels.ERROR)
+              return
+            end
+          else
+            vim.notify("Review range cache 模块加载失败", vim.log.levels.ERROR)
+            return
+          end
+          if opts.on_range_selected then
+            opts.on_range_selected(review_range)
+          end
+          vim.notify("Review range 已缓存", vim.log.levels.INFO)
+        end
+        return
+      end
+
+      -- Open diff with selection (D-03, D-06, D-08)
+      if mods.Navigation then
+        -- Update navigation view_mode based on selection count
+        mods.Navigation.load_commits()
+      end
+      Diff.open_diff(selected_shas)
     end,
     base_commit = base_commit,
 
     -- Phase 6+: action handling for Set Base / Config / Help
     refresh_picker = function()
       -- Reopen picker with updated config (base commit mode, etc.)
-      M.open()
+      M.open(opts)
     end,
     on_action = function(action_name)
       if action_name == "config" then

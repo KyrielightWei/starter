@@ -1,6 +1,9 @@
 -- tests/commit_picker/navigation_spec.lua
 -- Plenary.nvim specs for commit_picker/navigation.lua
 
+local plugin_lua = vim.fn.getcwd() .. "/local-plugins/ai/lua"
+package.path = plugin_lua .. "/?.lua;" .. plugin_lua .. "/?/init.lua;" .. package.path
+
 local Navigation = require("commit_picker.navigation")
 
 ----------------------------------------------------------------------

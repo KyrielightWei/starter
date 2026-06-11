@@ -100,6 +100,19 @@ Commit Picker 使用 fzf-lua 模糊搜索界面，顶部有三行可见的操作
 4. 按 `Enter` 打开 diff
 5. 显示两个 commit 之间的差异
 
+### AI Review 范围缓存
+
+Commit Picker 的普通模式仍保持原行为：`Enter` 直接打开 diff。
+
+当从 `:AIReviewStart` 选择 `Select commit range` 进入 Commit Picker 时，Picker 会进入 review range 模式：选中的单个 commit 或两个 commit 会保存为项目内缓存：
+
+```text
+.ai-review/ranges/last.json
+.ai-review/ranges/ranges.json
+```
+
+之后 `:AIReviewStart` 可以选择 `Last cached range` 直接使用最近一次范围创建 review session。
+
 ### 设置 Base Commit
 
 用于 GSD 多 commit 工作流审查：

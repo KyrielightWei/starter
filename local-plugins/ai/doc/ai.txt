@@ -36,6 +36,15 @@ PiPreview           Preview Pi config
 PiEdit              Edit Pi settings template
 PiStatus            Show Pi CLI and config status
 
+AI Review~
+
+AIReviewStart       Start an AI review session
+AIReviewAdd         Add review comment at current cursor location
+AIReviewPanel       Open review comment panel
+AIReviewExport      Export notes.md, notes.json, and fix-prompt.md
+AIReviewStatus      Show active review session status
+AIReviewClose       Close active review session
+
 Subcommands~
 
 AI template list [tool]           List template versions
@@ -72,6 +81,12 @@ All keymaps use the `<leader>k` prefix (AI Tools group):
 <leader>kf    Next Commit     Navigate to next commit
 <leader>kb    Prev Commit     Navigate to previous commit
 <leader>kd    Diff Viewer     Open diff viewer
+
+<leader>krr   Review Start    Start AI review session
+<leader>kra   Review Add      Add review comment
+<leader>krl   Review Panel    Open review panel
+<leader>krx   Review Export   Export review artifacts
+<leader>krs   Review Status   Show review session status
 
 ==============================================================================
 3. CONFIGURATION                                            *ai-configuration*

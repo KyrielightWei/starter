@@ -447,7 +447,7 @@ return {
           DiffviewFileHistory = {},
         },
         hooks = {
-          diffview_buf_read = function(bufnr)
+          diff_buf_read = function(bufnr)
             -- 禁用 LSP 以避免启动多个 ccls 索引
             -- Diffview 会创建两个 buffer (a/b)，每个都会触发 LSP
             vim.b[bufnr].lsp_enabled = false
@@ -488,6 +488,17 @@ Git 操作 (需要 gitsigns):
 ]]
               vim.notify(help_text, vim.log.levels.INFO, { title = "Diffview Help" })
             end, opts)
+
+            local ok_review, ReviewDiffview = pcall(require, "ai_review.diffview")
+            if ok_review then
+              ReviewDiffview.setup_buffer(bufnr)
+            end
+          end,
+          diff_buf_win_enter = function(bufnr)
+            local ok_review, ReviewDiffview = pcall(require, "ai_review.diffview")
+            if ok_review then
+              ReviewDiffview.restore_signs(bufnr)
+            end
           end,
         },
       }

@@ -80,6 +80,19 @@ OpenCode 额外支持 TUI 主题：`:OpenCodeTheme [generate|preview|edit]`
 | `<leader>kb` | 上一个 Commit |
 | `<leader>kd` | Diff 查看器 |
 
+### AI Review Workbench
+
+| 命令/快捷键 | 说明 |
+|-------------|------|
+| `:AIReviewStart` / `<leader>krr` | 开始 review session |
+| `:AIReviewAdd` / `<leader>kra` | 在当前位置添加 review comment |
+| `:AIReviewPanel` / `<leader>krl` | 打开 review comment 面板 |
+| `:AIReviewExport` / `<leader>krx` | 导出 `notes.md`、`notes.json`、`fix-prompt.md` |
+| `:AIReviewStatus` / `<leader>krs` | 查看当前 review session 状态 |
+| `:AIReviewClose` | 关闭当前 review session |
+
+Review 数据默认保存到项目内 `.ai-review/`，便于 AI 工具读取。该目录通常是本地工作产物，建议按需加入项目 `.gitignore`。
+
 ## 配置
 
 ```lua
@@ -93,3 +106,4 @@ require("ai").setup({
 - [配置指南](doc/configuration.md) — Provider、API Key、模板系统
 - [模板参考](doc/templates.md) — 各工具模板结构和字段说明
 - [架构说明](doc/architecture.md) — 模块依赖和扩展方式
+- AI Review Workbench — 使用 `:AIReviewStart` 基于 diffview 记录和导出 review 意见

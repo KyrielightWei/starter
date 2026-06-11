@@ -383,6 +383,31 @@ cmd("AICommitConfig", function()
   safe_require("commit_picker.settings", "open")
 end, { desc = "Open commit picker settings" })
 
+-- AI Review Workbench 命令
+cmd("AIReviewStart", function()
+  safe_require("ai_review.init", "start")
+end, { desc = "Start AI review session" })
+
+cmd("AIReviewAdd", function()
+  safe_require("ai_review.init", "add_comment")
+end, { desc = "Add AI review comment at cursor" })
+
+cmd("AIReviewPanel", function()
+  safe_require("ai_review.init", "panel")
+end, { desc = "Open AI review panel" })
+
+cmd("AIReviewExport", function()
+  safe_require("ai_review.init", "export")
+end, { desc = "Export AI review notes" })
+
+cmd("AIReviewStatus", function()
+  safe_require("ai_review.init", "status")
+end, { desc = "Show AI review session status" })
+
+cmd("AIReviewClose", function()
+  safe_require("ai_review.init", "close")
+end, { desc = "Close AI review session" })
+
 -- Commit Picker 导航辅助函数
 local function commit_navigate_next()
   -- 已加载时直接切换
@@ -450,3 +475,10 @@ vim.keymap.set("n", "<leader>kd", function()
     vim.notify("Git diff 不可用，请安装 diffview.nvim 或 vim-fugitive", vim.log.levels.WARN)
   end
 end, { desc = "Diff Viewer" })
+
+-- AI Review Workbench
+vim.keymap.set("n", "<leader>krr", "<cmd>AIReviewStart<CR>", { desc = "AI Review Start" })
+vim.keymap.set("n", "<leader>kra", "<cmd>AIReviewAdd<CR>", { desc = "AI Review Add Comment" })
+vim.keymap.set("n", "<leader>krl", "<cmd>AIReviewPanel<CR>", { desc = "AI Review Panel" })
+vim.keymap.set("n", "<leader>krx", "<cmd>AIReviewExport<CR>", { desc = "AI Review Export" })
+vim.keymap.set("n", "<leader>krs", "<cmd>AIReviewStatus<CR>", { desc = "AI Review Status" })

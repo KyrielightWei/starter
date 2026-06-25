@@ -58,6 +58,7 @@ function M.render_markdown(session)
     "- Created: `" .. line(session.created_at) .. "`",
     "- Updated: `" .. line(session.updated_at) .. "`",
     "- Comments: `" .. tostring(#(session.comments or {})) .. "`",
+    "- Approved: `" .. tostring(#(session.approved or {})) .. "`",
     "",
     "## Comments",
     "",
@@ -79,10 +80,64 @@ function M.render_markdown(session)
     table.insert(lines, "")
   end
 
+  -- 已通过的条目（多级）
+  local approved = session.approved or {}
+  if #approved > 0 then
+    table.insert(lines, "## Approved")
+    table.insert(lines, "")
+    for i, entry in ipairs(approved) do
+      local level = entry.level or "hunk"
+      local level_label = ({ hunk = "Hunk", file = "文件", dir = "目录", global = "全局" })[level] or level
+      local location
+      if level == "global" then
+        location = "(所有文件)"
+      elseif level == "dir" then
+        location = entry.path or "?"
+      elseif level == "file" then
+        location = entry.file or "?"
+      else
+        location = string.format("%s:L%d-%d", entry.file or "?", entry.line_start or 0, entry.line_end or 0)
+      end
+      table.insert(lines, string.format("### %d. ✓ [%s] %s", i, level_label, location))
+      table.insert(lines, "")
+      if entry.line_text and entry.line_text ~= "" then
+        table.insert(lines, "```text")
+        table.insert(lines, entry.line_text)
+        table.insert(lines, "```")
+        table.insert(lines, "")
+      end
+      table.insert(lines, "- Approved at: `" .. line(entry.approved_at) .. "`")
+      table.insert(lines, "")
+    end
+  end
+
   return table.concat(lines, "\n")
 end
 
 function M.render_prompt(session)
+  local approved = session.approved or {}
+  local approved_section = ""
+  if #approved > 0 then
+    local parts = { "", "## Approved (已通过，无需修改)", "" }
+    for _, entry in ipairs(approved) do
+      local level = entry.level or "hunk"
+      local level_label = ({ hunk = "Hunk", file = "文件", dir = "目录", global = "全局" })[level] or level
+      local location
+      if level == "global" then
+        location = "(所有文件)"
+      elseif level == "dir" then
+        location = entry.path or "?"
+      elseif level == "file" then
+        location = entry.file or "?"
+      else
+        location = string.format("%s:L%d-%d", entry.file or "?", entry.line_start or 0, entry.line_end or 0)
+      end
+      table.insert(parts, string.format("- ✓ [%s] %s", level_label, location))
+    end
+    table.insert(parts, "")
+    approved_section = table.concat(parts, "\n")
+  end
+
   local lines = {
     "# AI Review Follow-up Prompt",
     "",
@@ -102,15 +157,20 @@ function M.render_prompt(session)
     "4. 修改应尽量限制在 review 范围相关代码内。",
     "5. 如修改影响行为，请补充或更新测试。",
     "6. 最终输出每条 comment 的处理状态。",
+    "7. 已标记为 Approved 的 hunk 表示已通过，不需要修改。",
     "",
     "## Review Range",
     "",
     "`" .. Range.describe(session.range) .. "`",
     "",
-    "## Review Comments",
-    "",
-    M.render_markdown(session),
   }
+  if approved_section ~= "" then
+    table.insert(lines, approved_section)
+    table.insert(lines, "")
+  end
+  table.insert(lines, "## Review Comments")
+  table.insert(lines, "")
+  table.insert(lines, M.render_markdown(session))
   return table.concat(lines, "\n")
 end
 

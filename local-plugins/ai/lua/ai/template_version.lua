@@ -202,14 +202,14 @@ end
 ----------------------------------------------------------------------
 -- Security validation patterns
 ----------------------------------------------------------------------
+-- M-10 修复: 收窄敏感模式，减少误报（git SHA、颜色代码等）
 local SENSITIVE_PATTERNS = {
-  "api[_-]?key",
-  "secret",
-  "password",
-  "token",
-  "credential",
-  "sk-[a-zA-Z0-9]+", -- OpenAI key pattern
-  "[a-f0-9]{32}", -- Hex key pattern
+  "api[_-]?key%s*[:=]",
+  "secret%s*[:=]",
+  "password%s*[:=]",
+  "token%s*[:=]",
+  "credential%s*[:=]",
+  "sk%-[a-zA-Z0-9]{20,}", -- OpenAI key pattern (至少 20 字符)
 }
 
 ----------------------------------------------------------------------

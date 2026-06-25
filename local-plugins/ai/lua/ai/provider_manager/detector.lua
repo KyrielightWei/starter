@@ -57,8 +57,13 @@ local function sanitize_error(msg)
   msg = msg:gsub("dsk%-[A-Za-z0-9_%-]+", "[KEY_REDACTED]")
   -- Bearer tokens
   msg = msg:gsub("Bearer [A-Za-z0-9_%-]+", "Bearer [REDACTED]")
-  -- Generic long tokens
-  msg = msg:gsub("[A-Za-z0-9_%-]{20,}", "[REDACTED]")
+  -- Generic long tokens (20+ alphanumeric chars)
+  msg = msg:gsub("[A-Za-z0-9_%-]+", function(m)
+    if #m >= 20 then
+      return "[REDACTED]"
+    end
+    return m
+  end)
   return msg
 end
 
@@ -288,9 +293,12 @@ function M.check_provider(provider_name, callback)
 end
 
 ----------------------------------------------------------------------
--- check_single(provider_name, model_id)
+-- H-04 修复: check_single 已废弃 — 会阻塞 UI 最多 30 秒
+-- 请使用 check_provider_model() 异步版本
+-- @deprecated
 ----------------------------------------------------------------------
 function M.check_single(provider_name, model_id)
+  vim.deprecate("detector.check_single()", "detector.check_provider_model()", "3.0.0", "ai.provider_manager")
   local result = nil
   local done = false
 

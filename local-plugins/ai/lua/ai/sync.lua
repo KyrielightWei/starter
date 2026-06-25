@@ -242,21 +242,38 @@ function M.export_keys()
   return exported
 end
 
+-- C-03 修复：安全导出 API key 到 env 文件
+-- 使用单引号转义而非 shellescape，防止 key 中含单引号时的注入
+local function shell_escape_key(value)
+  -- 将单引号转为 '\''（结束单引号 + 转义单引号 + 重新开始单引号）
+  local escaped = value:gsub("'", "'\\''")
+  return "'" .. escaped .. "'"
+end
+
 function M.export_to_env_file(path)
   local exported = M.export_keys()
   local lines = {}
 
   for env_var, value in pairs(exported) do
-    table.insert(lines, string.format("export %s=%s", env_var, vim.fn.shellescape(value)))
+    -- C-03: 使用安全的 key 转义而非 shellescape
+    table.insert(lines, string.format("export %s=%s", env_var, shell_escape_key(value)))
   end
 
   table.sort(lines)
 
   path = path or vim.fn.stdpath("config") .. "/ai_env.sh"
-  vim.fn.writefile(lines, path)
-  -- Security: Set restrictive permissions on env file containing API keys
-  -- chmod 600 = 6*64 = 384 in decimal (LuaJIT doesn't support 0o600 octal)
-  vim.uv.fs_chmod(path, 384)
+
+  -- H-06 修复：原子写入 — 先写临时文件，chmod 600，再 rename
+  local tmp_path = path .. ".tmp"
+  vim.fn.writefile(lines, tmp_path)
+  vim.uv.fs_chmod(tmp_path, 384) -- chmod 600
+  local renamed, _ = vim.uv.fs_rename(tmp_path, path)
+  if not renamed then
+    -- fallback: 直接写入
+    vim.fn.writefile(lines, path)
+    vim.uv.fs_chmod(path, 384)
+    pcall(vim.fn.delete, tmp_path)
+  end
 
   vim.notify("Exported " .. #lines .. " keys to " .. path, vim.log.levels.INFO)
 

@@ -3,6 +3,10 @@
 
 local M = {}
 
+-- L-02 修复: 提取硬编码 fallback 为常量，避免多处重复
+M.DEFAULT_PROVIDER = "bailian_coding"
+M.DEFAULT_MODEL = "qwen3.6-plus"
+
 -- Private registry table to separate data from methods
 local registry = {}
 
@@ -16,7 +20,7 @@ function M.get_default_provider()
     local provider, _ = Registry.get_global_default()
     return provider
   end
-  return "bailian_coding" -- fallback
+  return M.DEFAULT_PROVIDER -- fallback
 end
 
 function M.get_default_model()
@@ -25,7 +29,7 @@ function M.get_default_model()
     local _, model = Registry.get_global_default()
     return model
   end
-  return "qwen3.6-plus" -- fallback
+  return M.DEFAULT_MODEL -- fallback
 end
 
 -- 注册 provider
@@ -51,7 +55,7 @@ function M.unregister(name)
   return false
 end
 
--- 返回 provider 列表
+-- 返回 provider 列表（按名称排序，保证确定性顺序）
 function M.list()
   local out = {}
   for name, def in pairs(registry) do
@@ -59,6 +63,7 @@ function M.list()
       table.insert(out, name)
     end
   end
+  table.sort(out)
   return out
 end
 

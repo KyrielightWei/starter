@@ -18,12 +18,16 @@ local next_id = 1
 
 ----------------------------------------------------------------------
 -- get(): 获取当前状态
--- @return table: { provider: string, model: string }
+-- 返回浅拷贝：provider/model 是字符串（不可变），template_versions 是 deepcopy。
+-- 修改返回值不会影响全局状态。
+-- @return table: { provider: string|nil, model: string|nil, template_versions: table }
 ----------------------------------------------------------------------
 function M.get()
   return {
     provider = state.provider,
     model = state.model,
+    -- #15 修复: 使用 deepcopy 避免外部修改影响全局状态
+    template_versions = vim.deepcopy(state.template_versions),
   }
 end
 
@@ -74,9 +78,19 @@ function M.unsubscribe(id)
 end
 
 ----------------------------------------------------------------------
--- clear(): 清空状态（用于测试）
+-- clear(): 清空数据状态（不重置订阅者，避免 setup 时注册的回调丢失）
 ----------------------------------------------------------------------
 function M.clear()
+  state.provider = nil
+  state.model = nil
+  state.template_versions = {}
+  -- H-01 修复：不清空 subscribers 和 next_id，保留已注册的回调
+end
+
+----------------------------------------------------------------------
+-- _reset_for_tests(): 完全重置（包括订阅者，仅测试用）
+----------------------------------------------------------------------
+function M._reset_for_tests()
   state.provider = nil
   state.model = nil
   state.template_versions = {}

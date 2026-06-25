@@ -8,6 +8,9 @@ local Panel = require("ai_review.panel")
 
 local M = {}
 
+-- 确保全局 autocmd 已注册（覆盖 diffview hooks 遗漏的场景）
+Diffview.setup_autocmds()
+
 local function choose_range(callback)
   local choices = {
     "Worktree changes",
@@ -89,6 +92,12 @@ function M.add_comment(opts)
     end
     local session = Session.ensure_active()
     local anchor = opts.anchor or Anchor.from_cursor()
+
+    -- 互斥检查：如果该行已被 approve 覆盖，则拒绝添加 comment
+    if Diffview.check_approve_before_comment(anchor) then
+      return
+    end
+
     local comment = Comments.create(session, {
       message = message,
       severity = severity or opts.severity or "note",
@@ -157,6 +166,20 @@ end
 function M.close()
   Session.close()
   vim.notify("AI Review session closed", vim.log.levels.INFO)
+end
+
+function M.approve()
+  Diffview.toggle_approve()
+end
+
+function M.list_comments()
+  Diffview.list_file_comments()
+end
+
+function M.filter_files()
+  -- 文件过滤现在在打开 diffview 时通过 git pathspec 自动完成
+  -- 如果需要重新过滤，请关闭当前 diffview 并重新启动 review
+  vim.notify("文件过滤在 :AIReviewStart 时自动执行，无需手动触发", vim.log.levels.INFO)
 end
 
 return M

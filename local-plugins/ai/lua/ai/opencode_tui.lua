@@ -198,8 +198,8 @@ function M.preview_tui_config()
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(buf, "filetype", "json")
-  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_set_option_value("filetype", "json", { buf = buf })
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
   vim.api.nvim_buf_set_name(buf, "OpenCode TUI Config Preview")
 
   vim.api.nvim_win_set_buf(0, buf)
@@ -216,8 +216,8 @@ function M.preview_theme()
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(buf, "filetype", "json")
-  vim.api.nvim_buf_set_option(buf, "modifiable", false)
+  vim.api.nvim_set_option_value("filetype", "json", { buf = buf })
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
   vim.api.nvim_buf_set_name(buf, "OpenCode lytmode Theme Preview")
 
   vim.api.nvim_win_set_buf(0, buf)
@@ -242,7 +242,7 @@ function M.edit_theme()
   end
 
   vim.cmd("edit " .. theme_path)
-  vim.api.nvim_buf_set_option(0, "filetype", "json")
+  vim.api.nvim_set_option_value("filetype", "json", { buf = 0 })
 end
 
 return M

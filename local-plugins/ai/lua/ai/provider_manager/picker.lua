@@ -581,12 +581,37 @@ function M._rename_static_model_dialog(provider_name, old_model_id)
   end)
 end
 
+-- M-05 修复: 通用 help window 函数，消除三份重复代码
+local function show_help_window(title, help_text, width, height)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
+  vim.api.nvim_set_option_value("filetype", "help", { buf = buf })
+  width = width or 45
+  height = height or 15
+  local opts = {
+    relative = "editor",
+    width = width,
+    height = height,
+    col = math.floor((vim.o.columns - width) / 2),
+    row = math.floor((vim.o.lines - height) / 2),
+    style = "minimal",
+    border = "rounded",
+    title = " " .. title .. " ",
+    title_pos = "center",
+  }
+  local win = vim.api.nvim_open_win(buf, true, opts)
+  vim.keymap.set("n", "q", function()
+    vim.api.nvim_win_close(win, true)
+  end, { buffer = buf })
+end
+
 -- Static models help (with softer icons)
 function M._show_static_models_help(provider_name)
   local icons = UIUtil.get_icons()
-
-  local help_text = string.format(
-    [[
+  show_help_window(
+    "Static Models Help",
+    string.format(
+      [[
 %s Static Models Editor — %s
 
 Keymaps:
@@ -603,41 +628,20 @@ Tips:
 
 Press q to close
 ]],
-    icons.model,
-    provider_name,
-    icons.add,
-    icons.add,
-    icons.add,
-    icons.edit,
-    icons.delete,
-    icons.help,
-    icons.check,
-    icons.clock
+      icons.model,
+      provider_name,
+      icons.add,
+      icons.add,
+      icons.add,
+      icons.edit,
+      icons.delete,
+      icons.help,
+      icons.check,
+      icons.clock
+    ),
+    50,
+    16
   )
-
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
-  vim.api.nvim_buf_set_option(buf, "filetype", "help")
-
-  local width = 50
-  local height = 16
-  local opts = {
-    relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2),
-    style = "minimal",
-    border = "rounded",
-    title = " Static Models Help ",
-    title_pos = "center",
-  }
-
-  local win = vim.api.nvim_open_win(buf, true, opts)
-
-  vim.keymap.set("n", "q", function()
-    vim.api.nvim_win_close(win, true)
-  end, { buffer = buf })
 end
 
 ----------------------------------------------------------------------
@@ -645,9 +649,10 @@ end
 ----------------------------------------------------------------------
 function M.show_help()
   local icons = UIUtil.get_icons()
-
-  local help_text = string.format(
-    [[
+  show_help_window(
+    "Provider Manager Help",
+    string.format(
+      [[
 %s Provider Manager - Help
 
 Keymaps:
@@ -665,37 +670,15 @@ Fields managed:
 
 Press q to close
 ]],
-    icons.provider,
-    icons.add,
-    icons.delete,
-    icons.edit,
-    icons.help
+      icons.provider,
+      icons.add,
+      icons.delete,
+      icons.edit,
+      icons.help
+    ),
+    45,
+    15
   )
-
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
-  vim.api.nvim_buf_set_option(buf, "filetype", "help")
-
-  local width = 45
-  local height = 15
-  local opts = {
-    relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2),
-    style = "minimal",
-    border = "rounded",
-    title = " Provider Manager Help ",
-    title_pos = "center",
-  }
-
-  local win = vim.api.nvim_open_win(buf, true, opts)
-
-  -- Press q to close
-  vim.keymap.set("n", "q", function()
-    vim.api.nvim_win_close(win, true)
-  end, { buffer = buf })
 end
 
 ----------------------------------------------------------------------
@@ -726,29 +709,7 @@ Press q to close
     icons.help
   )
 
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
-  vim.api.nvim_buf_set_option(buf, "filetype", "help")
-
-  local width = 40
-  local height = 12
-  local opts = {
-    relative = "editor",
-    width = width,
-    height = height,
-    col = math.floor((vim.o.columns - width) / 2),
-    row = math.floor((vim.o.lines - height) / 2),
-    style = "minimal",
-    border = "rounded",
-    title = " Model Picker Help ",
-    title_pos = "center",
-  }
-
-  local win = vim.api.nvim_open_win(buf, true, opts)
-
-  vim.keymap.set("n", "q", function()
-    vim.api.nvim_win_close(win, true)
-  end, { buffer = buf })
+  show_help_window("Model Picker Help", help_text, 40, 12)
 end
 
 return M

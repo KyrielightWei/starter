@@ -11,24 +11,31 @@ local Paths = require("ai.paths")
 local M = {}
 
 ----------------------------------------------------------------------
--- Helper: Get providers.lua path
--- 通过模块路径反查，确保始终找到正确的文件位置
+-- H-02 修复: Helper: Get providers.lua path
+-- 使用 package.loaded 获取已加载模块的函数来反查文件路径
 ----------------------------------------------------------------------
 local function _get_providers_path()
-  -- 通过 debug.getinfo 获取 providers 模块的实际文件路径
-  local ok, Providers = pcall(require, "ai.providers")
-  if ok then
-    local info = debug.getinfo(Providers, "S")
-    if info and info.source and info.source:sub(1, 1) == "@" then
-      local mod_path = info.source:sub(2)
-      if vim.fn.filereadable(mod_path) == 1 then
-        return mod_path
+  -- 方法 1: 通过 package.loaded 中的模块函数获取源文件路径
+  local loaded = package.loaded["ai.providers"]
+  if type(loaded) == "table" then
+    -- 遍历模块中的函数，用 debug.getinfo 获取源文件
+    for _, v in pairs(loaded) do
+      if type(v) == "function" then
+        local info = debug.getinfo(v, "S")
+        if info and info.source and info.source:sub(1, 1) == "@" then
+          local mod_path = info.source:sub(2)
+          if vim.fn.filereadable(mod_path) == 1 then
+            return mod_path
+          end
+        end
+        break -- 只需检查第一个函数
       end
     end
   end
 
-  -- Fallback: 通过 package.path 查找
-  for path in vim.g.packagepath:gmatch("[^;]+") do
+  -- 方法 2: 通过 package.path 查找（安全检查 vim.g.packagepath 存在）
+  local pkg_path = vim.g.packagepath or package.path or ""
+  for path in pkg_path:gmatch("[^;]+") do
     local resolved = path:gsub("%?", "ai/providers")
     if vim.fn.filereadable(resolved) == 1 then
       return resolved
@@ -45,6 +52,93 @@ end
 ----------------------------------------------------------------------
 local function escape_pattern(s)
   return s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+end
+
+----------------------------------------------------------------------
+-- #1 修复: 计算一行中括号深度变化，跳过字符串字面量和注释内的括号
+-- 支持 "..."、'...'、[[...]] / [=[...]=] 长字符串
+-- 支持 -- 短注释和 --[[...]] 长注释
+-- 返回净深度变化（开括号数 - 闭括号数）
+----------------------------------------------------------------------
+local function count_paren_depth(line)
+  local depth = 0
+  local in_double_string = false
+  local in_single_string = false
+  local in_long_string = false
+  local long_string_eq = 0 -- [=[...]=] 中 = 的数量
+  local escape_next = false
+  local i = 1
+  while i <= #line do
+    local c = line:sub(i, i)
+    if in_long_string then
+      -- 检查长字符串结束标记 ]=...] (] 后面跟 long_string_eq 个 = 再跟 ])
+      if c == "]" then
+        local rest = line:sub(i + 1)
+        local eq_count = rest:match("^(=*)%]")
+        if eq_count and #eq_count == long_string_eq then
+          in_long_string = false
+          i = i + 1 + #eq_count + 1 -- 跳过 ]=...]
+        else
+          i = i + 1
+        end
+      else
+        i = i + 1
+      end
+    elseif escape_next then
+      escape_next = false
+      i = i + 1
+    elseif c == "\\" and (in_double_string or in_single_string) then
+      escape_next = true
+      i = i + 1
+    elseif c == '"' and not in_single_string then
+      in_double_string = not in_double_string
+      i = i + 1
+    elseif c == "'" and not in_double_string then
+      in_single_string = not in_single_string
+      i = i + 1
+    elseif not in_double_string and not in_single_string then
+      -- 检测注释：-- 短注释或 --[[...]] 长注释
+      if c == "-" and line:sub(i, i + 1) == "--" then
+        local rest = line:sub(i + 2)
+        local eq_count = rest:match("^%[(=*)%[")
+        if eq_count then
+          -- 长注释 --[[...]] 或 --[=[...]=]：与长字符串相同处理
+          in_long_string = true
+          long_string_eq = #eq_count
+          i = i + 2 + 2 + #eq_count -- 跳过 -- + [=...[
+        else
+          -- 短注释：跳过行尾
+          break
+        end
+      -- 检测长字符串开始 [[...]] 或 [=[...]=]
+      elseif c == "[" then
+        local rest = line:sub(i + 1)
+        local eq_count = rest:match("^(=*)%[")
+        if eq_count then
+          in_long_string = true
+          long_string_eq = #eq_count
+          i = i + 1 + #eq_count + 1 -- 跳过 [=...[
+        else
+          if c == "(" then
+            depth = depth + 1
+          elseif c == ")" then
+            depth = depth - 1
+          end
+          i = i + 1
+        end
+      else
+        if c == "(" then
+          depth = depth + 1
+        elseif c == ")" then
+          depth = depth - 1
+        end
+        i = i + 1
+      end
+    else
+      i = i + 1
+    end
+  end
+  return depth
 end
 
 ----------------------------------------------------------------------
@@ -66,8 +160,8 @@ function M.list_providers()
 end
 
 ----------------------------------------------------------------------
--- Find the provider block (start_line, end_line, content_lines)
--- Addresses review: block-aware parser for reliable editing
+-- H-03 修复: Find the provider block (start_line, end_line, content_lines)
+-- 使用括号深度计数而非简单模式匹配，正确处理嵌套 table
 ----------------------------------------------------------------------
 function M.find_provider_block(name)
   local config_path = _get_providers_path()
@@ -84,9 +178,19 @@ function M.find_provider_block(name)
   for i, line in ipairs(lines) do
     if line:match("M%.register%(['\"]" .. escaped_name .. "['\"]%s*,") then
       start_line = i
-    end
-    if start_line and line:match("^%s*%}%s*%)%s*$") and i > start_line then
-      end_line = i
+      -- #1 修复: 使用字符串感知的括号计数
+      local depth = count_paren_depth(line)
+      if depth <= 0 then
+        end_line = i
+        break
+      end
+      for j = i + 1, #lines do
+        depth = depth + count_paren_depth(lines[j])
+        if depth <= 0 then
+          end_line = j
+          break
+        end
+      end
       break
     end
   end
@@ -357,8 +461,8 @@ function M.get_global_default()
       end
     end
 
-    -- Last fallback: hardcoded
-    return "bailian_coding", "qwen3.6-plus"
+    -- Last fallback: 常量
+    return Providers.DEFAULT_PROVIDER, Providers.DEFAULT_MODEL
   end
 
   return provider, model
@@ -589,10 +693,10 @@ local function parse_static_models_from_block(content_lines)
 
   for _, line in ipairs(content_lines) do
     -- Start collecting when we hit static_models =
-    if line:match("static_models%s*=%s*{") then
+    if not in_static_models and line:match("static_models%s*=%s*{") then
       in_static_models = true
       collecting = true
-      brace_depth = 1
+      brace_depth = 0
     end
 
     if collecting then

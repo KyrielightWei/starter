@@ -72,10 +72,10 @@ end
 ----------------------------------------------------------------------
 -- Private: Get cache data (from memory or disk)
 ----------------------------------------------------------------------
+-- M-04 修复: 统一使用 os.time() 整数秒，避免浮点秒与整数秒混用
 local function get_cache_data()
   if _memory_cache and _memory_cache_time then
-    local uv = vim.uv or vim.loop
-    local now = uv.now() / 1000
+    local now = os.time()
     if now - _memory_cache_time > DEFAULT_TTL then
       _memory_cache = nil
       _memory_cache_time = nil
@@ -84,8 +84,7 @@ local function get_cache_data()
     end
   end
   _memory_cache = load_cache()
-  local uv = vim.uv or vim.loop
-  _memory_cache_time = uv.now() / 1000
+  _memory_cache_time = os.time()
   return _memory_cache
 end
 

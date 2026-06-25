@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """mihomo-mgr - Control mihomo via its external controller API."""
 
-VERSION = "1.3.0"
+VERSION = "2.0.0"
 
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -242,6 +243,328 @@ def api(method, path, body=None, quiet=False):
             sys.exit(1)
 
 
+# ── Interactive Picker ───────────────────────────────────────────────
+
+
+def _interactive_filter(items, prompt="Filter", show_index=True):
+    """交互式过滤器：显示列表，用户输入关键词实时过滤。
+    
+    Args:
+        items: 要显示的条目列表 [(display_text, data), ...]
+        prompt: 输入提示
+        show_index: 是否显示编号
+    
+    Returns:
+        选中的 data，或 None 表示取消
+    """
+    if not items:
+        print("  (空)")
+        return None
+    
+    filtered = items[:]
+    
+    while True:
+        # 显示当前过滤结果（限制显示条数，避免占满终端）
+        term_height = shutil.get_terminal_size().lines
+        # 预留 5 行用于提示和输入
+        max_display = max(10, term_height - 5)
+        display_items = filtered
+        truncated = False
+        if len(filtered) > max_display:
+            display_items = filtered[:max_display]
+            truncated = True
+            show_index = True  # 截断时强制显示编号，方便用户选择
+        
+        print()
+        for i, (display, _) in enumerate(display_items):
+            prefix = f"  [{i+1}] " if show_index else "  "
+            print(f"{prefix}{display}")
+        if truncated:
+            print(f"  ... 还有 {len(filtered) - max_display} 项未显示，请输入关键词过滤")
+        
+        if len(filtered) == 0:
+            print("  (无匹配项)")
+            return None
+        
+        if len(filtered) == 1:
+            # 只有一个匹配，询问是否选择
+            print(f"\n  只有一个匹配项，是否选择?")
+            try:
+                confirm = input(f"  按 Enter 选择，或输入 q 取消: ").strip()
+                if confirm.lower() == 'q':
+                    return None
+                return filtered[0][1]
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return None
+        
+        # 获取用户输入
+        print()
+        try:
+            user_input = input(f"  {prompt} (1-{len(filtered)}, 关键词, /正则/, q=取消): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return None
+        
+        if not user_input:
+            continue
+        
+        if user_input.lower() == 'q':
+            return None
+        
+        # 尝试解析为编号
+        try:
+            idx = int(user_input)
+            if 1 <= idx <= len(filtered):
+                return filtered[idx - 1][1]
+            print(f"  ⚠️  无效编号，请输入 1-{len(filtered)}")
+            continue
+        except ValueError:
+            pass
+        
+        # 作为过滤词（支持正则）
+        try:
+            if user_input.startswith('/') and user_input.endswith('/') and len(user_input) > 2:
+                # 正则模式: /pattern/
+                pattern = re.compile(user_input[1:-1], re.IGNORECASE)
+                filtered = [(d, data) for d, data in items if pattern.search(d)]
+                if not filtered:
+                    print(f"  ⚠️  正则 /{user_input[1:-1]}/ 无匹配")
+                    filtered = items[:]
+            else:
+                # 子串匹配
+                keyword = user_input.lower()
+                filtered = [(d, data) for d, data in items if keyword in d.lower()]
+                if not filtered:
+                    print(f"  ⚠️  关键词 '{user_input}' 无匹配")
+                    filtered = items[:]
+        except re.error as e:
+            print(f"  ⚠️  无效正则: {e}")
+            filtered = items[:]
+
+
+def _pick_group_menu(selected_group, proxies, group_types):
+    """组级操作菜单。"""
+    group_data = api("GET", f"/proxies/{_urlencode(selected_group)}")
+    if "all" not in group_data:
+        print(f"  ❌ '{selected_group}' 不是有效组。")
+        return
+    
+    group_info = proxies.get(selected_group, {})
+    gtype = group_info.get("type", "?")
+    current = group_data.get("now", "")
+    all_nodes = group_data.get("all") or []
+    
+    # 过滤非真实节点
+    group_names = {k for k, v in proxies.items() if v.get("type") in group_types}
+    skip = ("DIRECT", "REJECT", "GLOBAL")
+    real_nodes = [n for n in all_nodes if n not in skip and n not in group_names]
+    
+    while True:
+        print(f"\n📂 组操作: {selected_group}")
+        print(f"   类型: {gtype}  |  当前: {current}  |  节点数: {len(real_nodes)}")
+        print("-" * 50)
+        print("  [1] 🔌 选择节点 (切换/测速/详情)")
+        print("  [2] 🏓 测试所有节点延迟")
+        print("  [3] ⚡ 自动选最快节点 (best)")
+        print("  [4] 📋 查看组详情")
+        print("  [5] 🔙 返回选择组")
+        print("  [q] ❌ 退出")
+        print()
+        
+        try:
+            choice = input("  请选择 (1-5): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        
+        if choice == "1":
+            _pick_node_menu(selected_group, real_nodes, current)
+        
+        elif choice == "2":
+            print(f"\n  🏓 测试 {len(real_nodes)} 个节点延迟...")
+            _delay_group_impl(selected_group, "http://www.gstatic.com/generate_204", 5000, 10)
+        
+        elif choice == "3":
+            print(f"\n  ⚡ 自动选最快节点...")
+            # 复用 best 逻辑
+            keywords_input = input("  输入过滤关键词 (直接回车=全部): ").strip()
+            if keywords_input:
+                keywords = keywords_input.split()
+            else:
+                keywords = [n for n in real_nodes]
+            
+            if not keywords:
+                print("  ❌ 没有可用节点")
+                continue
+            
+            # 如果输入的是关键词，过滤节点
+            if keywords_input:
+                kw_lower = [k.lower() for k in keywords]
+                filtered = [n for n in real_nodes if any(kw in n.lower() for kw in kw_lower)]
+            else:
+                filtered = real_nodes
+            
+            if not filtered:
+                print(f"  ❌ 没有匹配 '{keywords_input}' 的节点")
+                continue
+            
+            print(f"  测试 {len(filtered)} 个节点...")
+            alive, dead, total = _best_test_all(filtered, "http://www.gstatic.com/generate_204", 5000, 10, keywords_input)
+            if alive:
+                best_name, best_delay = alive[0]
+                print(f"\n  🏆 最快: {best_name} ({best_delay}ms)")
+                if best_name != current:
+                    confirm = input(f"  切换到 {best_name}? (Y/n): ").strip()
+                    if confirm.lower() != 'n':
+                        api("PUT", f"/proxies/{_urlencode(selected_group)}", {"name": best_name})
+                        print(f"  ✅ 已切换 → {best_name}")
+                else:
+                    print(f"  ℹ️  已经是当前节点")
+            else:
+                print(f"  ❌ 所有节点不可达")
+        
+        elif choice == "4":
+            print(f"\n  📋 组详情: {selected_group}")
+            print(f"     类型: {gtype}")
+            print(f"     当前节点: {current}")
+            print(f"     总节点数: {len(all_nodes)}")
+            print(f"     真实节点: {len(real_nodes)}")
+            # 显示子组（如果有的话）
+            sub_groups = [n for n in all_nodes if n in group_names]
+            if sub_groups:
+                print(f"     子组: {', '.join(sub_groups)}")
+        
+        elif choice == "5":
+            return  # 返回上一层
+        
+        elif choice.lower() == "q":
+            return  # 退出
+
+
+def _pick_node_menu(selected_group, real_nodes, current):
+    """节点级操作菜单。"""
+    nodes = []
+    for name in real_nodes:
+        marker = " ★" if name == current else ""
+        display = f"{name}{marker}"
+        nodes.append((display, name))
+    
+    if not nodes:
+        print("  ❌ 组内没有节点")
+        return
+    
+    print(f"\n🔌 选择节点 (当前: {current})")
+    print("-" * 50)
+    selected_node = _interactive_filter(nodes, "选择节点")
+    
+    if not selected_node:
+        return
+    
+    print(f"\n  ✅ 已选择: {selected_node}")
+    
+    # 节点操作
+    while True:
+        print(f"\n🎯 节点操作: {selected_node}")
+        if selected_node == current:
+            print(f"   (当前节点)")
+        print("-" * 50)
+        print("  [1] 🔄 切换到这个节点")
+        print("  [2] 🏓 测试延迟")
+        print("  [3] 📋 查看详情")
+        print("  [4] 🔙 返回选择节点")
+        print("  [q] ❌ 退出")
+        print()
+        
+        try:
+            choice = input("  请选择 (1-4): ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        
+        if choice == "1":
+            if selected_node == current:
+                print(f"\n  ℹ️  已经是当前节点")
+            else:
+                api("PUT", f"/proxies/{_urlencode(selected_group)}", {"name": selected_node})
+                print(f"\n  ✅ 已切换 '{selected_group}' → {selected_node}")
+        
+        elif choice == "2":
+            print(f"\n  🏓 测试延迟中...")
+            result = api("GET", f"/proxies/{_urlencode(selected_node)}/delay?timeout=5000&url=http://www.gstatic.com/generate_204")
+            d = result.get("delay") or 0
+            if d > 0:
+                print(f"  ✅ {selected_node}: {d}ms")
+            else:
+                print(f"  ❌ {selected_node}: 超时")
+        
+        elif choice == "3":
+            node_data = api("GET", f"/proxies/{_urlencode(selected_node)}", quiet=True)
+            print(f"\n  📋 节点详情:")
+            print(f"     名称: {selected_node}")
+            print(f"     类型: {node_data.get('type', '?')}")
+            if node_data.get('history'):
+                last = node_data['history'][-1]
+                delay = last.get('delay', 0)
+                if delay:
+                    print(f"     上次延迟: {delay}ms")
+                else:
+                    print(f"     上次延迟: 超时")
+        
+        elif choice == "4":
+            return  # 返回选节点
+        
+        elif choice.lower() == "q":
+            return
+
+
+def cmd_pick(args):
+    """Interactive picker: select group → group/node actions."""
+    print("\n🔍 Interactive Picker")
+    print("=" * 50)
+    print("\n💡 操作提示:")
+    print("   • 输入关键词过滤列表 (如: 节点、香港、IEPL)")
+    print("   • 输入 /正则/ 使用正则表达式 (如: /IEPL.*港/)")
+    print("   • 输入编号直接选择 (如: 1、2、3)")
+    print("   • 输入 q 取消或返回上一步")
+    print()
+    
+    # Step 1: 选择代理组
+    try:
+        proxies_data = api("GET", "/proxies", quiet=True)
+    except SystemExit:
+        print("  ❌ 无法连接 mihomo API")
+        return
+    
+    proxies = proxies_data.get("proxies") or {}
+    group_types = ("Selector", "URLTest", "Fallback", "LoadBalance")
+    
+    groups = []
+    for name, g in sorted(proxies.items()):
+        if g.get("type") in group_types:
+            now = g.get("now", "-")
+            count = len(g.get("all") or [])
+            display = f"{name}  → {now}  [{count} nodes]"
+            groups.append((display, name))
+    
+    if not groups:
+        print("  ❌ 未找到代理组")
+        return
+    
+    print("📡 选择代理组")
+    print("-" * 50)
+    selected_group = _interactive_filter(groups, "选择组")
+    
+    if not selected_group:
+        print("\n  ❌ 已取消")
+        return
+    
+    print(f"\n  ✅ 已选择: {selected_group}")
+    
+    # Step 2: 组级操作菜单
+    _pick_group_menu(selected_group, proxies, group_types)
+
+
 # ── Commands ─────────────────────────────────────────────────────────
 
 
@@ -355,15 +678,90 @@ def _fetch_node_delay(node_name):
         return node_name, 0
 
 
+def _node_matches(node_name, patterns, use_regex):
+    """检查节点名是否匹配任一 pattern。
+    use_regex=True 时使用 re.search，否则使用子串匹配（均忽略大小写）。
+    """
+    if use_regex:
+        return any(re.search(p, node_name, re.IGNORECASE) for p in patterns)
+    name_lower = node_name.lower()
+    return any(p.lower() in name_lower for p in patterns)
+
+
+def _resolve_group(group_pattern, use_regex=False):
+    """解析组名。
+    
+    匹配优先级：
+    1. 精确匹配：直接返回
+    2. use_regex=True：正则匹配
+    3. 自动 fallback：子串匹配（忽略大小写）
+    
+    返回实际组名。匹配多个时提示并选第一个，无匹配时退出。
+    """
+    # 获取所有代理组名
+    data = api("GET", "/proxies", quiet=True)
+    proxies = data.get("proxies") or {}
+    group_types = ("Selector", "URLTest", "Fallback", "LoadBalance")
+    group_names = [k for k, v in proxies.items() if v.get("type") in group_types]
+
+    # 1. 精确匹配
+    if group_pattern in group_names:
+        return group_pattern
+
+    # 2. 正则匹配
+    if use_regex:
+        try:
+            pattern = re.compile(group_pattern, re.IGNORECASE)
+        except re.error as e:
+            print(f"Invalid group regex '{group_pattern}': {e}", file=sys.stderr)
+            sys.exit(1)
+        matched = [g for g in group_names if pattern.search(g)]
+        if matched:
+            if len(matched) > 1:
+                print(f"Multiple groups match /{group_pattern}/ (using first):")
+                for g in matched[:5]:
+                    print(f"    - {g}")
+                if len(matched) > 5:
+                    print(f"    ... +{len(matched) - 5} more")
+            return matched[0]
+        # 正则也没匹配到，继续 fallback
+
+    # 3. 自动 fallback：子串匹配（忽略大小写）
+    pattern_lower = group_pattern.lower()
+    matched = [g for g in group_names if pattern_lower in g.lower()]
+    
+    if not matched:
+        print(f"No group matching '{group_pattern}'.", file=sys.stderr)
+        print(f"  Available groups: {', '.join(sorted(group_names)[:10])}", file=sys.stderr)
+        sys.exit(1)
+    
+    if len(matched) > 1:
+        print(f"Multiple groups contain '{group_pattern}' (using first):")
+        for g in matched[:5]:
+            print(f"    - {g}")
+        if len(matched) > 5:
+            print(f"    ... +{len(matched) - 5} more")
+    return matched[0]
+
+
 def cmd_nodes(args):
     """List nodes in a proxy group."""
-    data = api("GET", f"/proxies/{_urlencode(args.group)}")
+    use_regex = getattr(args, "regex", False)
+    group = _resolve_group(args.group, use_regex)
+    data = api("GET", f"/proxies/{_urlencode(group)}")
     if "all" not in data:
-        print(f"'{args.group}' is not a group or not found.", file=sys.stderr)
+        print(f"'{group}' is not a group or not found.", file=sys.stderr)
         sys.exit(1)
     now = data.get("now", "")
     all_nodes = data.get("all") or []
-    print(f"Group: {args.group} ({data.get('type', '?')})")
+    # --filter: 按关键词/正则过滤显示的节点
+    filter_patterns = getattr(args, "filter", None) or []
+    if filter_patterns:
+        all_nodes = [n for n in all_nodes if _node_matches(n, filter_patterns, use_regex)]
+        match_label = "regex" if use_regex else "keyword"
+        print(f"Group: {group} ({data.get('type', '?')}) [filter({match_label}): {'|'.join(filter_patterns)}]")
+    else:
+        print(f"Group: {group} ({data.get('type', '?')})")
     print(f"Current: {now}\n")
     # 并行获取节点延迟
     delays = {}
@@ -381,58 +779,78 @@ def cmd_nodes(args):
 
 def cmd_select(args):
     """Select a node in a proxy group."""
-    api("PUT", f"/proxies/{_urlencode(args.group)}", {"name": args.node})
-    print(f"Switched '{args.group}' → {args.node}")
+    use_regex = getattr(args, "regex", False)
+    group = _resolve_group(args.group, use_regex)
+    node = args.node
+    if use_regex:
+        # 正则模式：从组内节点中查找第一个匹配项
+        data = api("GET", f"/proxies/{_urlencode(group)}")
+        if "all" not in data:
+            print(f"'{group}' is not a group or not found.", file=sys.stderr)
+            sys.exit(1)
+        all_nodes = data.get("all") or []
+        matched = [n for n in all_nodes if re.search(node, n, re.IGNORECASE)]
+        if not matched:
+            print(f"No node matching /{node}/ in '{group}'.", file=sys.stderr)
+            sys.exit(1)
+        if len(matched) > 1:
+            print(f"Multiple matches (selecting first): {', '.join(matched[:5])}{'...' if len(matched) > 5 else ''}")
+        node = matched[0]
+    api("PUT", f"/proxies/{_urlencode(group)}", {"name": node})
+    print(f"Switched '{group}' → {node}")
 
 
 def cmd_delay(args):
-    """Test delay for a node or group."""
+    """Test delay for a node or group (auto-detect).
+    
+    If target is a group name, tests all nodes in the group.
+    If target is a node name, tests just that node.
+    """
     url = args.url or "http://www.gstatic.com/generate_204"
     timeout = args.timeout or 1000
     target = args.target
-    result = api("GET", f"/proxies/{_urlencode(target)}/delay?timeout={timeout}&url={_urlencode(url)}")
-    d = result.get("delay") or 0
-    if d > 0:
-        print(f"{target}: {d}ms")
+    
+    # 检查是否是组名
+    data = api("GET", "/proxies", quiet=True)
+    proxies = data.get("proxies") or {}
+    group_types = ("Selector", "URLTest", "Fallback", "LoadBalance")
+    group_names = [k for k, v in proxies.items() if v.get("type") in group_types]
+    
+    # 尝试部分匹配组名
+    matched_group = None
+    if target in group_names:
+        matched_group = target
     else:
-        print(f"{target}: timeout / unreachable")
+        target_lower = target.lower()
+        matches = [g for g in group_names if target_lower in g.lower()]
+        if len(matches) == 1:
+            matched_group = matches[0]
+        elif len(matches) > 1:
+            print(f"Multiple groups match '{target}':")
+            for g in matches[:5]:
+                print(f"  - {g}")
+            print("Please be more specific.")
+            sys.exit(1)
+    
+    if matched_group:
+        # 是组名，测试所有节点
+        print(f"Detected as group '{matched_group}', testing all nodes...")
+        _delay_group_impl(matched_group, url, timeout, getattr(args, "concurrency", 10))
+    else:
+        # 是节点名，测试单个节点
+        result = api("GET", f"/proxies/{_urlencode(target)}/delay?timeout={timeout}&url={_urlencode(url)}")
+        d = result.get("delay") or 0
+        if d > 0:
+            print(f"{target}: {d}ms")
+        else:
+            print(f"{target}: timeout / unreachable")
 
 
-def _test_node_delay(node_name, url, timeout):
-    """Thread-safe node delay test. Returns (name, delay_ms)."""
-    try:
-        r = api("GET", f"/proxies/{_urlencode(node_name)}/delay?timeout={timeout}&url={_urlencode(url)}", quiet=True)
-        return node_name, r.get("delay", 0) or 0
-    except (SystemExit, Exception):
-        return node_name, 0
-
-
-def _display_width(s):
-    """Calculate display width accounting for CJK wide characters."""
-    import unicodedata
-    w = 0
-    for c in s:
-        ea = unicodedata.east_asian_width(c)
-        w += 2 if ea in ("W", "F") else 1
-    return w
-
-
-def _pad_display(s, width):
-    """Pad string to given display width, handling CJK correctly."""
-    dw = _display_width(s)
-    if dw >= width:
-        return s
-    return s + " " * (width - dw)
-
-
-def cmd_delay_group(args):
-    """Test delay for all nodes in a group concurrently."""
-    url = args.url or "http://www.gstatic.com/generate_204"
-    timeout = args.timeout or 1000  # 1s default for faster results
-    concurrency = args.concurrency or 10
-    data = api("GET", f"/proxies/{_urlencode(args.group)}")
+def _delay_group_impl(group, url, timeout, concurrency):
+    """Implementation of delay-group testing."""
+    data = api("GET", f"/proxies/{_urlencode(group)}")
     if "all" not in data:
-        print(f"'{args.group}' is not a group.", file=sys.stderr)
+        print(f"'{group}' is not a group.", file=sys.stderr)
         sys.exit(1)
     # 从 API 获取所有策略组名，过滤掉非真实节点
     proxies_data = api("GET", "/proxies", quiet=True)
@@ -444,7 +862,7 @@ def cmd_delay_group(args):
         return name not in _skip_exact and name not in group_names
     all_nodes = [n for n in data.get("all") or [] if _is_real_node(n)]
     total = len(all_nodes)
-    print(f"Testing {total} nodes in '{args.group}' (timeout={timeout}ms, concurrency={concurrency})...\n")
+    print(f"Testing {total} nodes in '{group}' (timeout={timeout}ms, concurrency={concurrency})...\n")
     results = []
     lock = threading.Lock()
     completed = 0
@@ -494,6 +912,47 @@ def cmd_delay_group(args):
     avg = sum(d for _, d in alive) // len(alive) if alive else 0
     fastest = alive[0][1] if alive else "-"
     print(f"\n  {total} nodes │ {elapsed:.1f}s │ reachable: {len(alive)} │ fastest: {fastest}ms │ avg: {avg}ms │ timeout: {len(dead)}")
+
+
+def _test_node_delay(node_name, url, timeout):
+    """Thread-safe node delay test. Returns (name, delay_ms)."""
+    try:
+        r = api("GET", f"/proxies/{_urlencode(node_name)}/delay?timeout={timeout}&url={_urlencode(url)}", quiet=True)
+        return node_name, r.get("delay", 0) or 0
+    except (SystemExit, Exception):
+        return node_name, 0
+
+
+def _display_width(s):
+    """Calculate display width accounting for CJK wide characters."""
+    import unicodedata
+    w = 0
+    for c in s:
+        ea = unicodedata.east_asian_width(c)
+        w += 2 if ea in ("W", "F") else 1
+    return w
+
+
+def _pad_display(s, width):
+    """Pad string to given display width, handling CJK correctly."""
+    dw = _display_width(s)
+    if dw >= width:
+        return s
+    return s + " " * (width - dw)
+
+
+def cmd_delay_group(args):
+    """Test delay for all nodes in a group concurrently.
+    
+    This is kept for backward compatibility. The unified `delay` command
+    now auto-detects whether the target is a group or node.
+    """
+    url = args.url or "http://www.gstatic.com/generate_204"
+    timeout = args.timeout or 1000
+    concurrency = getattr(args, "concurrency", 10) or 10
+    use_regex = getattr(args, "regex", False)
+    group = _resolve_group(args.group, use_regex)
+    _delay_group_impl(group, url, timeout, concurrency)
 
 
 # ── best: YAML 配置操作 ──────────────────────────────────────────────
@@ -763,8 +1222,8 @@ def _reload_mihomo(wait_for_group=None, restart_process=False):
 # ── best: 核心逻辑 ──────────────────────────────────────────────────
 
 
-def _best_filter_nodes(group_name, keywords):
-    """按关键词过滤策略组中的真实节点。返回 (filtered, group_data)。"""
+def _best_filter_nodes(group_name, keywords, use_regex=False):
+    """按关键词/正则过滤策略组中的真实节点。返回 (filtered, group_data)。"""
     data = api("GET", f"/proxies/{_urlencode(group_name)}")
     if "all" not in data:
         print(f"'{group_name}' is not a group or not found.", file=sys.stderr)
@@ -776,17 +1235,27 @@ def _best_filter_nodes(group_name, keywords):
     group_names = {k for k, v in proxies.items() if v.get("type") in group_types}
     _skip_exact = ("DIRECT", "REJECT", "GLOBAL")
 
+    # 验证正则表达式
+    if use_regex:
+        compiled = []
+        for kw in keywords:
+            try:
+                compiled.append(re.compile(kw, re.IGNORECASE))
+            except re.error as e:
+                print(f"Invalid regex '{kw}': {e}", file=sys.stderr)
+                sys.exit(1)
+
     all_nodes = data.get("all") or []
-    kw_lower = [k.lower() for k in keywords]
     filtered = [
         n for n in all_nodes
         if n not in _skip_exact
         and n not in group_names
-        and any(kw in n.lower() for kw in kw_lower)
+        and _node_matches(n, keywords, use_regex)
     ]
 
     if not filtered:
-        print(f"No nodes matching {keywords} in '{group_name}'.")
+        match_desc = "/" + "/|".join(keywords) + "/" if use_regex else str(keywords)
+        print(f"No nodes matching {match_desc} in '{group_name}'.")
         regions = set()
         for n in all_nodes:
             if n not in _skip_exact and n not in group_names:
@@ -988,11 +1457,15 @@ def cmd_best(args):
     keywords = args.keywords
     kw_display = ", ".join(keywords)
     dry_run = args.dry_run
+    use_regex = getattr(args, "regex", False)
 
     # ── list: 列出所有 watch 组 ──
     if getattr(args, "list", False):
         _best_list_watches()
         return
+
+    # 解析组名（支持正则）
+    group = _resolve_group(args.group, use_regex)
 
     # ── switch: 切换到指定的 watch 组 ──
     if getattr(args, "switch", False):
@@ -1001,14 +1474,14 @@ def cmd_best(args):
             sys.exit(1)
         ut_group = _best_group_name(keywords)
         if dry_run:
-            print(f"  (dry-run) Would switch '{args.group}' → {ut_group}")
+            print(f"  (dry-run) Would switch '{group}' → {ut_group}")
             return
         try:
-            api("PUT", f"/proxies/{_urlencode(args.group)}", {"name": ut_group})
-            print(f"  ✓ Switched '{args.group}' → {ut_group}")
+            api("PUT", f"/proxies/{_urlencode(group)}", {"name": ut_group})
+            print(f"  ✓ Switched '{group}' → {ut_group}")
         except SystemExit:
             print(f"  ✗ Failed to switch. Group '{ut_group}' may not exist.", file=sys.stderr)
-            print(f"  Create it first: mihomo-mgr.py best \"{args.group}\" {' '.join(keywords)} --watch", file=sys.stderr)
+            print(f"  Create it first: mihomo-mgr.py best \"{group}\" {' '.join(keywords)} --watch", file=sys.stderr)
         return
 
     # ── watch-off: 清理模式 ──
@@ -1020,13 +1493,15 @@ def cmd_best(args):
         print("Error: keywords are required. Example: best \"\U0001f680 节点选择\" 日本 美国", file=sys.stderr)
         sys.exit(1)
 
+    match_label = f"regex: {kw_display}" if use_regex else kw_display
+
     # ── 过滤节点 ──
-    filtered, data = _best_filter_nodes(args.group, keywords)
+    filtered, data = _best_filter_nodes(group, keywords, use_regex=use_regex)
     total = len(filtered)
     now_name = data.get("now", "")
 
     # ── 初始测试 ──
-    print(f"Filtering {total} nodes matching [{kw_display}] in '{args.group}'...")
+    print(f"Filtering {total} nodes matching [{match_label}] in '{group}'...")
     print(f"Testing delays (timeout={timeout}ms, concurrency={concurrency})...\n")
 
     alive, dead, total = _best_test_all(filtered, url, timeout, concurrency, kw_display)
@@ -1046,7 +1521,7 @@ def cmd_best(args):
         else:
             if now_name:
                 print(f"  Previous: {now_name}")
-            _best_switch(args.group, best_name, dry_run)
+            _best_switch(group, best_name, dry_run)
         return
 
     # ── watch 模式：创建 url-test 组，让 mihomo 原生接管 ──
@@ -1058,7 +1533,7 @@ def cmd_best(args):
     if dry_run:
         print(f"\n  (dry-run) Would create url-test group: {ut_group}")
         print(f"  (dry-run) Nodes: {len(alive)}, interval={interval}s, tolerance={tolerance}ms, timeout={health_timeout}ms")
-        print(f"  (dry-run) Would switch '{args.group}' → {ut_group}")
+        print(f"  (dry-run) Would switch '{group}' → {ut_group}")
         return
 
     # 读取 config.yaml
@@ -1086,7 +1561,7 @@ def cmd_best(args):
     else:
         alive_names = [n for n, _ in alive]
         new_raw = _config_add_watch_group(
-            raw, ut_group, alive_names, url, interval, tolerance, health_timeout, args.group,
+            raw, ut_group, alive_names, url, interval, tolerance, health_timeout, group,
         )
         if new_raw is None:
             print(f"\n  Failed to parse config: proxy-groups section not found.", file=sys.stderr)
@@ -1105,14 +1580,14 @@ def cmd_best(args):
         print("  ✓ Mihomo restarted.")
 
     # 切换策略组到 url-test 组
-    api("PUT", f"/proxies/{_urlencode(args.group)}", {"name": ut_group})
-    print(f"  ✓ Switched '{args.group}' → {ut_group}")
+    api("PUT", f"/proxies/{_urlencode(group)}", {"name": ut_group})
+    print(f"  ✓ Switched '{group}' → {ut_group}")
 
     # 保存状态（用于 --watch-off 恢复）
-    _best_save_state(args.group, now_name, ut_group, keywords)
+    _best_save_state(group, now_name, ut_group, keywords)
 
     print(f"\n  Watch active. Mihomo natively handles health checks and failover.")
-    print(f"  To stop: mihomo-mgr.py best \"{args.group}\" --watch-off")
+    print(f"  To stop: mihomo-mgr.py best \"{group}\" --watch-off")
 
 
 def cmd_conns(args):
@@ -2284,7 +2759,94 @@ def _print_help(cmd=None):
 # ── Main ─────────────────────────────────────────────────────────────
 
 
+# 中文快捷方式映射
+SHORTCUTS = {
+    # 中文动词 → 命令
+    "切换": "best",
+    "选": "best",
+    "测速": "delay",
+    "测试": "delay",
+    "列表": "nodes",
+    "节点": "nodes",
+    "状态": "status",
+    "连接": "conns",
+    "日志": "logs",
+    "订阅": "sub",
+    "配置": "config",
+    "代理": "proxy",
+    "启动": "start",
+    "停止": "stop",
+    "重启": "restart",
+    "选择": "pick",
+    # 英文简写
+    "p": "pick",
+    "s": "status",
+    "st": "status",
+    "g": "groups",
+    "n": "nodes",
+    "sw": "select",
+    "b": "best",
+    "d": "delay",
+    "c": "conns",
+    "l": "logs",
+}
+
+
+def _preprocess_args():
+    """智能快捷方式预处理。
+    
+    转换规则：
+    - 无参数 → status
+    - 第一个参数是中文快捷 → 转换为对应命令
+    - mm 节点 → mm nodes 节点
+    - mm 切换 香港 → mm best 节点 香港
+    - mm 测速 → mm delay 节点
+    """
+    args = sys.argv[1:]
+    
+    # 无参数 → status
+    if not args:
+        return ["status"]
+    
+    # 跳过全局选项（--sock, --api 等）
+    first_arg_idx = 0
+    for i, arg in enumerate(args):
+        if not arg.startswith("-"):
+            first_arg_idx = i
+            break
+    else:
+        # 全是选项，没有命令
+        return args
+    
+    first_arg = args[first_arg_idx]
+    
+    # 检查是否是快捷方式
+    if first_arg in SHORTCUTS:
+        cmd = SHORTCUTS[first_arg]
+        rest = args[:first_arg_idx] + args[first_arg_idx + 1:]
+        
+        # 特殊处理："切换 xxx" → "best 节点 xxx"
+        if first_arg in ("切换", "选") and rest:
+            # 尝试找到默认组
+            return [cmd, "节点"] + rest
+        
+        # 特殊处理："测速" → "delay 节点"
+        if first_arg == "测速" and not rest:
+            return [cmd, "节点"]
+        
+        # 特殊处理："节点"/"列表" 无参数 → "nodes 节点"
+        if first_arg in ("节点", "列表") and not rest:
+            return [cmd, "节点"]
+        
+        return [cmd] + rest
+    
+    return args
+
+
 def main():
+    # 智能快捷方式预处理
+    sys.argv = [sys.argv[0]] + _preprocess_args()
+    
     # 内部补全命令：在 argparse 之前处理，不暴露给用户
     if len(sys.argv) >= 2 and sys.argv[1] == "__complete":
         ns = argparse.Namespace(
@@ -2305,6 +2867,31 @@ def main():
     p.add_argument("--pid-file", help="mihomo pid file")
     p.add_argument("--version", action="version", version=f"mihomo-mgr {VERSION}")
     sub = p.add_subparsers(dest="cmd")
+
+    s = sub.add_parser("pick",
+        help="Interactive picker for groups and nodes",
+        description="Interactive picker with two-level menu:\n"
+                    "  1. Select group → 2. Group actions → 3. Select node → 4. Node actions\n\n"
+                    "Group actions:\n"
+                    "  • Select node (switch/test/details)\n"
+                    "  • Test all nodes delay\n"
+                    "  • Auto-select fastest node (with keyword filter)\n"
+                    "  • View group details\n\n"
+                    "Node actions:\n"
+                    "  • Switch to this node\n"
+                    "  • Test delay\n"
+                    "  • View details\n\n"
+                    "All lists support:\n"
+                    "  • Keyword filtering (e.g.: 节点, 香港, IEPL)\n"
+                    "  • Regex with /pattern/ syntax (e.g.: /IEPL.*港/)\n"
+                    "  • Number selection (e.g.: 1, 2, 3)\n"
+                    "  • q to go back or quit",
+        epilog="Examples:\n"
+               '  mihomo-mgr.py pick\n'
+               '  # 1. Type "节点" to filter groups → select "🚀 节点选择"\n'
+               '  # 2. Choose [3] auto-select fastest → type "香港" → auto-pick fastest HK node\n'
+               '  # 3. Or choose [1] select node → type "/IEPL.*港2/" → switch to it',
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     s = sub.add_parser("status",
         help="Show overall process and proxy status",
@@ -2329,40 +2916,60 @@ def main():
 
     s = sub.add_parser("nodes",
         help="List nodes in a group with delay info",
-        description="List all nodes in a proxy group, showing their current selection and last-known delay.",
-        epilog="Examples:\n  mihomo-mgr.py nodes \"\U0001f680 节点选择\"",
+        description="List all nodes in a proxy group, showing their current selection and last-known delay.\n"
+                    "Group name supports partial match: '节点' matches '🚀 节点选择'.\n"
+                    "With --regex, group name and --filter patterns are treated as regex.",
+        epilog="Examples:\n"
+               '  mihomo-mgr.py nodes "节点"                    # partial match\n'
+               '  mihomo-mgr.py nodes "节点" --filter 香港 日本\n'
+               '  mihomo-mgr.py nodes "节点" --filter "IEPL.*港" --regex',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("group", help="Group name")
+    s.add_argument("group", help="Group name (partial match supported)")
+    s.add_argument("--filter", nargs="+", metavar="PATTERN",
+        help="Filter nodes by keyword or regex (use --regex for regex mode)")
+    s.add_argument("--regex", action="store_true",
+        help="Treat group name and --filter patterns as regular expressions")
 
     s = sub.add_parser("select",
         help="Switch node in a proxy group",
-        description="Switch a proxy group to use a different node.",
-        epilog="Examples:\n  mihomo-mgr.py select \"\U0001f680 节点选择\" \"S-IEPL-香港7\"",
+        description="Switch a proxy group to use a different node.\n"
+                    "Group name supports partial match: '节点' matches '🚀 节点选择'.\n"
+                    "With --regex, node name is treated as regex; first match is selected.",
+        epilog="Examples:\n"
+               '  mihomo-mgr.py select "节点" "S-IEPL-香港7"     # partial group match\n'
+               '  mihomo-mgr.py select "节点" "IEPL.*港" --regex  # regex node match',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("group", help="Group name")
-    s.add_argument("node", help="Node name")
+    s.add_argument("group", help="Group name (partial match supported)")
+    s.add_argument("node", help="Node name (or regex pattern with --regex)")
+    s.add_argument("--regex", action="store_true",
+        help="Treat node name as regex pattern")
 
     s = sub.add_parser("best",
         help="Auto-select fastest node matching keywords",
-        description="Filter nodes in a proxy group by one or more keywords (region names),\n"
-                    "test their delays concurrently, and automatically select the fastest one.\n"
+        description="Filter nodes in a proxy group by one or more keywords (region names)\n"
+                    "or regex patterns (--regex), test their delays concurrently, and\n"
+                    "automatically select the fastest one.\n"
+                    "Group name supports partial match: '节点' matches '🚀 节点选择'.\n"
+                    "With --regex, keywords are treated as regex patterns.\n"
                     "Keywords are matched case-insensitively against node names.\n\n"
                     "With --watch, creates a url-test proxy group in config.yaml with the\n"
                     "filtered nodes, reloads mihomo, and lets the native url-test mechanism\n"
                     "handle health checks and failover — no external polling needed.\n"
                     "Use --watch-off to remove the url-test group and restore the original.",
         epilog='Examples:\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" 香港 --timeout 3000\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --watch\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 --watch --interval 30\n'
+               '  mihomo-mgr.py best "节点" 日本 美国           # partial group match\n'
+               '  mihomo-mgr.py best "节点" "IEPL.*港" --regex  # regex node filter\n'
+               '  mihomo-mgr.py best "节点" 香港 --timeout 3000\n'
+               '  mihomo-mgr.py best "节点" 日本 美国 --watch\n'
                '  mihomo-mgr.py best --list\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 美国 --switch\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" --watch-off\n'
-               '  mihomo-mgr.py best "\U0001f680 节点选择" 日本 --dry-run',
+               '  mihomo-mgr.py best "节点" 日本 美国 --switch\n'
+               '  mihomo-mgr.py best "节点" --watch-off\n'
+               '  mihomo-mgr.py best "节点" 日本 --dry-run',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("group", nargs="?", help="Proxy group name")
-    s.add_argument("keywords", nargs="*", help="Region keywords to filter nodes (e.g. 日本 美国 香港)")
+    s.add_argument("group", nargs="?", help="Proxy group name (partial match supported)")
+    s.add_argument("keywords", nargs="*", help="Region keywords or regex patterns (with --regex)")
+    s.add_argument("--regex", action="store_true",
+        help="Treat keywords as regular expressions")
     s.add_argument("--url", help="Test URL (default: http://www.gstatic.com/generate_204)")
     s.add_argument("--timeout", type=int, help="Delay test timeout in ms (default: 5000)")
     s.add_argument("--concurrency", type=int, help="Max concurrent requests (default: 10)")
@@ -2383,20 +2990,31 @@ def main():
         help="Health check timeout per node in ms (default: 2000)")
 
     s = sub.add_parser("delay",
-        help="Test latency of a single node",
-        description="Test the latency of a single node or group using a configurable URL and timeout.",
-        epilog="Examples:\n  mihomo-mgr.py delay \"S-IEPL-香港7\"\n  mihomo-mgr.py delay DIRECT --url http://www.gstatic.com/generate_204",
+        help="Test latency of a node or group (auto-detect)",
+        description="Test the latency of a single node or all nodes in a group.\n"
+                    "Auto-detects whether target is a node or group name.\n"
+                    "Group name supports partial match: '节点' matches '🚀 节点选择'.",
+        epilog="Examples:\n"
+               '  mihomo-mgr.py delay "S-IEPL-香港7"     # single node\n'
+               '  mihomo-mgr.py delay "节点"              # all nodes in group\n'
+               '  mihomo-mgr.py delay DIRECT --timeout 2000',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("target", help="Node or group name")
+    s.add_argument("target", help="Node or group name (partial match for groups)")
     s.add_argument("--url", help="Test URL")
     s.add_argument("--timeout", type=int, help="Timeout in ms (default: 1000)")
+    s.add_argument("--concurrency", type=int, help="Max concurrent requests for group test (default: 10)")
 
     s = sub.add_parser("delay-group",
         help="Test latency of all nodes in a group",
-        description="Test the latency of all nodes in a proxy group, sorted fastest first.",
-        epilog="Examples:\n  mihomo-mgr.py delay-group \"\U0001f680 节点选择\"",
+        description="Test the latency of all nodes in a proxy group, sorted fastest first.\n"
+                    "Group name supports partial match: '节点' matches '🚀 节点选择'.",
+        epilog="Examples:\n"
+               '  mihomo-mgr.py delay-group "节点"             # partial match\n'
+               '  mihomo-mgr.py delay-group "节点" --regex      # regex match',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    s.add_argument("group", help="Group name")
+    s.add_argument("group", help="Group name (partial match supported)")
+    s.add_argument("--regex", action="store_true",
+        help="Treat group name as a regex pattern")
     s.add_argument("--url", help="Test URL")
     s.add_argument("--timeout", type=int, help="Timeout in ms (default: 1000)")
     s.add_argument("--concurrency", type=int, help="Max concurrent requests (default: 10)")
@@ -2636,6 +3254,7 @@ def main():
         os.environ["MIHOMO_PID_FILE"] = args.pid_file
 
     dispatch = {
+        "pick": cmd_pick,
         "status": cmd_status, "mode": cmd_mode, "groups": cmd_groups,
         "nodes": cmd_nodes, "select": cmd_select, "best": cmd_best, "delay": cmd_delay,
         "delay-group": cmd_delay_group, "conns": cmd_conns,

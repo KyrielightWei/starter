@@ -70,36 +70,37 @@ end
 
 -- 旧的内联 strip_jsonc_comments / format_json / deep_merge 已迁移至 ai.json_util
 
+-- L-07 修复: 提取 valid_keys 为模块级常量，避免每次调用重建
+local VALID_TEMPLATE_KEYS = {
+  ["$schema"] = true,
+  model = true,
+  small_model = true,
+  provider = true,
+  autoupdate = true,
+  default_agent = true,
+  share = true,
+  permission = true,
+  agent = true,
+  tools = true,
+  command = true,
+  formatter = true,
+  watcher = true,
+  compaction = true,
+  server = true,
+  instructions = true,
+  enabled_providers = true,
+  disabled_providers = true,
+  experimental = true,
+  mcp = true,
+  plugin = true,
+}
+
 local function validate_template(config)
   local errors = {}
   local warnings = {}
 
-  local valid_keys = {
-    ["$schema"] = true,
-    model = true,
-    small_model = true,
-    provider = true,
-    autoupdate = true,
-    default_agent = true,
-    share = true,
-    permission = true,
-    agent = true, -- 新增：支持 agent 配置
-    tools = true,
-    command = true,
-    formatter = true,
-    watcher = true,
-    compaction = true,
-    server = true,
-    instructions = true,
-    enabled_providers = true,
-    disabled_providers = true,
-    experimental = true,
-    mcp = true,
-    plugin = true,
-  }
-
   for key, _ in pairs(config) do
-    if not valid_keys[key] then
+    if not VALID_TEMPLATE_KEYS[key] then
       table.insert(warnings, string.format("未知配置项: %s", key))
     end
   end
@@ -360,14 +361,21 @@ function M.write_config(version_override)
   config.agent.build = config.agent.build or {}
   config.agent.build.prompt = "{file:" .. instructions_md_path .. "}"
 
-  -- 写入 API key 文件，并清理切换到 ${env:...} 后残留的明文 key 文件
+  -- H-06 修复: 原子写入 API key 文件，消除 TOCTOU 竞态
+  -- 先写临时文件，chmod 600，再 rename 到目标路径
   for provider, key in pairs(auth_config) do
     local key_file = opencode_dir .. "/api_key_" .. provider .. ".txt"
     if key and key ~= "" and key:sub(1, 6) ~= "${env:" then
-      vim.fn.writefile({ key }, key_file)
-      -- Security: Set restrictive permissions on API key files
-      -- chmod 600 = 384 in decimal (LuaJIT doesn't support 0o600)
-      vim.uv.fs_chmod(key_file, 384)
+      local tmp_key = key_file .. ".tmp"
+      vim.fn.writefile({ key }, tmp_key)
+      vim.uv.fs_chmod(tmp_key, 384) -- chmod 600，在 rename 前设置权限
+      local renamed = vim.uv.fs_rename(tmp_key, key_file)
+      if not renamed then
+        -- fallback: 直接写入
+        vim.fn.writefile({ key }, key_file)
+        vim.uv.fs_chmod(key_file, 384)
+        pcall(vim.fn.delete, tmp_key)
+      end
     elseif vim.fn.filereadable(key_file) == 1 then
       -- 用户已切换到环境变量引用，删除遗留的明文 key 文件
       os.remove(key_file)

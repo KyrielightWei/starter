@@ -402,7 +402,7 @@ function M._show_help()
 
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(help_text, "\n"))
-  vim.api.nvim_buf_set_option(buf, "filetype", "help")
+  vim.api.nvim_set_option_value("filetype", "help", { buf = buf })
 
   local width = 50
   local height = 20

@@ -119,8 +119,22 @@ function M.format_json(obj, indent)
     end
   elseif type(obj) == "string" then
     local escaped = obj:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
+    -- #16 修复: 只在必要时转义控制字符，提高性能
+    if obj:match("[%z\x01-\x1f]") then
+      escaped = escaped:gsub("[%z\x01-\x1f]", function(c)
+        return string.format("\\u%04x", c:byte())
+      end)
+    end
     return '"' .. escaped .. '"'
-  elseif type(obj) == "number" or type(obj) == "boolean" then
+  elseif type(obj) == "number" then
+    -- M-09 修复: 处理 NaN 和 Infinity，它们不是有效 JSON
+    if obj ~= obj then
+      return "null" -- NaN → null
+    elseif obj == math.huge or obj == -math.huge then
+      return "null" -- Infinity → null
+    end
+    return tostring(obj)
+  elseif type(obj) == "boolean" then
     return tostring(obj)
   elseif obj == nil then
     return "null"

@@ -134,6 +134,8 @@ local function conservative_merge(template_value, existing_value, key)
   end
 
   if type(template_value) == "table" and type(existing_value) == "table" then
+    -- 只有 UNION_ARRAY_KEYS 中指定的 key 做 union，其余数组由 existing 覆盖
+    -- 避免对 enabled_providers/disabled_providers 等产生非预期合并
     if tbl_is_array(template_value) or tbl_is_array(existing_value) then
       return vim.deepcopy(existing_value)
     end

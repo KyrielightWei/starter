@@ -61,18 +61,69 @@ function M.ensure_dir(path)
   vim.fn.mkdir(path, "p")
 end
 
+-- #17 修复: 临时文件权限设置带错误处理
+local function safe_chmod(path, mode)
+  local ok = pcall(vim.uv.fs_chmod, path, mode)
+  if not ok then
+    vim.notify("无法设置临时文件权限: " .. path, vim.log.levels.WARN)
+  end
+end
+
+-- #4 修复: 更准确的数组判断函数
+-- 注意: 空 table {} 返回 false，走 map 分支。
+-- 这是有意为之：空 table 在 JSON 中可能表示 {} 或 []，
+-- strip_internal_fields 对空 table 无论走哪个分支都返回 {}，结果正确。
+local function is_array(t)
+  if type(t) ~= "table" then
+    return false
+  end
+  local count = 0
+  for _ in pairs(t) do
+    count = count + 1
+  end
+  return count == #t and count > 0
+end
+
+local function strip_internal_fields(tbl)
+  if type(tbl) ~= "table" then
+    return tbl
+  end
+  local out = {}
+  for k, v in pairs(tbl) do
+    if type(k) == "string" and k:sub(1, 1) == "_" then
+      -- skip internal fields like _sign_id
+    elseif type(v) == "table" then
+      if is_array(v) then
+        local arr = {}
+        for _, item in ipairs(v) do
+          table.insert(arr, strip_internal_fields(item))
+        end
+        out[k] = arr
+      else
+        out[k] = strip_internal_fields(v)
+      end
+    else
+      out[k] = v
+    end
+  end
+  return out
+end
+
 function M.write_json(path, data)
   M.ensure_dir(vim.fn.fnamemodify(path, ":h"))
-  local encoded = vim.json.encode(data)
+  local encoded = vim.json.encode(strip_internal_fields(data))
   local tmp = path .. ".tmp"
   local ok, err = pcall(vim.fn.writefile, vim.split(encoded, "\n", { plain = true }), tmp)
   if not ok then
     return false, tostring(err)
   end
-  local renamed = vim.uv.fs_rename(tmp, path)
+  -- #17 修复: 使用 safe_chmod 设置权限
+  safe_chmod(tmp, 384) -- 0600
+  -- M-11 修复: uv.fs_rename 成功返回 true，失败返回 nil, err
+  local renamed, rename_err = vim.uv.fs_rename(tmp, path)
   if not renamed then
     os.remove(tmp)
-    return false, "failed to rename temporary json file"
+    return false, "failed to rename temporary json file: " .. tostring(rename_err)
   end
   return true
 end

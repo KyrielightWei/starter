@@ -39,11 +39,16 @@ local Providers = require("ai.providers")
 
 local M = {}
 
--- 简单缓存：减少重复文件读取
+-- 缓存：减少重复文件读取，带 mtime 校验
 local read_cache = nil
+-- #8 修复: 使用 sec + nsec 提高精度
+local read_cache_mtime_sec = 0
+local read_cache_mtime_nsec = 0
 
 local function invalidate_cache()
   read_cache = nil
+  read_cache_mtime_sec = 0
+  read_cache_mtime_nsec = 0
 end
 
 local function keys_path()
@@ -168,11 +173,19 @@ end
 -- read(): 读取 key 文件
 ----------------------------------------------------------------------
 function M.read()
-  if read_cache then
-    return read_cache
-  end
   local path = keys_path()
+  -- 校验文件 mtime，外部修改后自动失效缓存
+  -- #8 修复: 使用 sec + nsec 提高精度
+  if read_cache then
+    local stat = vim.uv.fs_stat(path)
+    if stat and stat.mtime.sec == read_cache_mtime_sec and stat.mtime.nsec == read_cache_mtime_nsec then
+      return read_cache
+    end
+  end
   read_cache = safe_load_lua(path)
+  local stat = vim.uv.fs_stat(path)
+  read_cache_mtime_sec = stat and stat.mtime.sec or 0
+  read_cache_mtime_nsec = stat and stat.mtime.nsec or 0
   return read_cache
 end
 
@@ -269,15 +282,15 @@ end
 function M.get_global_default()
   local tbl = M.read()
   if not tbl then
-    return "bailian_coding", "qwen3.6-plus"
+    return Providers.DEFAULT_PROVIDER, Providers.DEFAULT_MODEL
   end
 
   if tbl.global_default and tbl.global_default.provider then
     return tbl.global_default.provider, tbl.global_default.model
   end
 
-  -- Fallback: 硬编码值
-  return "bailian_coding", "qwen3.6-plus"
+  -- Fallback: 常量值
+  return Providers.DEFAULT_PROVIDER, Providers.DEFAULT_MODEL
 end
 
 ----------------------------------------------------------------------
@@ -373,8 +386,8 @@ function M.get_effective_default(tool_name)
     return global_provider, global_model
   end
 
-  -- Level 3: 硬编码 fallback
-  return "bailian_coding", "qwen3.6-plus"
+  -- Level 3: 常量 fallback
+  return Providers.DEFAULT_PROVIDER, Providers.DEFAULT_MODEL
 end
 
 ----------------------------------------------------------------------

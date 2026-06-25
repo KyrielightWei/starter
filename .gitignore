@@ -26,6 +26,8 @@ Thumbs.db
 
 # Agent evidence
 .sisyphus/
+pi-session-*.html
+REVIEW_FIXES_SUMMARY.md
 
 # Local agent settings
 .qoder/settings.local.json

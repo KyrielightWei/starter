@@ -109,11 +109,9 @@ end
 function M.format_model_display(model_id, is_default, metadata, status)
   metadata = metadata or {}
   local icon = is_default and ICONS.default or ICONS.model
-  local context = metadata.context_length or ""
-  if context and #context > 0 then
+  local context = metadata.context_length and tostring(metadata.context_length) or ""
+  if context ~= "" then
     context = string.format("[%s]", context)
-  else
-    context = ""
   end
   local base = string.format("%s %s %s", icon, model_id, context)
 
@@ -148,10 +146,10 @@ function M.floating_input(opts, callback)
   local buf = vim.api.nvim_create_buf(false, true)
 
   -- CRITICAL: Set modifiable BEFORE any operations
-  vim.api.nvim_buf_set_option(buf, "modifiable", true)
-  vim.api.nvim_buf_set_option(buf, "buftype", "acwrite")
-  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
-  vim.api.nvim_buf_set_option(buf, "swapfile", false)
+  vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
+  vim.api.nvim_set_option_value("buftype", "acwrite", { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+  vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
 
   -- Set initial content AFTER modifiable is set
   -- Add left padding for better visual appearance
@@ -185,8 +183,8 @@ function M.floating_input(opts, callback)
   local win = vim.api.nvim_open_win(buf, true, win_opts)
 
   -- Set window options for better input experience
-  vim.api.nvim_win_set_option(win, "winhl", "Normal:Normal")
-  vim.api.nvim_win_set_option(win, "cursorline", false)
+  vim.api.nvim_set_option_value("winhl", "Normal:Normal", { win = win })
+  vim.api.nvim_set_option_value("cursorline", false, { win = win })
 
   -- Define keymaps AFTER window is open
   -- Enter: confirm input (strip leading padding)
@@ -217,9 +215,15 @@ function M.floating_input(opts, callback)
     end
   end, { buffer = buf, nowait = true, silent = true })
 
-  -- CRITICAL: Enter insert mode IMMEDIATELY using feedkeys
-  -- Move cursor to end of content (after padding + default text)
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>A", true, false, true), "n", false)
+  -- M-06 修复: 使用 nvim_win_call 替代 feedkeys，更可靠地进入 insert mode
+  vim.schedule(function()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_call(win, function()
+        vim.cmd("normal! A")
+        vim.cmd("startinsert!")
+      end)
+    end
+  end)
 end
 
 return M

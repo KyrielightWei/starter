@@ -13,7 +13,16 @@ local M = {}
 ---@field direction "float"|"horizontal"|"vertical" 打开方向
 
 local managed = {} -- id -> TerminalEntry
-local next_id = 100 -- 从 100 开始，避免与 toggleterm 默认编号冲突
+-- M-12 修复: 使用函数计算 next_id，避免模块重载时 ID 无限增长
+local function get_next_id()
+  local max_id = 99
+  for id, _ in pairs(managed) do
+    if id > max_id then
+      max_id = id
+    end
+  end
+  return max_id + 1
+end
 
 -- 预设命令注册表
 M.presets = {
@@ -34,8 +43,7 @@ local function get_toggleterm()
 end
 
 local function alloc_id()
-  local id = next_id
-  next_id = next_id + 1
+  local id = get_next_id()
   return id
 end
 
@@ -334,6 +342,12 @@ function M.create_preset(name, opts)
 
   local cmd = preset.cmd
   if opts.args then
+    -- #9 修复: 拒绝明显的 shell 元字符注入（允许 -、=、/、.、~、空格）
+    -- 添加控制字符检查（%c 匹配控制字符）
+    if opts.args:match("[;|&`$%(%){}!<>%c]") then
+      vim.notify("Terminal: args 包含不安全字符，已拒绝", vim.log.levels.ERROR)
+      return nil
+    end
     cmd = cmd .. " " .. opts.args
   end
 

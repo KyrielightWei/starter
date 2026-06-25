@@ -175,8 +175,8 @@ function M.open(opts)
  设置基础提交后，picker 将自动刷新显示从基础提交到 HEAD 的变更。
 ]]
         local buf = vim.api.nvim_create_buf(false, true)
-        vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
-        vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+        vim.api.nvim_set_option_value("filetype", "markdown", { buf = buf })
+        vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
         local lines = vim.split(help_text, "\n")
         vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 

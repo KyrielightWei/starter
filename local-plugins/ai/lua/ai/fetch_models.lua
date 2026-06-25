@@ -11,6 +11,10 @@ local M = {}
 local model_cache = {}
 local cache_ttl = 300 -- seconds
 
+-- #5 修复: 跟踪未清理的临时文件，VimLeave 时兜底清理
+local _pending_header_files = {}
+local _cleanup_registered = false
+
 ----------------------------------------------------------------------
 -- clear_cache(): 清除所有缓存
 ----------------------------------------------------------------------
@@ -87,65 +91,106 @@ function M.fetch_async(provider_name, callback)
     end
 
     local url = candidates[idx]
-    local cmd_parts = { "curl", "-s", "-m", "5" } -- 5秒超时
-    for _, header in ipairs(headers) do
-      if header and header ~= "" then
-        table.insert(cmd_parts, "-H")
-        table.insert(cmd_parts, header)
+    local cmd_parts = { "curl", "-s", "-m", "5" }
+
+    -- 使用临时文件传递 headers，避免 API key 暴露在进程参数中
+    local header_file
+    if #headers > 0 then
+      header_file = os.tmpname()
+      _pending_header_files[header_file] = true
+      -- #5 修复: 注册 VimLeave 兜底清理（只注册一次）
+      if not _cleanup_registered then
+        _cleanup_registered = true
+        vim.api.nvim_create_autocmd("VimLeavePre", {
+          group = vim.api.nvim_create_augroup("AI_FetchModelsCleanup", { clear = true }),
+          callback = function()
+            for f, _ in pairs(_pending_header_files) do
+              os.remove(f)
+            end
+          end,
+        })
+      end
+      local f = io.open(header_file, "w")
+      if f then
+        for _, header in ipairs(headers) do
+          if header and header ~= "" then
+            -- 转义双引号和反斜杠，防止 curl config 格式注入
+            local escaped = header:gsub("\\", "\\\\"):gsub('"', '\\"')
+            f:write('-H "' .. escaped .. '"\n')
+          end
+        end
+        f:close()
+        vim.uv.fs_chmod(header_file, 384) -- 0600
+        table.insert(cmd_parts, "--config")
+        table.insert(cmd_parts, header_file)
       end
     end
     table.insert(cmd_parts, url)
 
     vim.system(cmd_parts, { text = true }, function(result)
-      if result.code == 0 and result.stdout and result.stdout:match("%S") then
-        local ok_json, json = pcall(vim.fn.json_decode, result.stdout)
-        if ok_json and type(json) == "table" then
-          -- OpenAI 格式：{ data = { {id=...}, ... } }
-          if json.data and type(json.data) == "table" then
-            for _, v in ipairs(json.data) do
-              if v.id then
+      -- #3 修复: 确保临时文件清理，带重试机制
+      vim.schedule(function()
+        if header_file then
+          if not os.remove(header_file) then
+            -- 延迟重试，避免阻塞主线程
+            vim.defer_fn(function()
+              os.remove(header_file)
+              _pending_header_files[header_file] = nil
+            end, 50)
+          else
+            _pending_header_files[header_file] = nil
+          end
+        end
+        if result.code == 0 and result.stdout and result.stdout:match("%S") then
+          local ok_json, json = pcall(vim.fn.json_decode, result.stdout)
+          if ok_json and type(json) == "table" then
+            -- OpenAI 格式：{ data = { {id=...}, ... } }
+            if json.data and type(json.data) == "table" then
+              for _, v in ipairs(json.data) do
+                if v.id then
+                  table.insert(collected, v)
+                end
+              end
+            -- 数组格式：[{id=...}, ...]
+            elseif type(json[1]) == "table" and json[1].id then
+              for _, v in ipairs(json) do
                 table.insert(collected, v)
               end
-            end
-          -- 数组格式：[{id=...}, ...]
-          elseif type(json[1]) == "table" and json[1].id then
-            for _, v in ipairs(json) do
-              table.insert(collected, v)
-            end
-          -- 字典格式
-          else
-            for _, v in pairs(json) do
-              if type(v) == "table" and v.id then
-                table.insert(collected, v)
+            -- 字典格式
+            else
+              for _, v in pairs(json) do
+                if type(v) == "table" and v.id then
+                  table.insert(collected, v)
+                end
               end
             end
           end
         end
-      end
 
-      -- 去重
-      local seen, uniq = {}, {}
-      for _, m in ipairs(collected) do
-        local id = m.id or tostring(m)
-        if not seen[id] then
-          seen[id] = true
-          table.insert(uniq, m)
+        -- 去重
+        local seen, uniq = {}, {}
+        for _, m in ipairs(collected) do
+          local id = m.id or tostring(m)
+          if not seen[id] then
+            seen[id] = true
+            table.insert(uniq, m)
+          end
         end
-      end
 
-      -- 成功则停止，失败则继续尝试下一个 URL
-      if #uniq > 0 then
-        model_cache[provider_name] = {
-          models = uniq,
-          timestamp = os.time(),
-          url = url,
-        }
-        if callback then
-          callback(uniq)
+        -- 成功则停止，失败则继续尝试下一个 URL
+        if #uniq > 0 then
+          model_cache[provider_name] = {
+            models = uniq,
+            timestamp = os.time(),
+            url = url,
+          }
+          if callback then
+            callback(uniq)
+          end
+        else
+          try_url(idx + 1, collected)
         end
-      else
-        try_url(idx + 1, collected)
-      end
+      end)
     end)
   end
 
@@ -154,12 +199,12 @@ function M.fetch_async(provider_name, callback)
 end
 
 ----------------------------------------------------------------------
--- fetch(provider_name)
--- 同步获取模型列表（会阻塞 UI，最多 3 秒）
--- 返回：models, tried_urls, succeeded_urls, failed_urls
--- ⚠️ 已弃用：推荐使用 fetch_async() 以避免阻塞 UI
+-- H-05 修复: fetch() 已废弃 — 会阻塞 UI 最多 3 秒
+-- 请使用 fetch_async() 以避免阻塞 UI
+-- @deprecated
 ----------------------------------------------------------------------
 function M.fetch(provider_name)
+  vim.deprecate("fetch_models.fetch()", "fetch_models.fetch_async()", "3.0.0", "ai")
   local def = Providers.get(provider_name)
   if not def or not def.endpoint then
     return nil, {}, {}, {}

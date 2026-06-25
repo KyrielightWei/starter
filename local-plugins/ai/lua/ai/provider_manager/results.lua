@@ -3,8 +3,9 @@
 
 local M = {}
 
-M._win = nil
-M._buf = nil
+-- L-05 修复: 使用文件级 local 变量，避免外部意外修改
+local _win = nil
+local _buf = nil
 
 local STATUS_SYMBOLS = {
   available = "✓",
@@ -61,13 +62,13 @@ end
 -- Private: Close existing window/buffer
 ----------------------------------------------------------------------
 local function close_existing()
-  if M._win and vim.api.nvim_win_is_valid(M._win) then
-    vim.api.nvim_win_close(M._win, true)
-    M._win = nil
+  if _win and vim.api.nvim_win_is_valid(_win) then
+    vim.api.nvim_win_close(_win, true)
+    _win = nil
   end
-  if M._buf and vim.api.nvim_buf_is_valid(M._buf) then
-    vim.api.nvim_buf_delete(M._buf, { force = true })
-    M._buf = nil
+  if _buf and vim.api.nvim_buf_is_valid(_buf) then
+    vim.api.nvim_buf_delete(_buf, { force = true })
+    _buf = nil
   end
 end
 
@@ -122,8 +123,8 @@ function M.show_results(results, title)
 
   local win = create_window(title, width, height, buf)
 
-  M._win = win
-  M._buf = buf
+  _win = win
+  _buf = buf
 
   -- Keymap: q closes window
   vim.keymap.set("n", "q", function()
@@ -174,8 +175,8 @@ function M.show_single_result(result, title)
 
   local win = create_window(title, width, height, buf)
 
-  M._win = win
-  M._buf = buf
+  _win = win
+  _buf = buf
 
   vim.keymap.set("n", "q", function()
     close_existing()

@@ -408,46 +408,94 @@ cmd("AIReviewClose", function()
   safe_require("ai_review.init", "close")
 end, { desc = "Close AI review session" })
 
+cmd("AIReviewApprove", function()
+  safe_require("ai_review.init", "approve")
+end, { desc = "Approve/reject current hunk" })
+
+cmd("AIReviewList", function()
+  safe_require("ai_review.init", "list_comments")
+end, { desc = "List all comments for current file" })
+
+cmd("AIReviewFilter", function()
+  safe_require("ai_review.init", "filter_files")
+end, { desc = "Filter out non-code files from diffview" })
+
+cmd("AIReviewPreview", function()
+  safe_require("ai_review.diffview", "preview_under_cursor")
+end, { desc = "Preview comment under cursor" })
+
+-- 文件过滤配置命令
+cmd("AIReviewExclude", function(opts)
+  local pattern = opts.args
+  if not pattern or pattern == "" then
+    -- 显示当前排除列表
+    local Config = require("ai_review.config")
+    local patterns = Config.get_exclude_patterns()
+    local lines = { "当前排除的文件模式:", "" }
+    for i, p in ipairs(patterns) do
+      table.insert(lines, string.format("  %d. %s", i, p))
+    end
+    table.insert(lines, "")
+    table.insert(lines, "用法: :AIReviewExclude <pattern>  添加排除模式")
+    table.insert(lines, "      :AIReviewInclude <pattern>  移除排除模式")
+    table.insert(lines, "      :AIReviewExcludeReset       重置为默认")
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+    return
+  end
+  local Config = require("ai_review.config")
+  Config.add_exclude_pattern(pattern)
+  vim.notify("已添加排除模式: " .. pattern, vim.log.levels.INFO)
+end, { nargs = "?", desc = "Add file exclude pattern" })
+
+cmd("AIReviewInclude", function(opts)
+  local pattern = opts.args
+  if not pattern or pattern == "" then
+    vim.notify("用法: :AIReviewInclude <pattern>", vim.log.levels.ERROR)
+    return
+  end
+  local Config = require("ai_review.config")
+  if Config.remove_exclude_pattern(pattern) then
+    vim.notify("已移除排除模式: " .. pattern, vim.log.levels.INFO)
+  else
+    vim.notify("未找到模式: " .. pattern, vim.log.levels.WARN)
+  end
+end, { nargs = "+", desc = "Remove file exclude pattern" })
+
+cmd("AIReviewExcludeReset", function()
+  local Config = require("ai_review.config")
+  Config.reset_exclude_patterns()
+  vim.notify("已重置排除模式为默认", vim.log.levels.INFO)
+end, { desc = "Reset exclude patterns to default" })
+
 -- Commit Picker 导航辅助函数
+-- #9 修复: 首次调用时打开第一个提交的 diff，后续调用 cycle_next
 local function commit_navigate_next()
-  -- 已加载时直接切换
   local ok_nav, Nav = pcall(require, "commit_picker.navigation")
-  if ok_nav and Nav.is_loaded() then
-    Nav.cycle_next()
+  if not ok_nav then
+    vim.notify("导航模块加载失败", vim.log.levels.WARN)
     return
   end
-
-  -- 首次加载：获取模块
-  local ok_cp, CP = pcall(require, "commit_picker.init")
-  if not ok_cp then
-    vim.notify("Commit Picker 加载失败", vim.log.levels.WARN)
+  if not Nav.is_loaded() then
+    -- 首次加载：获取提交列表并打开第一个提交的 diff
+    local count = Nav.load_commits()
+    if count == 0 then
+      vim.notify("没有可导航的提交", vim.log.levels.INFO)
+      return
+    end
+    local sha = Nav.get_current_sha()
+    if sha then
+      local ok_diff, Diff = pcall(require, "commit_picker.diff")
+      if ok_diff then
+        Diff.open_diff({ sha })
+      end
+      local pos = Nav.get_position()
+      if pos then
+        vim.notify(string.format("1/%d: %s", pos.total, pos.commit.subject), vim.log.levels.INFO)
+      end
+    end
     return
   end
-
-  local ok_git, Git = pcall(require, "commit_picker.git")
-  if not ok_git then
-    vim.notify("Git 模块加载失败", vim.log.levels.WARN)
-    return
-  end
-
-  local ok_diff, Diff = pcall(require, "commit_picker.diff")
-  if not ok_diff then
-    vim.notify("Diff 模块加载失败", vim.log.levels.WARN)
-    return
-  end
-
-  -- 获取提交并打开 diff
-  local commits = Git.get_commits_for_mode()
-  if not commits or #commits == 0 then
-    vim.notify("没有可导航的提交", vim.log.levels.INFO)
-    return
-  end
-
-  Diff.open_diff({ commits[1].sha })
-  if ok_nav and Nav.load_commits then
-    Nav.load_commits()
-  end
-  vim.notify(string.format("1/%d: %s", #commits, commits[1].subject), vim.log.levels.INFO)
+  Nav.cycle_next()
 end
 
 vim.keymap.set("n", "<leader>kf", commit_navigate_next, { desc = "Next Commit" })
@@ -477,8 +525,9 @@ vim.keymap.set("n", "<leader>kd", function()
 end, { desc = "Diff Viewer" })
 
 -- AI Review Workbench
-vim.keymap.set("n", "<leader>krr", "<cmd>AIReviewStart<CR>", { desc = "AI Review Start" })
-vim.keymap.set("n", "<leader>kra", "<cmd>AIReviewAdd<CR>", { desc = "AI Review Add Comment" })
-vim.keymap.set("n", "<leader>krl", "<cmd>AIReviewPanel<CR>", { desc = "AI Review Panel" })
-vim.keymap.set("n", "<leader>krx", "<cmd>AIReviewExport<CR>", { desc = "AI Review Export" })
-vim.keymap.set("n", "<leader>krs", "<cmd>AIReviewStatus<CR>", { desc = "AI Review Status" })
+-- 全局快捷键：不依赖 diffview 上下文，任何场景可用
+vim.keymap.set("n", "<leader>kr", "<cmd>AIReviewStart<CR>", { desc = "Review: Start" })
+vim.keymap.set("n", "<leader>kl", "<cmd>AIReviewPanel<CR>", { desc = "Review: Panel" })
+vim.keymap.set("n", "<leader>kx", "<cmd>AIReviewExport<CR>", { desc = "Review: Export" })
+-- 注: <leader>ka/kv/ky/kc 依赖 diffview 上下文，仅在 diffview buffer 内注册
+-- 见 ai_review/diffview.lua install_keymaps()

@@ -34,86 +34,82 @@ Or CLI flags: `--config-dir`, `--bin-dir`, `--bin`, `--log-file`, `--pid-file`
 ### Commands
 
 ```bash
-# Overall status, including process PID
-mihomo-mgr.py status
+# 交互式选择（最简单）
+mm pick                   # 交互式选择器
+                          # 1. 选择组 → 2. 组操作菜单 → 3. 选择节点 → 4. 节点操作
+                          # 支持关键词过滤、/正则/ 匹配、编号选择
+                          # 组级操作：测试所有节点、自动选最快、查看详情
+                          # 节点级操作：切换、测速、详情
 
-# Persistent configuration
-mihomo-mgr.py config
-mihomo-mgr.py config-init
-mihomo-mgr.py config-set --config-dir /path/to/config --bin-dir /path/to/bin
-mihomo-mgr.py config-set --sub-url "https://example.com/sub"
-mihomo-mgr.py config-set --proxy-host 127.0.0.1 --mixed-port 10808
-mihomo-mgr.py config-set --proxy-http-port 10808 --proxy-socks-port 10808
-mihomo-mgr.py config-clear
+# 智能快捷方式（推荐）
+mm                        # 查看状态
+mm 节点                    # 列出节点（自动匹配组）
+mm 切换 香港               # 自动选最快香港节点
+mm 测速                    # 测试延迟
 
-# Subscription config
-mihomo-mgr.py sub-show
-mihomo-mgr.py sub-pull
-mihomo-mgr.py sub-pull --url "https://example.com/sub"
+# 英文简写
+mm p                      # pick（交互式选择）
+mm s / st                 # status
+mm n                      # nodes
+mm g                      # groups
+mm b                      # best
+mm d                      # delay
+mm c                      # conns
+mm l                      # logs
 
-# Terminal proxy environment
-mihomo-mgr.py proxy-status
-eval "$(mihomo-mgr.py proxy-on)"
-eval "$(mihomo-mgr.py proxy-off)"
+# 核心命令
+mm status                 # Overall status, including process PID
+mm groups                 # List all proxy groups
+mm nodes [group]          # List nodes (partial match: "节点" → "🚀 节点选择")
+mm select [group] [node]  # Switch node
+mm best [group] [keywords...]  # Auto-select fastest node
+mm delay [target]         # Test delay (auto-detect group/node)
 
-# Process lifecycle
-mihomo-mgr.py start
-mihomo-mgr.py stop
-mihomo-mgr.py restart
+# 进程管理
+mm start / stop / restart
 
-# Logs
-mihomo-mgr.py logs              # Show recent 50 lines with file info
-mihomo-mgr.py logs -n 200       # Show recent 200 lines
-mihomo-mgr.py logs -f           # Follow log (tail -f style)
-mihomo-mgr.py logs-clear        # Clear log file
-mihomo-mgr.py logs-clear --keep 100  # Keep last 100 lines
+# 配置管理（子命令）
+mm config                 # Show config
+mm config init            # Create config template
+mm config set --key value # Set config
+mm config clear           # Clear config
 
-# Config data files
-mihomo-mgr.py db-check                  # Check country.mmdb + geosite.dat
-mihomo-mgr.py db-check --download       # Download missing default files
-mihomo-mgr.py db-check --geodata        # Also check geoip.dat
-mihomo-mgr.py db-check --asn            # Also check GeoLite2-ASN.mmdb
-mihomo-mgr.py db-download --all         # Download all db/dat/mmdb files
+# 代理环境（子命令）
+mm proxy                  # Show proxy status
+mm proxy on               # Enable proxy (eval "$(mm proxy on)")
+mm proxy off              # Disable proxy
 
-# Proxy mode (rule/global/direct)
-mihomo-mgr.py mode              # Get current mode
-mihomo-mgr.py mode rule         # Set mode
+# 日志管理
+mm logs                   # Show recent logs
+mm logs --clear           # Clear logs
 
-# Proxy groups & nodes
-mihomo-mgr.py groups            # List all proxy groups
-mihomo-mgr.py nodes <group>     # List nodes in a group
-mihomo-mgr.py select <group> <node>  # Switch node
-mihomo-mgr.py best <group> <keyword...>  # Auto-select fastest node by region keywords
-mihomo-mgr.py best <group> <keyword...> --watch  # Create url-test group for auto-failover
-mihomo-mgr.py best --list       # List active watch groups and status
-mihomo-mgr.py best <group> <keyword...> --switch  # Switch to an existing watch group
-mihomo-mgr.py best <group> --watch-off  # Remove watch group and restore
+# 订阅管理（子命令）
+mm sub pull               # Pull subscription
+mm sub show               # Show status
 
-# Delay testing
-mihomo-mgr.py delay <node>      # Test single node
-mihomo-mgr.py delay-group <group>    # Test all nodes in group
+# 数据库文件
+mm db                     # Check DB files
+mm db --download          # Download missing files
 
-# Connections
-mihomo-mgr.py conns [--limit N]      # List active connections
-mihomo-mgr.py conns-close [--id ID]  # Close one or all connections
+# 连接管理
+mm conns                  # List connections
+mm conns --close          # Close all connections
 
-# Rules
-mihomo-mgr.py rules [--limit N]
-
-# DNS
-mihomo-mgr.py dns <domain> [--type A|AAAA|CNAME]
-mihomo-mgr.py flush-dns
-
-# Maintenance
-mihomo-mgr.py api-restart       # Restart mihomo core via API
-mihomo-mgr.py upgrade-geo       # Update GeoIP/GeoSite databases
+# 正则模式（可选）
+mm nodes "节点" --filter "IEPL.*港" --regex
+mm select "节点" "IEPL.*港" --regex
+mm best "节点" "日本|香港" --regex
 
 # Shell completion
-source <(mihomo-mgr.py completion bash)  # Enable tab completion (group/node/mode names)
-source <(mihomo-mgr.py completion zsh)   # Same for zsh
+source <(mm completion bash)  # Enable tab completion
+source <(mm completion zsh)
 
-# Scripting
-mihomo-mgr.py status --json     # Machine-readable JSON output
+# 旧命令兼容（自动转换）
+mm delay-group → mm delay
+mm logs-clear → mm logs --clear
+mm config-init → mm config init
+mm proxy-on → mm proxy on
+# ... 等等
 ```
 
 ## Notes
@@ -132,6 +128,9 @@ mihomo-mgr.py status --json     # Machine-readable JSON output
 - `db-check --download` downloads missing default files: `country.mmdb` and `geosite.dat`
 - `--geodata` adds `geoip.dat`; `--asn` adds `GeoLite2-ASN.mmdb`; `--all` includes all db/dat/mmdb files (including lite editions)
 - Group/node names with special characters (emoji, CJK) are supported
+- **Group name partial match**: `nodes "节点"` automatically matches `🚀 节点选择` (no need for exact name or emoji)
+- **Regex mode** (`--regex`): Group names and node filters support regex patterns. `nodes "节点" --regex` matches groups containing "节点"; `--filter "IEPL.*港" --regex` filters nodes with regex
+- **Interactive picker** (`pick` / `p`): Two-level menu — group actions (test all, auto-select best, view details) and node actions (switch, test delay, view details). Supports keyword filtering and `/regex/` syntax at every step
 - `best` filters nodes by region keywords (e.g. 日本 美国), tests delays concurrently, and auto-selects the fastest
 - `best --watch` creates a url-test proxy group in config.yaml with the filtered nodes, reloads mihomo, and lets the native url-test mechanism handle health checks and failover automatically (no external polling needed); use `--watch-off` to remove the group and restore the original selection
 - Default url-test parameters: `interval=15s` (health check every 15 seconds), `tolerance=50ms`, `timeout=2000ms`; configurable via `--interval`, `--tolerance`, `--health-timeout`

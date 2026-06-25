@@ -16,21 +16,29 @@ local cache = {
 local deep_merge = JsonUtil.deep_merge
 local strip_jsonc_comments = JsonUtil.strip_jsonc_comments
 
--- ${file:...} 引用允许的根目录白名单
--- 防止任意文件读取（例如 /etc/passwd、~/.ssh/id_rsa）
+-- C-02 修复：${file:...} 引用允许的根目录白名单（收窄范围）
+-- 只允许读取 AI 工具相关的配置文件，而非整个 ~/.config/
 local function is_file_path_allowed(path)
   local expanded = vim.fn.expand(path)
-  local abs = vim.fn.fnamemodify(expanded, ":p")
+  -- 解析 symlink，防止通过 symlink 绕过白名单
+  -- #7 修复: 如果 fs_realpath 失败，fallback 到原始路径
+  local abs = vim.uv.fs_realpath(expanded)
+  if not abs then
+    abs = vim.fn.fnamemodify(expanded, ":p")
+  end
   local home = vim.fn.expand("~")
   local allowed_prefixes = {
-    home .. "/.config/",
-    home .. "/.local/state/",
+    home .. "/.config/opencode/",
+    home .. "/.config/claude/",
+    home .. "/.config/ccstatusline/",
+    home .. "/.config/pi/",
     home .. "/.claude/",
     home .. "/.opencode/",
-    vim.fn.stdpath("config") .. "/",
-    vim.fn.stdpath("state") .. "/",
-    vim.fn.stdpath("data") .. "/",
-    vim.fn.getcwd() .. "/",
+    home .. "/.pi/",
+    home .. "/.local/state/nvim/",
+    vim.fn.stdpath("config") .. "/templates/",
+    vim.fn.stdpath("config") .. "/prompts/",
+    vim.fn.getcwd() .. "/.opencode.json",
   }
   for _, prefix in ipairs(allowed_prefixes) do
     if abs:sub(1, #prefix) == prefix then
@@ -289,7 +297,8 @@ end
 function M.resolve(opts)
   opts = opts or {}
 
-  if not opts.force and cache.config and os.time() - cache.last_modified < 5 then
+  -- M-02 修复：缓存失效由 invalidate_cache() 主动触发，TTL 仅作为安全网
+  if not opts.force and cache.config and os.time() - cache.last_modified < 30 then
     return cache.config
   end
 
@@ -336,7 +345,7 @@ function M.get(path, default)
 end
 
 function M.set(path, value)
-  local config = M.resolve()
+  local config = vim.deepcopy(M.resolve())
   local parts = vim.split(path, ".", { plain = true })
   local current = config
 

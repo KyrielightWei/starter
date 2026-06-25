@@ -30,9 +30,9 @@ function M.safe_write_file(path, content)
 
   local uv = vim.uv or vim.loop
   if uv and uv.fs_rename then
-    -- FIX: uv.fs_rename returns nil on success, error on failure (NOT throws exception)
+    -- M-08 修复：uv.fs_rename 成功返回 true，失败返回 nil, err
     local result, rename_err = uv.fs_rename(tmp_path, path)
-    if result == nil and rename_err == nil then
+    if result then
       rename_success = true
     else
       rename_error = rename_err or "unknown error"
@@ -102,10 +102,12 @@ function M.read_lua_table(path)
     end
   end
 
-  -- Pre-scan file content for dangerous patterns before executing with dofile
-  -- This provides defense-in-depth alongside directory containment checks
+  -- C-01 修复：使用沙箱 load 替代 dofile，防止任意代码执行
+  -- 即使目录检查和模式扫描被绕过，沙箱环境也能阻止危险操作
   local content_lines = vim.fn.readfile(path)
   local content = table.concat(content_lines, "\n")
+
+  -- 预扫描危险模式（纵深防御）
   local dangerous_patterns = {
     "os%.execute",
     "os%.spawn",
@@ -121,9 +123,17 @@ function M.read_lua_table(path)
     end
   end
 
-  local ok, result = pcall(dofile, path)
+  -- 沙箱执行：空环境表阻止访问全局变量（require, os, io 等）
+  local func, load_err = load(content, path, "t", {})
+  if not func then
+    return nil, "Failed to load Lua file: " .. tostring(load_err)
+  end
+  local ok, result = pcall(func)
   if not ok then
-    return nil, "Failed to parse Lua file: " .. tostring(result)
+    return nil, "Failed to execute Lua file: " .. tostring(result)
+  end
+  if type(result) ~= "table" then
+    return nil, "Lua file must return a table, got: " .. type(result)
   end
   return result, nil
 end

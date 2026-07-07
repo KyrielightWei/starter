@@ -200,7 +200,24 @@ install_pi_pkg() {
   fi
 }
 
+install_local_pi_pkg() {
+  local pkg_dir="$1"
+  local package_name="$2"
+  local label="$3"
+  if pi list 2>/dev/null | grep -q "$package_name"; then
+    echo "  ✓ $label 已装 - 跳过"
+  else
+    echo "  ⏳ 安装 $label..."
+    if pi install "$pkg_dir"; then
+      echo "  ✓ $label"
+    else
+      echo "  ✗ $label 安装失败（手动: pi install $pkg_dir）"
+    fi
+  fi
+}
+
 if command -v pi >/dev/null 2>&1; then
+  install_local_pi_pkg "$PROJECT_ROOT/pi/packages/loop-guard" "starter-pi-loop-guard" "Loop Guard (重复工具/输出熔断)"
   install_pi_pkg "git:github.com/obra/superpowers"     "Superpowers"
   install_pi_pkg "npm:pi-mcp-adapter"                  "pi-mcp-adapter (MCP support)"
   install_pi_pkg "git:github.com/anthropics/skills"    "Anthropic Skills"
@@ -305,17 +322,17 @@ cat <<EOF
   ├── AGENTS.md          (全局工作流约定 ~200 行)
   ├── themes/
   │   └── kanagawa.json
-  ├── extensions/        (自研 + Pi 官方安全扩展 + 多文件扩展)
-  │   ├── statusbar.ts
-  │   ├── todo.ts
-  │   ├── permission-gate.ts   (拦截 rm -rf / sudo / chmod 777)
-  │   ├── protected-paths.ts   (阻止写 .env / *.pem)
-  │   ├── git-checkpoint.ts    (每 turn 自动 stash)
-  │   ├── dirty-repo-guard.ts  (脏工作区禁切 session)
-  │   ├── notify.ts            (agent 等输入时终端通知)
-  │   ├── handoff.ts           (lossless 跨 session 转移)
-  │   ├── plan-mode/           (/plan 切 read-only 调研模式)
-  │   └── subagent/            (delegate to scout/planner/reviewer/worker)
+  ├── extensions/        (自研扩展 + 多文件扩展)
+  │   ├── statusbar.ts           (三行自定义状态栏)
+  │   ├── todo.ts                (TODO 管理)
+  │   ├── git-checkpoint.ts      (每 turn 自动 stash)
+  │   ├── dirty-repo-guard.ts    (脏工作区禁切 session)
+  │   ├── notify.ts              (agent 等输入时终端通知)
+  │   ├── handoff.ts             (lossless 跨 session 转移)
+  │   ├── working-indicator.ts   (工作进度)
+  │   ├── claude-rules.ts        (.claude/rules 加载)
+  │   ├── plan-mode/             (/plan 切 read-only 调研模式)
+  │   └── subagent/              (delegate to scout/planner/reviewer/worker)
   ├── agents/                  (subagent 用的角色定义, symlink 到 Pi examples)
   ├── skills/
   │   └── openspec/SKILL.md    (其余 skill 由 packages 提供)
@@ -325,6 +342,7 @@ MCP 配置: $MCP_DIR/mcp.json
   - context7 / filesystem / git / github / fetch / memory / playwright / chrome-devtools
 
 Community packages（pi list 查看）:
+  - starter-pi-loop-guard      - 重复工具调用/失败/输出熔断（本地 package）
   - obra/superpowers           - 14 个工程方法论 skill
   - pi-mcp-adapter             - MCP 支持
   - anthropics/skills          - 文档处理 (docx/pdf/pptx/xlsx)

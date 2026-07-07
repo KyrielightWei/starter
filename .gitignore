@@ -12,6 +12,7 @@ data
 *.bak
 *.swp
 *~
+.nvimlog
 
 # Test files
 test_*.lua
@@ -28,6 +29,8 @@ Thumbs.db
 .sisyphus/
 pi-session-*.html
 REVIEW_FIXES_SUMMARY.md
+docs/superpowers/
+.pi-lens/
 
 # Local agent settings
 .qoder/settings.local.json
@@ -46,9 +49,10 @@ REVIEW_FIXES_SUMMARY.md
 qoder.mcp.json
 qoder.settings.json
 
-# OpenSpec local config and empty spec dirs
+# OpenSpec local config and temporary change artifacts
 openspec/config.yaml
 openspec/changes/*/specs/
+openspec/changes/codex-mcp-integration/
 
 # Test scripts (contain hardcoded paths or environment-specific values)
 test_*.js

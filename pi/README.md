@@ -18,24 +18,22 @@ pi/
 ├── keybindings.template.jsonc      # Emacs 风格快捷键
 ├── mcp.template.jsonc              # MCP 配置 (→ ~/.config/mcp/mcp.json)
 │
-├── extensions/                     # 13 个扩展模板 + plan-mode
+├── extensions/                     # 8 个扩展模板 + plan-mode
 │   ├── statusbar.template.ts       # 三行状态栏 (自定义)
-│   ├── enhanced-exit.template.ts   # 退出确认 (自定义)
 │   ├── todo.template.ts            # TODO 管理
-│   ├── permission-gate.template.ts # 危险命令拦截
-│   ├── protected-paths.template.ts # 系统路径保护
 │   ├── git-checkpoint.template.ts  # Git stash 自动备份
 │   ├── dirty-repo-guard.template.ts# 工作区脏时警告
 │   ├── notify.template.ts          # OSC 通知
 │   ├── handoff.template.ts         # 会话转移
 │   ├── working-indicator.template.ts# 工作进度
 │   ├── claude-rules.template.ts    # .claude/rules 加载
-│   ├── confirm-destructive.template.ts # 破坏性操作确认
-│   ├── model-status.template.ts    # 模型状态
 │   └── plan-mode/                  # 计划模式扩展
 │       ├── index.template.ts
 │       ├── utils.template.ts
 │       └── README.md
+│
+├── packages/
+│   └── loop-guard/                 # 本地 Pi package：重复工具/输出熔断
 │
 └── skills/                         # 本地 skills
     └── openspec/SKILL.md           # SDD 工作流
@@ -43,10 +41,11 @@ pi/
 
 ## 📦 包管理
 
-Settings 模板 (`templates/pi/default.template.jsonc`) 声明了 11 个 Pi packages：
+Settings 模板 (`templates/pi/default.template.jsonc`) 声明了 11 个 Pi packages；安装脚本还会额外安装本仓库的本地 package `starter-pi-loop-guard`。
 
 | 包 | 提供内容 |
-|---|---|
+| --- | --- |
+| `pi/packages/loop-guard` | 重复工具调用、重复失败结果、重复 assistant 输出熔断 |
 | `git:github.com/obra/superpowers` | 14 skills (brainstorming/TDD/debugging/worktrees/verification 等) |
 | `git:github.com/anthropics/skills` | 17 官方 skills (docx/pdf/pptx 等) |
 | `git:github.com/badlogic/pi-skills` | 10 skills (search 等) |
@@ -60,6 +59,7 @@ Settings 模板 (`templates/pi/default.template.jsonc`) 声明了 11 个 Pi pack
 | `npm:@fission-ai/openspec` | SDD 工作流 |
 
 包自动提供的内容无需本地复制：
+
 - **Agents**: scout/planner/worker/reviewer 等由 pi-subagents 包提供
 - **Themes**: flexoki-dark/light 由 flexoki-pi-theme 包提供
 - **Extensions**: 6 个 npm 包各自提供扩展逻辑
@@ -96,9 +96,9 @@ export OPENAI_API_KEY='your-bailian-key'
 ## 📊 配置统计
 
 | 类型 | 数量 | 来源 |
-|------|------|------|
-| Packages | 11 | settings 声明 |
-| Extensions (本地) | 13 (含 plan-mode) | 本仓库模板 |
+| ------ | ------ | ------ |
+| Packages | 12 | settings 声明 + 本地 loop-guard package |
+| Extensions (本地) | 8 (含 plan-mode) | 本仓库模板 |
 | Extensions (包) | 6 | npm 包提供 |
 | Agents | 8+ | pi-subagents 包 |
 | Prompts (subagent) | 3 | pi-coding-agent subagent example |
@@ -126,7 +126,7 @@ export OPENAI_API_KEY='your-bailian-key'
 - `~/.pi/agent/settings.json` (从 `templates/pi/default.template.jsonc` 生成)
 - `~/.pi/agent/models.json` (从 Neovim provider/key/model 体系生成)
 - `~/.pi/agent/keybindings.json`
-- `~/.pi/agent/extensions/` (13 个扩展)
+- `~/.pi/agent/extensions/` (8 个扩展)
 - `~/.pi/agent/skills/openspec/`
 - `~/.pi/agent/AGENTS.md`
 
